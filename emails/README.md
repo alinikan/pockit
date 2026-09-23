@@ -2,7 +2,7 @@
 
 These four HTML templates use Pockit's dark green and lime palette. They need no paid design service, remote images, or custom web domain. The subject lines are entered separately in Supabase.
 
-The account deletion receipt and owner signup alert are separate code-based templates in [`server/email.ts`](../server/email.ts). Their exact setup is in [`ACCOUNT_EMAILS.md`](../ACCOUNT_EMAILS.md); they are sent from Vercel and are **not** pasted into Supabase's auth template editor.
+The account deletion receipt and owner signup alert are separate code-based templates in [`server/email.ts`](../server/email.ts). Their exact setup is in the [account email guide](../docs/ACCOUNT_EMAILS.md); they are sent from Vercel and are **not** pasted into Supabase's auth template editor.
 
 | Supabase template    | Subject                          | HTML file                              |
 | -------------------- | -------------------------------- | -------------------------------------- |
@@ -13,7 +13,7 @@ The account deletion receipt and owner signup alert are separate code-based temp
 
 ## Set them up
 
-1. Configure and test a custom SMTP sender in **Supabase → Authentication → SMTP Settings**. On a new Supabase Free project, the default mailer does not permit customized auth templates; custom SMTP restores template editing. Brevo or a dedicated Gmail sender can work without owning a domain. See the main [README](../README.md#3-configure-email-delivery).
+1. Configure and test a custom SMTP sender in **Supabase → Authentication → SMTP Settings**. On a new Supabase Free project, the default mailer does not permit customized auth templates; custom SMTP restores template editing. Brevo or a dedicated Gmail sender can work without owning a domain. See the [maintainer guide](../docs/MAINTAINER_GUIDE.md#3-configure-email-delivery).
 2. Set **Authentication → URL Configuration → Site URL** to the exact production `.vercel.app` URL and add it to the redirect allow list. Pockit passes its current website origin when requesting confirmation and reset emails.
 3. Open **Authentication → Email Templates** (the dashboard may show **Emails → Templates**). Choose **Confirm signup**. Replace its subject with the subject above. Open `confirmation.html` in a text editor, copy the **entire** file, paste it into the HTML/body editor, and save.
 4. Repeat for **Reset password**. The **Invite user** and **Change email address** templates are ready if you enable those flows later.

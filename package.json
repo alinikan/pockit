@@ -13,8 +13,8 @@
     "test": "vitest run",
     "test:ui": "playwright test",
     "test:watch": "vitest",
-    "format": "prettier --write src server api e2e playwright.config.ts index.html vite.config.ts vercel.json public/sw.js README.md ACCOUNT_EMAILS.md PASSKEYS.md BANK_CONNECTION.md emails/README.md",
-    "format:check": "prettier --check src server api e2e playwright.config.ts index.html vite.config.ts vercel.json public/sw.js README.md ACCOUNT_EMAILS.md PASSKEYS.md BANK_CONNECTION.md emails/README.md"
+    "format": "prettier --write src server api e2e playwright.config.ts index.html vite.config.ts vercel.json public/sw.js README.md docs/*.md emails/README.md",
+    "format:check": "prettier --check src server api e2e playwright.config.ts index.html vite.config.ts vercel.json public/sw.js README.md docs/*.md emails/README.md"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.0",
