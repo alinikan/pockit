@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { MonthKey, PockitData } from '../types'
 import {
   budgetHealth,
+  billsForMonth,
   categoryBudget,
   money,
   monthSummary,
@@ -17,7 +18,7 @@ const suggestions = [
   'How are my goals doing?',
   'Compare my spending to last month',
 ]
-function answer(question: string, data: PockitData, month: MonthKey) {
+export function answer(question: string, data: PockitData, month: MonthKey) {
   const q = question.toLowerCase()
   const currency = data.settings.currency
   const health = budgetHealth(data, month)
@@ -59,14 +60,16 @@ function answer(question: string, data: PockitData, month: MonthKey) {
   if (/income|paycheque|paycheck/.test(q))
     return `Your expected monthly take-home pay is ${money(health.income, currency, true)}. You’ve planned ${money(health.allocated, currency, true)} across categories, leaving ${money(health.unallocated, currency, true)} unallocated.`
   if (/bill|due|upcoming/.test(q)) {
-    const bills = data.bills
-      .filter((b) => !b.paidMonths.includes(month))
+    const bills = billsForMonth(data.bills, month)
+      .filter((b) => !b.paid && !b.skipped)
       .sort((a, b) => a.day - b.day)
     return bills.length
-      ? `Unpaid bills this month: ${bills.map((b) => `${b.name} ${money(b.amount, currency, true)} on day ${b.day}`).join('; ')}. Mark them paid in Calendar once they clear.`
+      ? `Unpaid reminders this month: ${bills.map((b) => `${b.name} ${money(b.amount, currency, true)} on day ${b.day}`).join('; ')}. Record a payment in Calendar when money leaves your account.`
       : 'There are no unpaid bills on your calendar for this month.'
   }
-  return `You’ve received or planned ${money(health.income, currency, true)} and spent ${money(health.spent, currency, true)} this month, leaving ${money(health.remaining, currency, true)}. ${health.trouble.length ? `${health.trouble.length} ${health.trouble.length === 1 ? 'category is' : 'categories are'} over plan.` : 'No categories are over plan.'} Ask me about spending, bills, debt, or a goal.`
+  if (/how am i|this month|overview|summary|doing/.test(q))
+    return `Your planned take-home pay is ${money(health.income, currency, true)} and you have entered ${money(health.spent, currency, true)} in expenses this month. That leaves ${money(health.remaining, currency, true)} in your monthly plan. ${health.trouble.length ? `${health.trouble.length} ${health.trouble.length === 1 ? 'category is' : 'categories are'} over plan.` : 'No categories are over plan.'} This is not an account balance.`
+  return 'I can show guided insights about this month, spending, bills, income, or a goal you added. Try one of the suggestions. I cannot answer general financial questions here.'
 }
 export function Coach({
   data,
@@ -80,7 +83,7 @@ export function Coach({
   const [messages, setMessages] = useState<{ role: 'user' | 'coach'; text: string }[]>([
     {
       role: 'coach',
-      text: 'Hi! I’m your Pockit money coach. I use the numbers you’ve entered to help you see what’s happening and what you could try next.',
+      text: 'Hi! I’m Pockit Insights. I use the numbers you entered to answer a few guided questions. No AI or bank connection is involved.',
     },
   ])
   const [input, setInput] = useState('')
@@ -101,14 +104,14 @@ export function Coach({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="coach-panel" role="dialog" aria-modal="true" aria-label="Pockit Money Coach">
+      <div className="coach-panel" role="dialog" aria-modal="true" aria-label="Pockit Insights">
         <div className="coach-header">
           <div className="coach-avatar">
             <Icon name="Sparkles" size={23} />
           </div>
           <div>
-            <strong>Money Coach</strong>
-            <small>Here to help you find clarity</small>
+            <strong>Pockit Insights</strong>
+            <small>Guided answers from your entries</small>
           </div>
           <button className="icon-button" aria-label="Close coach" onClick={onClose}>
             <Icon name="X" />
@@ -141,7 +144,7 @@ export function Coach({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about your money…"
-              aria-label="Ask Money Coach"
+              aria-label="Ask Pockit Insights"
             />
             <button disabled={!input.trim()} aria-label="Send">
               <Icon name="ArrowUp" size={18} />

@@ -31,6 +31,8 @@ export interface CloudSnapshot {
 }
 export interface PendingSnapshot extends CloudSnapshot {
   changedAt: string
+  /** Last cloud data this device started editing from. Used for safe three-way merges. */
+  base?: PockitData
 }
 const canonical = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonical)
@@ -44,6 +46,81 @@ const canonical = (value: unknown): unknown => {
 }
 export const sameData = (first: PockitData, second: PockitData) =>
   JSON.stringify(canonical(first)) === JSON.stringify(canonical(second))
+const equal = (first: unknown, second: unknown) =>
+  JSON.stringify(canonical(first)) === JSON.stringify(canonical(second))
+
+/** Merge disjoint edits; never guess when both devices changed the same field or record. */
+export function mergeSnapshots(
+  base: PockitData,
+  local: PockitData,
+  remote: PockitData,
+  prefer: 'device' | 'cloud' = 'device',
+) {
+  const conflicts: string[] = []
+  function choose<T>(name: string, before: T, here: T, there: T): T {
+    if (equal(here, there)) return here
+    if (equal(here, before)) return there
+    if (equal(there, before)) return here
+    conflicts.push(name)
+    return prefer === 'device' ? here : there
+  }
+  function fields<T extends object>(name: string, before: T, here: T, there: T): T {
+    const keys = new Set([...Object.keys(before), ...Object.keys(here), ...Object.keys(there)])
+    return Object.fromEntries(
+      [...keys].map((key) => [
+        key,
+        choose(
+          `${name}.${key}`,
+          (before as Record<string, unknown>)[key],
+          (here as Record<string, unknown>)[key],
+          (there as Record<string, unknown>)[key],
+        ),
+      ]),
+    ) as T
+  }
+  function records<T extends { id: string }>(
+    name: string,
+    before: T[] = [],
+    here: T[] = [],
+    there: T[] = [],
+  ): T[] {
+    const old = new Map(before.map((item) => [item.id, item]))
+    const mine = new Map(here.map((item) => [item.id, item]))
+    const theirs = new Map(there.map((item) => [item.id, item]))
+    const ids = new Set([...old.keys(), ...theirs.keys(), ...mine.keys()])
+    const output: T[] = []
+    for (const id of ids) {
+      const item = choose(`${name}:${id}`, old.get(id), mine.get(id), theirs.get(id))
+      if (item) output.push(item)
+    }
+    return output
+  }
+  const data: PockitData = {
+    ...remote,
+    version: choose('version', base.version, local.version, remote.version),
+    onboarded: choose('onboarded', base.onboarded, local.onboarded, remote.onboarded),
+    onboardingStep: choose(
+      'onboardingStep',
+      base.onboardingStep,
+      local.onboardingStep,
+      remote.onboardingStep,
+    ),
+    profile: fields('profile', base.profile, local.profile, remote.profile),
+    settings: fields('settings', base.settings, local.settings, remote.settings),
+    debtPlan: choose('debtPlan', base.debtPlan, local.debtPlan, remote.debtPlan),
+    accounts: records('accounts', base.accounts, local.accounts, remote.accounts),
+    categories: records('categories', base.categories, local.categories, remote.categories),
+    transactions: records(
+      'transactions',
+      base.transactions,
+      local.transactions,
+      remote.transactions,
+    ),
+    goals: records('goals', base.goals, local.goals, remote.goals),
+    bills: records('bills', base.bills, local.bills, remote.bills),
+  }
+  return { data, conflicts }
+}
 const pendingKey = (userId: string) => `pockit-pending-${userId}`
 const cacheKey = (userId: string) => `pockit-cache-${userId}`
 export const readPending = (userId: string): PendingSnapshot | null => {

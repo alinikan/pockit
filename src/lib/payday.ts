@@ -1,5 +1,6 @@
 import type { Bill, PockitData } from '../types'
 import { billsForMonth, monthKey } from './finance'
+import { accountBalance } from './ledger'
 import { validISODate } from './numbers'
 
 const iso = (date: Date) => date.toISOString().slice(0, 10)
@@ -49,6 +50,8 @@ export interface PaychequeForecast {
   bills: { bill: Bill; date: string }[]
   afterBills: number | null
   perDay: number | null
+  source: string | null
+  asOf: string | null
 }
 
 export function paychequeForecast(data: PockitData, today: string): PaychequeForecast {
@@ -57,6 +60,9 @@ export function paychequeForecast(data: PockitData, today: string): PaychequeFor
     ? Math.round((utcDate(payday).valueOf() - utcDate(today).valueOf()) / 86400000)
     : null
   const { cashAsOf, cashOnHand, cashUpdatedAt } = data.profile
+  const primaryAccount =
+    data.accounts?.find((account) => !account.archived && account.kind === 'chequing') ||
+    data.accounts?.find((account) => !account.archived && account.kind === 'cash')
   const hasBaseline =
     validISODate(cashAsOf || '') &&
     cashAsOf! <= today &&
@@ -73,19 +79,24 @@ export function paychequeForecast(data: PockitData, today: string): PaychequeFor
           transaction.date <= today,
       )
     : []
-  const estimatedCash = hasBaseline
-    ? cashOnHand! +
-      since.reduce(
-        (sum, transaction) =>
-          sum +
-          (transaction.type === 'income'
-            ? transaction.amount
-            : transaction.type === 'expense'
-              ? -transaction.amount
-              : 0),
-        0,
-      )
-    : null
+  const estimatedCash =
+    primaryAccount && primaryAccount.asOf <= today
+      ? accountBalance(primaryAccount, data.transactions, today)
+      : hasBaseline
+        ? cashOnHand! +
+          since.reduce(
+            (sum, transaction) =>
+              sum +
+              (transaction.type === 'income'
+                ? transaction.amount
+                : transaction.type === 'expense'
+                  ? transaction.refund
+                    ? transaction.amount
+                    : -transaction.amount
+                  : 0),
+            0,
+          )
+        : null
   const bills: PaychequeForecast['bills'] = []
   if (payday) {
     const start = utcDate(today)
@@ -98,7 +109,8 @@ export function paychequeForecast(data: PockitData, today: string): PaychequeFor
       for (const entry of billsForMonth(data.bills, monthKey(month)))
         if (
           !entry.paid &&
-          entry.date > today &&
+          !entry.skipped &&
+          entry.date >= today &&
           entry.date < payday &&
           !data.transactions.some(
             (transaction) =>
@@ -121,5 +133,17 @@ export function paychequeForecast(data: PockitData, today: string): PaychequeFor
     afterBills,
     perDay:
       afterBills === null || days === null ? null : Math.max(0, afterBills) / Math.max(days, 1),
+    source:
+      primaryAccount && primaryAccount.asOf <= today
+        ? primaryAccount.name
+        : hasBaseline
+          ? 'Manual starting amount'
+          : null,
+    asOf:
+      primaryAccount && primaryAccount.asOf <= today
+        ? primaryAccount.asOf
+        : hasBaseline
+          ? cashAsOf!
+          : null,
   }
 }

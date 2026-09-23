@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type { MonthKey, PockitData } from './types'
-import { currentMonth } from './lib/finance'
+import { currentMonth, setMoneyPrivacy } from './lib/finance'
 import { disablePushForCurrentAccount } from './lib/push'
 import { makeDemoData, makeInitialData } from './lib/defaults'
 import {
@@ -10,6 +10,7 @@ import {
   downloadJSON,
   isConflictError,
   loadCloud,
+  mergeSnapshots,
   readCache,
   readDemo,
   readPending,
@@ -33,6 +34,7 @@ import { GoalsScreen } from './screens/Goals'
 import { CompareScreen } from './screens/Compare'
 import { MoreScreen } from './screens/More'
 import { Coach } from './screens/Coach'
+import { Guide } from './components/Guide'
 
 type Tab = 'Home' | 'Activity' | 'Budget' | 'Calendar' | 'Goals' | 'Compare' | 'More'
 const tabs: [Tab, string][] = [
@@ -62,6 +64,7 @@ export default function App() {
   const [quickAdd, setQuickAdd] = useState(0)
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [coachOpen, setCoachOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState<
     'saved' | 'saving' | 'offline' | 'conflict' | 'error'
   >('saved')
@@ -202,6 +205,7 @@ export default function App() {
           data,
           revision: revision.current,
           changedAt: new Date().toISOString(),
+          base: readPending(session.user.id)?.base || readCache(session.user.id)?.data,
         })
         setSyncStatus(navigator.onLine ? 'saving' : 'offline')
       } catch {
@@ -237,6 +241,7 @@ export default function App() {
                 data: dataRef.current,
                 revision: nextRevision,
                 changedAt: new Date().toISOString(),
+                base: data,
               })
             setError('')
           })
@@ -265,7 +270,9 @@ export default function App() {
     }
   }, [data, demo, session, conflict, retry])
 
-  async function resolveConflict(choice: 'device' | 'cloud') {
+  async function resolveConflict(
+    choice: 'device' | 'cloud' | 'merge' | 'merge-device' | 'merge-cloud',
+  ) {
     if (!conflict || !session) return
     if (choice === 'cloud') {
       revision.current = conflict.remote.revision
@@ -280,11 +287,23 @@ export default function App() {
     }
     setSyncStatus('saving')
     try {
-      const nextRevision = await saveCloud(session, conflict.local.data, conflict.remote.revision)
+      const merged = conflict.local.base
+        ? mergeSnapshots(
+            conflict.local.base,
+            conflict.local.data,
+            conflict.remote.data,
+            choice === 'merge-cloud' ? 'cloud' : 'device',
+          )
+        : null
+      if (choice === 'merge' && (!merged || merged.conflicts.length))
+        throw new Error('These changes overlap. Save a backup and choose which copy to keep.')
+      const selected = choice.startsWith('merge') ? merged!.data : conflict.local.data
+      const nextRevision = await saveCloud(session, selected, conflict.remote.revision)
       revision.current = nextRevision
-      writeCache(session.user.id, { data: conflict.local.data, revision: nextRevision })
+      writeCache(session.user.id, { data: selected, revision: nextRevision })
       clearPending(session.user.id)
       suppressNextSave.current = true
+      setData(selected)
       setConflict(null)
       setSyncStatus('saved')
       setError('')
@@ -323,6 +342,7 @@ export default function App() {
       await supabase?.auth.signOut()
     }
   }
+  setMoneyPrivacy(!!data?.settings.hideAmounts)
   if (loading)
     return (
       <div className="loading-screen">
@@ -362,9 +382,26 @@ export default function App() {
           <Icon name="CloudAlert" size={30} />
           <h1>Review changes from two devices</h1>
           <p>
-            This device has changes that differ from your cloud copy. Choose which copy to use.
-            Download this device’s copy first if you want to keep it before choosing.
+            This device has changes that differ from your cloud copy. Download this device’s copy
+            before choosing if you want to keep a backup.
           </p>
+          {conflict.local.base &&
+            (() => {
+              const merged = mergeSnapshots(
+                conflict.local.base!,
+                conflict.local.data,
+                conflict.remote.data,
+              )
+              return merged.conflicts.length ? (
+                <p>
+                  {merged.conflicts.length} overlapping{' '}
+                  {merged.conflicts.length === 1 ? 'change needs' : 'changes need'} your choice.
+                  Pockit will not guess which edit to keep.
+                </p>
+              ) : (
+                <p>Changes to different items can be combined safely.</p>
+              )
+            })()}
           <div className="sync-conflict-actions">
             <button
               className="secondary-button"
@@ -375,6 +412,31 @@ export default function App() {
             <button className="secondary-button" onClick={() => void resolveConflict('cloud')}>
               Use cloud copy
             </button>
+            {conflict.local.base &&
+              mergeSnapshots(conflict.local.base, conflict.local.data, conflict.remote.data)
+                .conflicts.length === 0 && (
+                <button className="primary-button" onClick={() => void resolveConflict('merge')}>
+                  Combine both devices
+                </button>
+              )}
+            {conflict.local.base &&
+              mergeSnapshots(conflict.local.base, conflict.local.data, conflict.remote.data)
+                .conflicts.length > 0 && (
+                <>
+                  <button
+                    className="secondary-button"
+                    onClick={() => void resolveConflict('merge-cloud')}
+                  >
+                    Combine both, use cloud for overlaps
+                  </button>
+                  <button
+                    className="primary-button"
+                    onClick={() => void resolveConflict('merge-device')}
+                  >
+                    Combine both, use this device for overlaps
+                  </button>
+                </>
+              )}
             <button className="primary-button" onClick={() => void resolveConflict('device')}>
               Use this device’s copy
             </button>
@@ -401,6 +463,7 @@ export default function App() {
                 data: next,
                 revision: revision.current,
                 changedAt: new Date().toISOString(),
+                base: readPending(session.user.id)?.base || readCache(session.user.id)?.data,
               })
               const nextRevision = await saveCloud(session, next, revision.current)
               revision.current = nextRevision
@@ -415,7 +478,10 @@ export default function App() {
       />
     )
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${data.settings.hideAmounts ? 'private-amounts' : ''}`}
+      data-guides={data.settings.guide === false ? 'off' : 'on'}
+    >
       <aside className="sidebar">
         <Brand />
         <div className="sidebar-section-label">YOUR SPACE</div>
@@ -438,8 +504,8 @@ export default function App() {
               <Icon name="Sparkles" size={19} />
             </div>
             <span>
-              <strong>Money Coach</strong>
-              <small>Ask Pockit anything</small>
+              <strong>Pockit Insights</strong>
+              <small>Guided answers from your entries</small>
             </span>
             <Icon name="ArrowUpRight" size={17} />
           </button>
@@ -467,6 +533,27 @@ export default function App() {
           </div>
           <div className="topbar-right">
             <button
+              className="icon-button top-utility"
+              aria-label={`Open ${tab} guide`}
+              title="Guide"
+              onClick={() => setGuideOpen(true)}
+            >
+              <Icon name="Info" size={19} />
+            </button>
+            <button
+              className="icon-button top-utility"
+              aria-label={data.settings.hideAmounts ? 'Show money amounts' : 'Hide money amounts'}
+              title={data.settings.hideAmounts ? 'Show amounts' : 'Hide amounts'}
+              onClick={() =>
+                update((current) => ({
+                  ...current,
+                  settings: { ...current.settings, hideAmounts: !current.settings.hideAmounts },
+                }))
+              }
+            >
+              <Icon name="ScanEye" size={19} />
+            </button>
+            <button
               className="theme-button"
               title="Toggle theme"
               aria-label="Toggle theme"
@@ -485,7 +572,14 @@ export default function App() {
             <button className="coach-top" onClick={() => setCoachOpen(true)}>
               <Icon name="Sparkles" size={17} /> Ask Pockit
             </button>
-            <div className="avatar small">{data.profile.name?.[0]?.toUpperCase() || 'P'}</div>
+            <button
+              className="avatar small"
+              aria-label="Open More and settings"
+              title="More and settings"
+              onClick={() => setTab('More')}
+            >
+              {data.profile.name?.[0]?.toUpperCase() || 'P'}
+            </button>
           </div>
         </header>
         {!demo && (
@@ -554,6 +648,7 @@ export default function App() {
               month={month}
               setTab={setTab}
               openCoach={() => setCoachOpen(true)}
+              update={update}
             />
           )}
           {tab === 'Activity' && (
@@ -607,6 +702,7 @@ export default function App() {
         <Icon name="Plus" size={24} />
       </button>
       {coachOpen && <Coach data={data} month={month} onClose={() => setCoachOpen(false)} />}
+      {guideOpen && <Guide topic={tab} onClose={() => setGuideOpen(false)} />}
     </div>
   )
 }

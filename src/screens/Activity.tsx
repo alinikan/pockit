@@ -11,7 +11,8 @@ import {
 } from '../lib/finance'
 import { Empty, Field, Icon, Modal, SectionHead } from '../components/UI'
 import { changeTransaction } from '../lib/linked'
-import { previewCSV, type CSVPreview } from '../lib/csv'
+import { inferCSVMapping, parseCSV, previewCSV, type CSVMapping, type CSVPreview } from '../lib/csv'
+import { unreviewedTransactions } from '../lib/ledger'
 
 const blank = (): Transaction => ({
   id: crypto.randomUUID(),
@@ -20,6 +21,8 @@ const blank = (): Transaction => ({
   amount: 0,
   type: 'expense',
 })
+const dateInMonth = (month: MonthKey) =>
+  `${month}-${String(Math.min(new Date().getDate(), new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate())).padStart(2, '0')}`
 export function ActivityScreen({
   data,
   month,
@@ -42,13 +45,24 @@ export function ActivityScreen({
   const [importError, setImportError] = useState('')
   const [csvText, setCsvText] = useState('')
   const [preview, setPreview] = useState<CSVPreview | null>(null)
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  const [csvMapping, setCsvMapping] = useState<CSVMapping | null>(null)
+  const [importAccountId, setImportAccountId] = useState('')
+  const [selectedMatches, setSelectedMatches] = useState<string[]>([])
+  const [suspectPage, setSuspectPage] = useState(0)
+  const [rememberMerchant, setRememberMerchant] = useState(false)
   const [undo, setUndo] = useState<{
     before: Transaction | null
     after: Transaction | null
     message: string
   } | null>(null)
   useEffect(() => {
-    if (quickAdd > 0) setEditing(blank())
+    if (quickAdd > 0)
+      setEditing({
+        ...blank(),
+        date: dateInMonth(month),
+        accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
+      })
   }, [quickAdd])
   const monthTxs = transactionsInMonth(data.transactions, month)
   const counts = {
@@ -80,8 +94,13 @@ export function ActivityScreen({
     [monthTxs, type, category, search, sort, data.categories],
   )
   const subscriptions = data.settings.smart ? recurringMerchants(data.transactions) : []
+  const importBatches = [
+    ...new Set(data.transactions.map((transaction) => transaction.importBatchId).filter(Boolean)),
+  ]
+  const lastImportBatch = importBatches.at(-1)
+  const review = unreviewedTransactions(data).sort((a, b) => b.date.localeCompare(a.date))
   const recent = [...data.transactions]
-    .filter((transaction) => transaction.type === 'expense')
+    .filter((transaction) => transaction.type === 'expense' && !transaction.refund)
     .sort((a, b) => b.date.localeCompare(a.date))
     .filter(
       (transaction, index, list) =>
@@ -92,23 +111,54 @@ export function ActivityScreen({
   const setDraft = (patch: Partial<Transaction>) => setEditing((d) => (d ? { ...d, ...patch } : d))
   function save() {
     if (!editing?.payee.trim() || editing.amount <= 0 || !validISODate(editing.date)) return
+    if (
+      editing.splits?.length &&
+      Math.abs(editing.splits.reduce((sum, split) => sum + split.amount, 0) - editing.amount) >
+        0.001
+    )
+      return
     const before = data.transactions.find((transaction) => transaction.id === editing.id) || null
     const value = {
       ...editing,
       payee: editing.payee.trim(),
       createdAt: editing.createdAt || new Date().toISOString(),
+      reviewed: true,
+      source: editing.source || 'manual',
     }
     if (before?.goalId) {
       const goal = data.goals.find((item) => item.id === before.goalId)
-      if (goal?.kind === 'debt' && value.amount > goal.balance + before.amount) return
+      if (
+        goal &&
+        (goal.kind === 'debt' ||
+          (goal.kind === 'saving' && value.type === 'expense' && !value.refund)) &&
+        value.amount > goal.balance + before.amount
+      )
+        return
     }
-    update((d) => changeTransaction(d, before, value))
+    update((d) => {
+      const next = changeTransaction(d, before, value)
+      return rememberMerchant && value.categoryId
+        ? {
+            ...next,
+            settings: {
+              ...next.settings,
+              merchantRules: [
+                ...(next.settings.merchantRules || []).filter(
+                  (rule) => rule.payee !== value.payee.toLowerCase(),
+                ),
+                { payee: value.payee.toLowerCase(), categoryId: value.categoryId },
+              ],
+            },
+          }
+        : next
+    })
     setUndo({
       before,
       after: value,
       message: before ? 'Transaction updated.' : 'Transaction added.',
     })
     setEditing(null)
+    setRememberMerchant(false)
   }
   function remove() {
     if (!editing || !window.confirm(`Delete ${editing.payee}?`)) return
@@ -133,11 +183,29 @@ export function ActivityScreen({
     try {
       if (file.size > 2_000_000) throw new Error('Choose a CSV smaller than 2 MB.')
       const text = await file.text()
-      const result = previewCSV(text, data.transactions, data.categories)
       setCsvText(text)
-      setPreview(result)
+      const headers = parseCSV(text)[0] || []
+      setCsvHeaders(headers)
+      const mapping = inferCSVMapping(headers)
+      setCsvMapping(mapping)
+      setPreview(previewCSV(text, data.transactions, data.categories, mapping, importAccountId))
+      setSelectedMatches([])
+      setSuspectPage(0)
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Could not read this CSV.')
+    }
+  }
+  function refreshPreview(mapping: CSVMapping, accountId = importAccountId) {
+    setCsvMapping(mapping)
+    setImportAccountId(accountId)
+    setSelectedMatches([])
+    setSuspectPage(0)
+    try {
+      setPreview(previewCSV(csvText, data.transactions, data.categories, mapping, accountId))
+      setImportError('')
+    } catch (error) {
+      setPreview(null)
+      setImportError(error instanceof Error ? error.message : 'Check the selected columns.')
     }
   }
   async function scan(file: File) {
@@ -179,7 +247,8 @@ export function ActivityScreen({
             onClick={() =>
               setEditing({
                 ...blank(),
-                date: `${month}-${String(Math.min(new Date().getDate(), new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate())).padStart(2, '0')}`,
+                date: dateInMonth(month),
+                accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
               })
             }
           >
@@ -196,7 +265,7 @@ export function ActivityScreen({
               onClick={() =>
                 setEditing({
                   ...blank(),
-                  date: `${month}-${String(Math.min(new Date().getDate(), new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate())).padStart(2, '0')}`,
+                  date: dateInMonth(month),
                   payee: transaction.payee,
                   amount: transaction.amount,
                   categoryId: transaction.categoryId,
@@ -212,6 +281,68 @@ export function ActivityScreen({
         <div className="undo-strip" role="status">
           {undo.message} <button onClick={undoLast}>Undo</button>
         </div>
+      )}
+      {lastImportBatch && (
+        <div className="undo-strip" role="status">
+          {
+            data.transactions.filter((transaction) => transaction.importBatchId === lastImportBatch)
+              .length
+          }{' '}
+          entries from your latest CSV import.
+          <button
+            onClick={() => {
+              if (
+                !window.confirm(
+                  'Remove every entry from this CSV import? This also removes any edits made to those entries.',
+                )
+              )
+                return
+              update((current) => ({
+                ...current,
+                transactions: current.transactions.filter(
+                  (transaction) => transaction.importBatchId !== lastImportBatch,
+                ),
+              }))
+            }}
+          >
+            Undo this import
+          </button>
+        </div>
+      )}
+      {review.length > 0 && (
+        <section className="panel review-inbox" aria-label="Transactions to review">
+          <SectionHead
+            title={`${review.length} to review`}
+            help="Imported transactions wait here until you confirm them. Check the category, account, and any possible refund before approving."
+          />
+          {review.slice(0, 5).map((transaction) => (
+            <div className="review-line" key={transaction.id}>
+              <span>
+                <strong>{transaction.payee}</strong>
+                <small>
+                  {transaction.date} · {money(transaction.amount)}
+                </small>
+              </span>
+              <button className="secondary-button compact" onClick={() => setEditing(transaction)}>
+                Check details
+              </button>
+              <button
+                className="primary-button compact"
+                onClick={() =>
+                  update((current) => ({
+                    ...current,
+                    transactions: current.transactions.map((item) =>
+                      item.id === transaction.id ? { ...item, reviewed: true } : item,
+                    ),
+                  }))
+                }
+              >
+                Approve
+              </button>
+            </div>
+          ))}
+          {review.length > 5 && <small>Showing five. Approved items leave this list.</small>}
+        </section>
       )}
       <div className="filter-row">
         <div className="segmented">
@@ -267,15 +398,58 @@ export function ActivityScreen({
         <div className="insight-strip">
           <Icon name="Repeat2" size={20} />
           <span>
-            <strong>Recurring charges spotted:</strong>{' '}
+            <strong>Possible recurring charges:</strong>{' '}
             {subscriptions.map((s) => s.replace(/\b\w/g, (c) => c.toUpperCase())).join(', ')}
+          </span>
+          <div className="subscription-actions">
+            {subscriptions
+              .filter((payee) => !data.bills.some((bill) => bill.name.toLowerCase() === payee))
+              .slice(0, 3)
+              .map((payee) => {
+                const latest = data.transactions
+                  .filter(
+                    (transaction) =>
+                      transaction.type === 'expense' &&
+                      transaction.payee.trim().toLowerCase() === payee,
+                  )
+                  .sort((a, b) => b.date.localeCompare(a.date))[0]
+                return (
+                  <button
+                    className="text-button"
+                    key={payee}
+                    onClick={() =>
+                      update((current) => ({
+                        ...current,
+                        bills: [
+                          ...current.bills,
+                          {
+                            id: crypto.randomUUID(),
+                            name: latest.payee,
+                            amount: latest.amount,
+                            day: Number(latest.date.slice(-2)),
+                            categoryId: latest.categoryId,
+                            frequency: 'monthly',
+                            starts: month,
+                            paidMonths: [],
+                          },
+                        ],
+                      }))
+                    }
+                  >
+                    Remind me about {latest.payee}
+                  </button>
+                )
+              })}
+          </div>
+          <span className="insight-hint">
+            These are suggestions from repeated amounts and dates. Check the reminder in Calendar.
           </span>
         </div>
       )}
       <section className="panel transaction-panel">
         <SectionHead
           title="Transactions"
-          help="Add income, expenses, and transfers. Transfers move money between accounts or goals and do not count as spending."
+          help="Record purchases as expenses, refunds as money returned, and money moved between your own accounts as transfers. A credit-card payment is a transfer; the card purchase is the expense."
           aside={<span className="count-label">{filtered.length} shown</span>}
         />
         {filtered.length ? (
@@ -302,16 +476,21 @@ export function ActivityScreen({
                   <div className="transaction-name">
                     <strong>{t.payee}</strong>
                     <small>
-                      {c?.name || t.type[0].toUpperCase() + t.type.slice(1)} ·{' '}
+                      {t.splits?.length
+                        ? 'Split expense'
+                        : c?.name ||
+                          (t.refund ? 'Refund' : t.type[0].toUpperCase() + t.type.slice(1))}{' '}
+                      ·{' '}
                       {new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric' }).format(
                         new Date(`${t.date}T12:00:00`),
                       )}
                     </small>
                   </div>
                   <span className={t.type === 'income' ? 'positive' : ''}>
-                    {t.type === 'income' ? '+' : t.type === 'expense' ? '−' : ''}
+                    {t.type === 'income' || t.refund ? '+' : t.type === 'expense' ? '−' : ''}
                     {money(t.amount, data.settings.currency)}
                   </span>
+                  {t.reviewed === false && <span className="review-badge">Review</span>}
                   <Icon name="ChevronRight" className="row-arrow" size={17} />
                 </button>
               )
@@ -327,7 +506,10 @@ export function ActivityScreen({
                 : 'Start with an expense or your latest paycheque.'
             }
             action={
-              <button className="text-button" onClick={() => setEditing(blank())}>
+              <button
+                className="text-button"
+                onClick={() => setEditing({ ...blank(), date: dateInMonth(month) })}
+              >
                 Add a transaction <Icon name="ArrowRight" size={16} />
               </button>
             }
@@ -365,6 +547,9 @@ export function ActivityScreen({
                   setDraft({
                     payee,
                     categoryId:
+                      data.settings.merchantRules?.find(
+                        (rule) => rule.payee === payee.trim().toLowerCase(),
+                      )?.categoryId ||
                       data.transactions.find(
                         (transaction) =>
                           transaction.payee.trim().toLowerCase() === payee.trim().toLowerCase() &&
@@ -404,10 +589,63 @@ export function ActivityScreen({
                 />
               </Field>
             </div>
+            {data.accounts?.length ? (
+              <div className="form-grid">
+                <Field label={editing.type === 'transfer' ? 'From account' : 'Account'}>
+                  <select
+                    value={editing.accountId || ''}
+                    onChange={(e) => setDraft({ accountId: e.target.value || undefined })}
+                  >
+                    <option value="">Not assigned</option>
+                    {data.accounts
+                      .filter((account) => !account.archived)
+                      .map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+                {editing.type === 'transfer' && (
+                  <Field label="To account">
+                    <select
+                      value={editing.toAccountId || ''}
+                      onChange={(e) => setDraft({ toAccountId: e.target.value || undefined })}
+                    >
+                      <option value="">Outside Pockit / goal</option>
+                      {data.accounts
+                        .filter((account) => !account.archived && account.id !== editing.accountId)
+                        .map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                )}
+              </div>
+            ) : (
+              <div className="soft-note">
+                Add a manual account in More to track and reconcile balances.
+              </div>
+            )}
+            {editing.type === 'expense' && (
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={!!editing.refund}
+                  onChange={(e) => setDraft({ refund: e.target.checked })}
+                />{' '}
+                This is a refund or return
+              </label>
+            )}
             <Field label="Category">
               <select
                 value={editing.categoryId || ''}
-                onChange={(e) => setDraft({ categoryId: e.target.value || undefined })}
+                onChange={(e) =>
+                  setDraft({ categoryId: e.target.value || undefined, splits: undefined })
+                }
+                disabled={!!editing.splits?.length}
               >
                 <option value="">No category</option>
                 {data.categories
@@ -419,6 +657,104 @@ export function ActivityScreen({
                   ))}
               </select>
             </Field>
+            {editing.type === 'expense' && !editing.goalId && !editing.billId && (
+              <>
+                <button
+                  className="text-button"
+                  onClick={() =>
+                    setDraft({
+                      splits: editing.splits?.length
+                        ? undefined
+                        : [
+                            {
+                              categoryId: editing.categoryId || data.categories[0]?.id || '',
+                              amount: editing.amount,
+                            },
+                          ],
+                      categoryId: undefined,
+                    })
+                  }
+                >
+                  {editing.splits?.length ? 'Use one category' : 'Split between categories'}
+                </button>
+                {editing.splits?.map((split, index) => (
+                  <div className="form-grid" key={index}>
+                    <Field label={`Split ${index + 1} category`}>
+                      <select
+                        value={split.categoryId}
+                        onChange={(e) =>
+                          setDraft({
+                            splits: editing.splits!.map((item, i) =>
+                              i === index ? { ...item, categoryId: e.target.value } : item,
+                            ),
+                          })
+                        }
+                      >
+                        {data.categories
+                          .filter((category) => !category.archived)
+                          .map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    <Field label="Amount">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={split.amount}
+                        onChange={(e) =>
+                          setDraft({
+                            splits: editing.splits!.map((item, i) =>
+                              i === index ? { ...item, amount: num(e.target.value) } : item,
+                            ),
+                          })
+                        }
+                      />
+                    </Field>
+                  </div>
+                ))}
+                {editing.splits?.length && (
+                  <>
+                    <button
+                      className="text-button"
+                      onClick={() =>
+                        setDraft({
+                          splits: [
+                            ...editing.splits!,
+                            { categoryId: data.categories[0]?.id || '', amount: 0 },
+                          ],
+                        })
+                      }
+                    >
+                      + Add another category
+                    </button>
+                    <div className="soft-note">
+                      Split total:{' '}
+                      {money(editing.splits.reduce((sum, split) => sum + split.amount, 0))} of{' '}
+                      {money(editing.amount)}. The totals must match.
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+            {editing.type === 'expense' && editing.categoryId && (
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={rememberMerchant}
+                  onChange={(e) => setRememberMerchant(e.target.checked)}
+                />{' '}
+                Remember this category for this payee
+              </label>
+            )}
+            {editing.reviewed === false && (
+              <div className="soft-note">
+                Imported transaction awaiting review. Saving confirms its details.
+              </div>
+            )}
             <Field label="Note (optional)">
               <textarea
                 rows={2}
@@ -463,11 +799,23 @@ export function ActivityScreen({
                   !editing.payee.trim() ||
                   editing.amount <= 0 ||
                   !validISODate(editing.date) ||
+                  (!!editing.splits?.length &&
+                    (editing.splits.some((split) => !split.categoryId || split.amount <= 0) ||
+                      Math.abs(
+                        editing.splits.reduce((sum, split) => sum + split.amount, 0) -
+                          editing.amount,
+                      ) > 0.001)) ||
+                  (editing.type === 'transfer' &&
+                    !!editing.accountId &&
+                    editing.accountId === editing.toAccountId) ||
                   (!!editing.goalId &&
                     data.goals.some(
                       (goal) =>
                         goal.id === editing.goalId &&
-                        goal.kind === 'debt' &&
+                        (goal.kind === 'debt' ||
+                          (goal.kind === 'saving' &&
+                            editing.type === 'expense' &&
+                            !editing.refund)) &&
                         editing.amount >
                           goal.balance +
                             (data.transactions.find((transaction) => transaction.id === editing.id)
@@ -485,9 +833,9 @@ export function ActivityScreen({
         <Modal title="Import transactions" onClose={() => setImportOpen(false)} wide>
           <div className="modal-body">
             <p className="modal-description">
-              Choose a CSV with Date, Description or Payee, and Amount or Debit/Credit columns.
-              Negative Amount means expense; positive Amount means income unless a Type column says
-              otherwise. Review the preview before importing. Files stay in this browser.
+              Choose a CSV. Match its columns below, then review the results. Negative Amount means
+              expense; positive Amount means income unless Type says otherwise. Refunds are money
+              returned to a spending category. The file is read on this device.
             </p>
             <Field label="Bank CSV file">
               <input
@@ -499,6 +847,63 @@ export function ActivityScreen({
                 }}
               />
             </Field>
+            {csvHeaders.length > 0 && csvMapping && (
+              <section className="import-mapping" aria-label="Match CSV columns">
+                <h3>Match your columns</h3>
+                <p>
+                  Use Amount for one signed column, or Debit and Credit for separate columns.
+                  Reference ID helps prevent importing the same bank entry twice.
+                </p>
+                <div className="form-grid">
+                  {(
+                    [
+                      ['date', 'Date'],
+                      ['payee', 'Description'],
+                      ['amount', 'Signed amount'],
+                      ['debit', 'Debit'],
+                      ['credit', 'Credit'],
+                      ['type', 'Type'],
+                      ['reference', 'Reference ID'],
+                    ] as [keyof CSVMapping, string][]
+                  ).map(([key, label]) => (
+                    <Field key={key} label={label}>
+                      <select
+                        value={csvMapping[key]}
+                        onChange={(e) =>
+                          refreshPreview({ ...csvMapping, [key]: Number(e.target.value) })
+                        }
+                      >
+                        <option value={-1}>Not in file</option>
+                        {csvHeaders.map((header, index) => (
+                          <option key={index} value={index}>
+                            {header || `Column ${index + 1}`}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  ))}
+                </div>
+                {data.accounts?.length ? (
+                  <Field label="Import into account">
+                    <select
+                      value={importAccountId}
+                      onChange={(e) => refreshPreview(csvMapping, e.target.value)}
+                    >
+                      <option value="">Not assigned</option>
+                      {data.accounts
+                        .filter((account) => !account.archived)
+                        .map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                ) : (
+                  <small>You can add a manual account in More later.</small>
+                )}
+              </section>
+            )}
             {importError && (
               <div className="form-message" role="alert">
                 {importError}
@@ -507,8 +912,12 @@ export function ActivityScreen({
             {preview && (
               <>
                 <div className="import-summary">
-                  {preview.transactions.length} ready · {preview.duplicates} duplicates skipped ·{' '}
-                  {preview.errors.length} rows need review
+                  {preview.transactions.length -
+                    preview.possibleDuplicateIds.length +
+                    selectedMatches.length}{' '}
+                  selected · {preview.duplicates} possible matches to review ·{' '}
+                  {preview.exactDuplicates} matching reference IDs skipped · {preview.errors.length}{' '}
+                  rows need review
                 </div>
                 {preview.errors.length > 0 && (
                   <div className="import-errors" role="alert">
@@ -528,23 +937,105 @@ export function ActivityScreen({
                     </div>
                   ))}
                 </div>
+                {preview.possibleDuplicateIds.length > 0 && (
+                  <section
+                    className="duplicate-review"
+                    aria-label="Possible duplicate transactions"
+                  >
+                    <h3>Check possible matches</h3>
+                    <p>
+                      These look like existing entries or another row in this file. They are
+                      excluded until you choose to include them. Two real purchases can have the
+                      same date and amount.
+                    </p>
+                    <div className="duplicate-actions">
+                      <button
+                        className="text-button"
+                        onClick={() => setSelectedMatches(preview.possibleDuplicateIds)}
+                      >
+                        Include all
+                      </button>
+                      <button className="text-button" onClick={() => setSelectedMatches([])}>
+                        Exclude all
+                      </button>
+                    </div>
+                    {preview.transactions
+                      .filter((transaction) =>
+                        preview.possibleDuplicateIds.includes(transaction.id),
+                      )
+                      .slice(suspectPage * 20, suspectPage * 20 + 20)
+                      .map((transaction) => (
+                        <label key={transaction.id} className="check-line">
+                          <input
+                            type="checkbox"
+                            checked={selectedMatches.includes(transaction.id)}
+                            onChange={(e) =>
+                              setSelectedMatches((current) =>
+                                e.target.checked
+                                  ? [...current, transaction.id]
+                                  : current.filter((id) => id !== transaction.id),
+                              )
+                            }
+                          />{' '}
+                          {transaction.date} · {transaction.payee} · {money(transaction.amount)}
+                        </label>
+                      ))}
+                    {preview.possibleDuplicateIds.length > 20 && (
+                      <div className="duplicate-actions">
+                        <button
+                          disabled={suspectPage === 0}
+                          onClick={() => setSuspectPage((page) => page - 1)}
+                        >
+                          Previous
+                        </button>
+                        <span>
+                          Page {suspectPage + 1} of{' '}
+                          {Math.ceil(preview.possibleDuplicateIds.length / 20)}
+                        </span>
+                        <button
+                          disabled={(suspectPage + 1) * 20 >= preview.possibleDuplicateIds.length}
+                          onClick={() => setSuspectPage((page) => page + 1)}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </section>
+                )}
                 <div className="modal-actions">
                   <button
                     className="primary-button"
-                    disabled={!preview.transactions.length}
+                    disabled={
+                      !preview.transactions.length ||
+                      preview.transactions.length -
+                        preview.possibleDuplicateIds.length +
+                        selectedMatches.length ===
+                        0
+                    }
                     onClick={() => {
+                      const batchId = crypto.randomUUID()
                       update((d) => ({
                         ...d,
                         transactions: [
                           ...d.transactions,
-                          ...previewCSV(csvText, d.transactions, d.categories).transactions,
+                          ...preview.transactions
+                            .filter(
+                              (transaction) =>
+                                (!preview.possibleDuplicateIds.includes(transaction.id) ||
+                                  selectedMatches.includes(transaction.id)) &&
+                                (!transaction.sourceId ||
+                                  !d.transactions.some(
+                                    (entry) => entry.sourceId === transaction.sourceId,
+                                  )),
+                            )
+                            .map((transaction) => ({ ...transaction, importBatchId: batchId })),
                         ],
                       }))
                       setImportOpen(false)
                       setPreview(null)
                     }}
                   >
-                    Import {preview.transactions.length} transactions
+                    Import selected transactions
                   </button>
                 </div>
               </>

@@ -25,29 +25,18 @@ export function CalendarScreen({
   today.setHours(0, 0, 0, 0)
   const seven = new Date(today)
   seven.setDate(seven.getDate() + 7)
-  const upcoming = data.bills
-    .flatMap((bill) => {
-      const dates = [
-        new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          Math.min(bill.day, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()),
-        ),
-        new Date(
-          today.getFullYear(),
-          today.getMonth() + 1,
-          Math.min(bill.day, new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate()),
-        ),
-      ]
-      return dates
-        .filter((date) => date >= today && date < seven)
-        .map((date) => ({
-          ...bill,
-          date,
-          month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-        }))
+  const upcoming = [0, 1]
+    .flatMap((offset) => {
+      const date = new Date(today.getFullYear(), today.getMonth() + offset, 1)
+      const key =
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` as MonthKey
+      return billsForMonth(data.bills, key).map((bill) => ({
+        ...bill,
+        date: new Date(`${bill.date}T12:00:00`),
+        month: key,
+      }))
     })
-    .filter((b) => !b.paidMonths.includes(b.month))
+    .filter((bill) => bill.date >= today && bill.date < seven && !bill.paid && !bill.skipped)
     .sort((a, b) => a.date.getTime() - b.date.getTime())
   const chosen =
     selectedDay ||
@@ -57,7 +46,14 @@ export function CalendarScreen({
   const dayTxs = txs.filter((t) => Number(t.date.slice(-2)) === chosen)
   const dayBills = bills.filter((b) => Number(b.date.slice(-2)) === chosen)
   function save() {
-    if (!editing?.name.trim() || editing.amount <= 0) return
+    if (
+      !editing?.name.trim() ||
+      editing.amount <= 0 ||
+      (editing.paymentType === 'transfer' &&
+        !!editing.accountId &&
+        editing.accountId === editing.toAccountId)
+    )
+      return
     const bill = { ...editing, name: editing.name.trim() }
     update((d) => ({
       ...d,
@@ -72,23 +68,16 @@ export function CalendarScreen({
     update((d) => ({ ...d, bills: d.bills.filter((b) => b.id !== editing.id) }))
     setEditing(null)
   }
-  function togglePaid(id: string) {
-    const linked = data.transactions.find(
-      (transaction) => transaction.billId === id && transaction.date.slice(0, 7) === month,
-    )
-    if (linked) {
-      update((d) => changeTransaction(d, linked, null))
-      return
-    }
+  function skipReminder(id: string) {
     update((d) => ({
       ...d,
       bills: d.bills.map((b) =>
         b.id === id
           ? {
               ...b,
-              paidMonths: b.paidMonths.includes(month)
-                ? b.paidMonths.filter((m) => m !== month)
-                : [...b.paidMonths, month],
+              skippedMonths: b.skippedMonths?.includes(month)
+                ? b.skippedMonths.filter((m) => m !== month)
+                : [...(b.skippedMonths || []), month],
             }
           : b,
       ),
@@ -109,9 +98,15 @@ export function CalendarScreen({
         payee: bill.name,
         amount: bill.amount,
         createdAt: new Date().toISOString(),
-        type: 'expense',
-        categoryId: bill.categoryId,
+        type: bill.paymentType || 'expense',
+        categoryId: bill.paymentType === 'transfer' ? undefined : bill.categoryId,
         billId: bill.id,
+        accountId:
+          bill.accountId ||
+          d.accounts?.find((account) => account.kind === 'chequing' && !account.archived)?.id,
+        toAccountId: bill.paymentType === 'transfer' ? bill.toAccountId : undefined,
+        reviewed: true,
+        source: 'manual',
       }),
     )
   }
@@ -131,6 +126,8 @@ export function CalendarScreen({
                   amount: 0,
                   day: chosen,
                   paidMonths: [],
+                  frequency: 'monthly',
+                  starts: month,
                 })
               }
             >
@@ -194,21 +191,36 @@ export function CalendarScreen({
                 </div>
                 <div>
                   <strong>{b.name}</strong>
-                  <small>Bill · {b.paid ? 'Paid' : 'Due'}</small>
+                  <small>
+                    Bill · {b.paid ? 'Recorded' : b.skipped ? 'Skipped' : 'Due'} ·{' '}
+                    {b.frequency || 'monthly'}
+                  </small>
                 </div>
                 <strong>{money(b.amount, data.settings.currency, true)}</strong>
-                <button
-                  className={b.paid ? 'paid-button' : 'mark-button'}
-                  onClick={() => togglePaid(b.id)}
-                >
-                  {b.paid ? 'Undo' : 'Paid'}
-                </button>
-                {!data.transactions.some(
+                {data.transactions.some(
                   (transaction) =>
                     transaction.billId === b.id && transaction.date.slice(0, 7) === month,
-                ) && (
+                ) ? (
+                  <button
+                    className="paid-button"
+                    onClick={() => {
+                      const linked = data.transactions.find(
+                        (transaction) =>
+                          transaction.billId === b.id && transaction.date.slice(0, 7) === month,
+                      )
+                      if (linked) update((d) => changeTransaction(d, linked, null))
+                    }}
+                  >
+                    Undo payment
+                  </button>
+                ) : (
                   <button className="mark-button" onClick={() => recordPayment(b, b.date)}>
-                    Record payment
+                    <Icon name="Check" size={15} /> Record payment
+                  </button>
+                )}
+                {!b.paid && (
+                  <button className="text-button" onClick={() => skipReminder(b.id)}>
+                    {b.skipped ? 'Restore reminder' : 'Skip this reminder'}
                   </button>
                 )}
               </div>
@@ -329,8 +341,87 @@ export function CalendarScreen({
                 ))}
               </select>
             </Field>
+            <Field label="When paid, record as">
+              <select
+                value={editing.paymentType || 'expense'}
+                onChange={(event) =>
+                  setEditing({ ...editing, paymentType: event.target.value as Bill['paymentType'] })
+                }
+              >
+                <option value="expense">Expense: a new cost</option>
+                <option value="transfer">Transfer: paying a card or moving money</option>
+              </select>
+            </Field>
+            {editing.paymentType === 'transfer' && (
+              <div className="soft-note">
+                Card purchases count as expenses when they happen. Paying the card later moves money
+                and must not count the purchases again.
+              </div>
+            )}
+            {(data.accounts || []).filter((account) => !account.archived).length > 0 && (
+              <div className="form-grid">
+                <Field label="Pay from account">
+                  <select
+                    value={editing.accountId || ''}
+                    onChange={(event) =>
+                      setEditing({ ...editing, accountId: event.target.value || undefined })
+                    }
+                  >
+                    <option value="">Default chequing account</option>
+                    {data.accounts
+                      ?.filter((account) => !account.archived)
+                      .map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+                {editing.paymentType === 'transfer' && (
+                  <Field label="Move to account">
+                    <select
+                      value={editing.toAccountId || ''}
+                      onChange={(event) =>
+                        setEditing({ ...editing, toAccountId: event.target.value || undefined })
+                      }
+                    >
+                      <option value="">Outside Pockit</option>
+                      {data.accounts
+                        ?.filter((account) => !account.archived && account.id !== editing.accountId)
+                        .map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                )}
+              </div>
+            )}
+            <div className="form-grid">
+              <Field label="Repeats">
+                <select
+                  value={editing.frequency || 'monthly'}
+                  onChange={(e) =>
+                    setEditing({ ...editing, frequency: e.target.value as Bill['frequency'] })
+                  }
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Every 3 months</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </Field>
+              <Field label="Starts in">
+                <input
+                  type="month"
+                  value={editing.starts || month}
+                  onChange={(e) => setEditing({ ...editing, starts: e.target.value as MonthKey })}
+                />
+              </Field>
+            </div>
             <div className="soft-note">
-              Bills are reminders. Add the payment as a transaction in Activity when it happens.
+              Record payment when money leaves your account. Skipping only hides this reminder; it
+              does not change your spending.
             </div>
             <div className="modal-actions">
               {data.bills.some((b) => b.id === editing.id) && (
@@ -341,7 +432,13 @@ export function CalendarScreen({
               <button
                 className="primary-button"
                 onClick={save}
-                disabled={!editing.name.trim() || editing.amount <= 0}
+                disabled={
+                  !editing.name.trim() ||
+                  editing.amount <= 0 ||
+                  (editing.paymentType === 'transfer' &&
+                    !!editing.accountId &&
+                    editing.accountId === editing.toAccountId)
+                }
               >
                 Save bill
               </button>

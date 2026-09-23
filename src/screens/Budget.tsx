@@ -4,6 +4,7 @@ import type { Category, Frequency, MonthKey, PockitData } from '../types'
 import { newCategory } from '../lib/defaults'
 import {
   categoryBudget,
+  billMonthlyReserve,
   categoryPeriodAmount,
   money,
   monthLabel,
@@ -13,6 +14,7 @@ import {
   spendingByCategory,
 } from '../lib/finance'
 import { Empty, Field, Icon, Modal, Progress, SectionHead } from '../components/UI'
+import { coverOverspend } from '../lib/budgetMoves'
 
 const groups = [
   'Food & Dining',
@@ -37,9 +39,26 @@ export function BudgetScreen({
   const [groupDraft, setGroupDraft] = useState<Record<string, string>>({})
   const [groupSelected, setGroupSelected] = useState<Record<string, boolean>>({})
   const [focusedSlice, setFocusedSlice] = useState<string | null>(null)
+  const [coverId, setCoverId] = useState<string | null>(null)
+  const [coverSource, setCoverSource] = useState('unallocated')
+  const [coverAmount, setCoverAmount] = useState(0)
+  const [coverMessage, setCoverMessage] = useState('')
+  const [moveUndo, setMoveUndo] = useState<{ before: Category[]; after: Category[] } | null>(null)
   const summary = monthSummary(data, month)
   const spend = spendingByCategory(data.transactions, month)
   const active = data.categories.filter((c) => !c.archived)
+  const overages = active
+    .map((category) => ({
+      category,
+      available:
+        category.mode === 'rollover'
+          ? rolloverBalance(category, data, month)
+          : categoryBudget(category, month, summary.income) - (spend[category.id] || 0),
+    }))
+    .filter((entry) => entry.available < -0.001)
+  const irregular = data.bills
+    .map((bill) => ({ bill, reserve: billMonthlyReserve(bill, month) }))
+    .filter((entry) => entry.reserve !== null)
   const allocated = active.reduce((n, c) => n + categoryBudget(c, month, summary.income), 0)
   const chartColors = active.filter((c) => categoryBudget(c, month, summary.income) > 0)
   const focusedCategory = chartColors.find((category) => category.id === focusedSlice)
@@ -122,6 +141,24 @@ export function BudgetScreen({
     }))
     setGroupsOpen(false)
   }
+  function openCover(id: string, needed: number) {
+    setCoverId(id)
+    setCoverSource('unallocated')
+    setCoverAmount(Math.round(needed * 100) / 100)
+    setCoverMessage('')
+  }
+  function saveCover() {
+    if (!coverId) return
+    try {
+      const next = coverOverspend(data, month, coverId, coverSource, coverAmount)
+      setMoveUndo({ before: data.categories, after: next.categories })
+      update((current) => coverOverspend(current, month, coverId, coverSource, coverAmount))
+      setCoverId(null)
+      setCoverMessage('')
+    } catch (error) {
+      setCoverMessage(error instanceof Error ? error.message : 'Could not move that amount.')
+    }
+  }
   return (
     <div className="screen-stack">
       <div className="budget-overview">
@@ -182,6 +219,108 @@ export function BudgetScreen({
           {money(categoryBudget(focusedCategory, month, summary.income), data.settings.currency)}{' '}
           planned for {monthLabel(month)}.
         </p>
+      )}
+      {overages.length > 0 && (
+        <section className="panel cover-panel" aria-label="Categories needing attention">
+          <SectionHead
+            title="Cover an overage"
+            help="Move part of this month's plan from unallocated money or another category. No bank transfer happens. You can undo the move."
+          />
+          {overages.map(({ category, available }) => (
+            <div className="cover-row" key={category.id}>
+              <span
+                className="category-badge"
+                style={{ background: `${category.color}22`, color: category.color }}
+              >
+                <Icon name={category.icon} size={18} />
+              </span>
+              <span>
+                <strong>{category.name}</strong>
+                <small>{money(Math.abs(available))} over its available plan</small>
+              </span>
+              <button
+                className="secondary-button compact"
+                onClick={() => openCover(category.id, -available)}
+              >
+                Cover it
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
+      {moveUndo && (
+        <div className="undo-strip" role="status">
+          Plan updated for {monthLabel(month)}.{' '}
+          <button
+            onClick={() => {
+              update((current) =>
+                JSON.stringify(current.categories) === JSON.stringify(moveUndo.after)
+                  ? { ...current, categories: moveUndo.before }
+                  : current,
+              )
+              setMoveUndo(null)
+            }}
+          >
+            Undo
+          </button>
+        </div>
+      )}
+      {irregular.length > 0 && (
+        <section className="panel irregular-panel" aria-label="Prepare for irregular bills">
+          <SectionHead
+            title="Prepare for later bills"
+            help="Quarterly and yearly bills are easier to handle when you set a little aside each month. This estimate divides the bill across the months until it is next due. Adjust the linked budget category to match what you can afford; no money moves automatically."
+          />
+          {irregular.map(({ bill, reserve }) => (
+            <div className="irregular-row" key={bill.id}>
+              <Icon name="CalendarRange" size={20} />
+              <span>
+                <strong>{bill.name}</strong>
+                <small>
+                  {money(bill.amount)} due {monthLabel(reserve!.dueMonth)}
+                </small>
+              </span>
+              <strong>{money(reserve!.perMonth)} / month</strong>
+              {bill.categoryId &&
+              data.categories.some((category) => category.id === bill.categoryId) ? (
+                <button
+                  className="secondary-button compact"
+                  onClick={() =>
+                    openCategory(
+                      data.categories.find((category) => category.id === bill.categoryId)!,
+                    )
+                  }
+                >
+                  Review category
+                </button>
+              ) : (
+                <button
+                  className="secondary-button compact"
+                  onClick={() => {
+                    const category = newCategory(
+                      `${bill.name} reserve`,
+                      'CalendarRange',
+                      'Bills & Utilities',
+                      '#a9a3f5',
+                      reserve!.perMonth,
+                      month,
+                    )
+                    category.mode = 'rollover'
+                    update((current) => ({
+                      ...current,
+                      categories: [...current.categories, category],
+                      bills: current.bills.map((item) =>
+                        item.id === bill.id ? { ...item, categoryId: category.id } : item,
+                      ),
+                    }))
+                  }}
+                >
+                  Create reserve category
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
       )}
       <section className="panel allocation-panel">
         <SectionHead
@@ -455,6 +594,54 @@ export function BudgetScreen({
                 disabled={!editing.name.trim()}
               >
                 Save category
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {coverId && (
+        <Modal title="Cover an overage" onClose={() => setCoverId(null)}>
+          <div className="modal-body">
+            <p className="modal-description">
+              Adjust {monthLabel(month)}'s plan. Your transaction history and account balances stay
+              the same.
+            </p>
+            <Field label="Move from">
+              <select value={coverSource} onChange={(event) => setCoverSource(event.target.value)}>
+                <option value="unallocated">Unallocated · {money(summary.unallocated)}</option>
+                {active
+                  .filter((category) => category.id !== coverId)
+                  .map((category) => {
+                    const available =
+                      category.mode === 'rollover'
+                        ? rolloverBalance(category, data, month)
+                        : categoryBudget(category, month, summary.income) -
+                          (spend[category.id] || 0)
+                    return (
+                      <option key={category.id} value={category.id} disabled={available <= 0}>
+                        {category.name} · {money(Math.max(0, available))} available
+                      </option>
+                    )
+                  })}
+              </select>
+            </Field>
+            <Field label="Amount">
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={coverAmount}
+                onChange={(event) => setCoverAmount(num(event.target.value))}
+              />
+            </Field>
+            {coverMessage && (
+              <div className="form-message" role="alert">
+                {coverMessage}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button className="primary-button" onClick={saveCover} disabled={coverAmount <= 0}>
+                Move in this month's plan
               </button>
             </div>
           </div>

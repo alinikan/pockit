@@ -71,7 +71,7 @@ Replace `YOUR_USERNAME`. The `.gitignore` excludes `.env.local`, `node_modules/`
 5. Open **Authentication → Providers → Email** and keep email/password sign-up enabled. Keep email confirmation enabled for normal use. The SMTP step below is needed before people outside the Supabase project team can receive those emails.
 6. In **Authentication → URL Configuration**, set **Site URL** to the final Vercel production URL, such as `https://pockit-example.vercel.app`. Add redirect URLs for that exact URL and local development, for example `http://localhost:5173/**` and `http://127.0.0.1:5173/**`. Add a preview URL pattern only if you will test sign-up on Vercel preview deployments.
 
-The single JSONB row is deliberate for a tiny personal project. Revision checks prevent silent overwrites but resolve conflicts at the whole-budget level. For larger use or automatic merging, move transactions, goals, and categories into relational tables.
+The single JSONB row is deliberate for a tiny personal project. Revision checks prevent silent overwrites. The client keeps a common base snapshot and can offer a three-way merge when different records changed on different devices. Overlapping edits still need a person to choose a copy. For larger use, consider relational tables and server-side record revisions.
 
 ### 3. Configure email delivery
 
@@ -176,7 +176,7 @@ This is a progressive web app (PWA), not an App Store binary. No Apple Developer
 
 ## How the calculations work
 
-- **Monthly income:** weekly pay × 52/12, every-two-weeks pay × 26/12, twice-monthly pay × 2, or monthly pay × 1. If the selected month has income transactions, their total replaces the estimate.
+- **Monthly income:** planned take-home pay is weekly pay × 52/12, every-two-weeks pay × 26/12, twice-monthly pay × 2, or monthly pay × 1. Recorded income appears separately and never replaces the plan.
 - **Spent:** only expense transactions count. Transfers are excluded.
 - **Remaining:** monthly income minus spent.
 - **Allocated:** the sum of category amounts for the selected month. Weekly and biweekly category amounts are converted to monthly estimates in the same way as pay.
@@ -186,8 +186,10 @@ This is a progressive web app (PWA), not an App Store binary. No Apple Developer
 - **Debt plan:** minimum payments are applied first; remaining monthly capacity goes to debts in the chosen order. Freed payments move to the next debt. This is an estimate, not a lender statement.
 - **Compare:** months are independent columns, so you can compare any months or years. The first column is the baseline and the last is the endpoint for findings. Your chosen months and view stay in place while switching tabs during a visit. Spending includes expense transactions only; deleted or missing categories appear under Uncategorized so category totals still match overall spending. Income is labelled expected when no income transaction was entered. In Plan vs actual, a rollover category is flagged only when its accumulated balance is negative. Current and future months are marked as incomplete. A blank month means no expenses were entered, not necessarily that none happened.
 - **Paycheque view:** uses the payday pattern you set and an optional manually entered starting amount. It adds later recorded income, subtracts later recorded expenses and unpaid bills before the next payday, then divides the remainder by days. It is an estimate, not a live bank balance.
-- **What-if Lab:** adds hypothetical monthly debt/savings contributions or expense changes to the current plan. Sliders never save transactions or allocations. The unallocated amount is planned income minus allocations and hypothetical changes, not a bank balance.
-- **Cross-device saving:** each successful write increases a database revision. A device with an older revision cannot replace a newer cloud copy without showing the conflict screen. Pending edits are stored in that device's browser storage; the Saved indicator means the cloud write finished.
+- **What-if Lab:** previews a missed paycheque, one-time expense, rate rise, and recurring plan changes. Only a reviewed recurring change can be applied; extra debt and savings commitments create visible budget categories. No bank money moves. The unallocated amount is planned income minus allocations and hypothetical changes, not a bank balance.
+- **Cross-device saving:** each successful write increases a database revision. A device with an older revision cannot silently replace a newer cloud copy. When a common base exists, non-overlapping edits can be combined; edits to the same record require choosing a copy. Pending edits live in that device's browser storage; the Saved indicator means the cloud write finished.
+- **Manual accounts:** an account starts from a balance entered or reconciled by the user. Purchases lower account balance; income raises it; transfers move between accounts. Credit accounts store an amount owed as a negative balance. No bank balance is fetched automatically.
+- **Irregular bill reserve:** quarterly and yearly reminders show an estimated monthly amount to set aside until next due. Users can link or create a budget category for that bill.
 
 ## Repository layout
 

@@ -38,6 +38,27 @@ export interface Transaction {
   createdAt?: string
   goalId?: string
   billId?: string
+  accountId?: string
+  toAccountId?: string
+  refund?: boolean
+  reviewed?: boolean
+  cleared?: boolean
+  source?: 'manual' | 'csv' | 'receipt'
+  sourceId?: string
+  importBatchId?: string
+  splits?: { categoryId: string; amount: number }[]
+}
+
+export interface Account {
+  id: string
+  name: string
+  kind: 'chequing' | 'savings' | 'credit' | 'investment' | 'cash'
+  openingBalance: number
+  asOf: string
+  asOfTime?: string
+  reconciledAt?: string
+  reconciliations?: { date: string; balance: number; adjustment: number }[]
+  archived?: boolean
 }
 
 export interface Goal {
@@ -60,6 +81,13 @@ export interface Bill {
   day: number
   categoryId?: string
   paidMonths: string[]
+  skippedMonths?: string[]
+  frequency?: 'monthly' | 'quarterly' | 'yearly'
+  starts?: MonthKey
+  notes?: string
+  paymentType?: 'expense' | 'transfer'
+  accountId?: string
+  toAccountId?: string
 }
 
 export interface PockitData {
@@ -80,7 +108,16 @@ export interface PockitData {
     cashAsOf?: string
     cashUpdatedAt?: string
   }
-  settings: { theme: 'dark' | 'light'; smart: boolean; currency: 'CAD' | 'USD' }
+  settings: {
+    theme: 'dark' | 'light'
+    smart: boolean
+    currency: 'CAD'
+    guide?: boolean
+    hideAmounts?: boolean
+    merchantRules?: { payee: string; categoryId: string }[]
+    lastPulseAt?: string
+  }
+  accounts?: Account[]
   categories: Category[]
   transactions: Transaction[]
   goals: Goal[]

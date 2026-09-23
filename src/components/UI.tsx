@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   ArrowDownLeft,
   ArrowLeft,
@@ -233,19 +233,37 @@ export function SectionHead({
   aside?: ReactNode
   help?: string
 }) {
+  const [open, setOpen] = useState(false)
   return (
     <div className="section-head">
       <div className="section-title">
         {title}
         {help && (
-          <button
-            className="help"
-            aria-label={`About ${title}`}
-            title={help}
-            onClick={() => window.alert(help)}
-          >
-            ?
-          </button>
+          <span className="help-wrap">
+            <button
+              className="help"
+              aria-label={`About ${title}`}
+              aria-expanded={open}
+              onClick={() => setOpen(!open)}
+            >
+              <Icon name="Info" size={15} />
+            </button>
+            {open && (
+              <span className="help-popover" role="note">
+                <Icon name="Sparkles" size={18} />
+                <span>
+                  <strong>{title}, explained</strong>
+                  {help}
+                </span>
+                <button
+                  aria-label={`Close explanation for ${title}`}
+                  onClick={() => setOpen(false)}
+                >
+                  <Icon name="X" size={15} />
+                </button>
+              </span>
+            )}
+          </span>
         )}
       </div>
       {aside}

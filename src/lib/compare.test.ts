@@ -183,14 +183,14 @@ describe('month comparisons', () => {
     ).toBe(false)
   })
 
-  it('formats insights in the selected currency', () => {
+  it('formats insights in Canadian dollars', () => {
     const data = fixture()
-    data.settings.currency = 'USD'
+    data.settings.currency = 'CAD'
     const findings = comparisonFindings(
       data,
       monthSnapshot(data, '2025-12'),
       monthSnapshot(data, '2026-01'),
     )
-    expect(findings.find((finding) => finding.title.includes('moved up'))?.text).toContain('US$')
+    expect(findings.find((finding) => finding.title.includes('moved up'))?.text).toContain('$40')
   })
 })

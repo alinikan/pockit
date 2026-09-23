@@ -57,25 +57,55 @@ export interface CSVPreview {
   transactions: Transaction[]
   errors: string[]
   duplicates: number
+  possibleDuplicateIds: string[]
+  exactDuplicates: number
+}
+
+export interface CSVMapping {
+  date: number
+  payee: number
+  amount: number
+  debit: number
+  credit: number
+  type: number
+  reference: number
+}
+
+export function inferCSVMapping(headers: string[]): CSVMapping {
+  const normalized = headers.map((cell) => cell.toLowerCase().replace(/[^a-z]/g, ''))
+  const column = (...names: string[]) => normalized.findIndex((item) => names.includes(item))
+  return {
+    date: column('date', 'transactiondate', 'posteddate'),
+    payee: column('description', 'payee', 'merchant', 'name'),
+    amount: column('amount'),
+    debit: column('debit', 'withdrawal', 'moneyout'),
+    credit: column('credit', 'deposit', 'moneyin'),
+    type: column('type', 'transactiontype'),
+    reference: column('transactionid', 'reference', 'referenceid', 'id'),
+  }
 }
 
 export function previewCSV(
   text: string,
   existing: Transaction[],
   categories: Category[],
+  mapping?: CSVMapping,
+  accountId?: string,
 ): CSVPreview {
   if (text.length > 2_000_000) throw new Error('Choose a CSV smaller than 2 MB.')
   const rows = parseCSV(text.replace(/^\uFEFF/, ''))
   if (!rows.length) throw new Error('This CSV is empty.')
   if (rows.length > 5001) throw new Error('Import at most 5,000 rows at a time.')
-  const header = rows[0].map((cell) => cell.toLowerCase().replace(/[^a-z]/g, ''))
-  const column = (...names: string[]) => header.findIndex((item) => names.includes(item))
-  const dateColumn = column('date', 'transactiondate', 'posteddate')
-  const payeeColumn = column('description', 'payee', 'merchant', 'name')
-  const amountColumn = column('amount')
-  const debitColumn = column('debit', 'withdrawal', 'moneyout')
-  const creditColumn = column('credit', 'deposit', 'moneyin')
-  const typeColumn = column('type', 'transactiontype')
+  const columns = mapping || inferCSVMapping(rows[0])
+  const {
+    date: dateColumn,
+    payee: payeeColumn,
+    amount: amountColumn,
+    debit: debitColumn,
+    credit: creditColumn,
+    type: typeColumn,
+    reference: referenceColumn,
+  } = columns
   if (
     dateColumn < 0 ||
     payeeColumn < 0 ||
@@ -83,9 +113,12 @@ export function previewCSV(
   )
     throw new Error('CSV needs Date, Description or Payee, and Amount or Debit/Credit columns.')
   const seen = new Set(existing.map(fingerprint))
+  const knownIds = new Set(existing.map((transaction) => transaction.sourceId).filter(Boolean))
   const transactions: Transaction[] = [],
     errors: string[] = []
   let duplicates = 0
+  let exactDuplicates = 0
+  const possibleDuplicateIds: string[] = []
   rows.slice(1).forEach((row, index) => {
     const date = dateValue(row[dateColumn] || '')
     const payee = (row[payeeColumn] || '').trim()
@@ -93,21 +126,27 @@ export function previewCSV(
     const credit = creditColumn < 0 ? 0 : amountValue(row[creditColumn] || '0')
     const signed = amountColumn < 0 ? 0 : amountValue(row[amountColumn] || '0')
     const rawType = typeColumn < 0 ? '' : (row[typeColumn] || '').trim().toLowerCase()
+    const refund =
+      rawType === 'refund' ||
+      ((amountColumn < 0 ? credit > 0 : signed > 0) && /\b(refund|return|reversal)\b/i.test(payee))
     const type: TransactionType =
       rawType === 'transfer'
         ? 'transfer'
-        : rawType === 'income' || rawType === 'credit'
-          ? 'income'
-          : rawType === 'expense' || rawType === 'debit'
-            ? 'expense'
-            : amountColumn < 0
-              ? credit > 0
-                ? 'income'
-                : 'expense'
-              : signed >= 0
-                ? 'income'
-                : 'expense'
-    const amount = amountColumn < 0 ? (type === 'income' ? credit : debit) : Math.abs(signed)
+        : refund
+          ? 'expense'
+          : rawType === 'income' || rawType === 'credit'
+            ? 'income'
+            : rawType === 'expense' || rawType === 'debit'
+              ? 'expense'
+              : amountColumn < 0
+                ? credit > 0
+                  ? 'income'
+                  : 'expense'
+                : signed >= 0
+                  ? 'income'
+                  : 'expense'
+    const amount =
+      amountColumn < 0 ? (type === 'income' || refund ? credit : debit) : Math.abs(signed)
     if (!date || !payee || !Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) {
       errors.push(`Row ${index + 2}: check the date, description, and amount.`)
       return
@@ -118,16 +157,30 @@ export function previewCSV(
       payee,
       amount: Math.round(amount * 100) / 100,
       type,
+      refund,
       categoryId: type === 'expense' ? categorizePayee(payee, categories) : undefined,
       createdAt: new Date().toISOString(),
+      source: 'csv',
+      reviewed: false,
+      cleared: true,
+      accountId: accountId || undefined,
+      sourceId:
+        referenceColumn >= 0 && row[referenceColumn]?.trim()
+          ? `${accountId || 'unassigned'}:${row[referenceColumn].trim()}`
+          : undefined,
     }
+    if (transaction.sourceId && knownIds.has(transaction.sourceId)) {
+      exactDuplicates++
+      return
+    }
+    if (transaction.sourceId) knownIds.add(transaction.sourceId)
     const key = fingerprint(transaction)
     if (seen.has(key)) {
       duplicates++
-      return
+      possibleDuplicateIds.push(transaction.id)
     }
     seen.add(key)
     transactions.push(transaction)
   })
-  return { transactions, errors, duplicates }
+  return { transactions, errors, duplicates, possibleDuplicateIds, exactDuplicates }
 }

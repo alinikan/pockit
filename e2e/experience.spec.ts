@@ -42,7 +42,10 @@ test('quick add, recent merchant, undo, and CSV review work on a phone', async (
   await page.getByRole('button', { name: 'Quick add transaction' }).click()
   await expect(page.getByRole('dialog', { name: 'New transaction' })).toBeVisible()
   await page.getByLabel('Payee or description').fill('Pockit Test Shop')
-  await page.getByLabel('Amount').fill('12.50')
+  await page
+    .getByRole('dialog', { name: 'New transaction' })
+    .getByRole('spinbutton', { name: 'Amount' })
+    .fill('12.50')
   await page.getByRole('button', { name: 'Save transaction' }).click()
   await expect(
     page.locator('.transaction-row').filter({ hasText: 'Pockit Test Shop' }),
@@ -69,8 +72,12 @@ test('quick add, recent merchant, undo, and CSV review work on a phone', async (
     mimeType: 'text/csv',
     buffer: Buffer.from(`Date,Description,Amount\n${date},A New Shop,-19.75\ninvalid,Wrong,-2`),
   })
-  await expect(page.getByText(/1 ready · 0 duplicates skipped · 1 rows need review/)).toBeVisible()
-  await page.getByRole('button', { name: 'Import 1 transactions' }).click()
+  await expect(
+    page.getByText(
+      /1 selected · 0 possible matches to review · 0 matching reference IDs skipped · 1 rows need review/,
+    ),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Import selected transactions' }).click()
   await expect(page.locator('.transaction-row').filter({ hasText: 'A New Shop' })).toBeVisible()
   await noOverflow(page)
 })
@@ -89,7 +96,7 @@ test('paycheque estimate, What-if Lab, comparison details, and install help are 
   const lab = page.getByRole('region', { name: 'What-if Lab' })
   await expect(lab).toBeVisible()
   const before = await lab.locator('.whatif-results').innerText()
-  await lab.getByRole('slider').first().fill('100')
+  await lab.getByRole('spinbutton', { name: 'Extra debt payment each month' }).fill('100')
   expect(await lab.locator('.whatif-results').innerText()).not.toBe(before)
   await page.getByRole('button', { name: 'Compare', exact: true }).click()
   await page.getByRole('tab', { name: /Categories/ }).click()

@@ -172,7 +172,7 @@ describe('Compare screen', () => {
     const chart = screen.getByRole('group', { name: /Spending over 6 months ending January 2026/ })
     expect(chart.querySelectorAll('.compare-trend-item')).toHaveLength(6)
     fireEvent.click(within(chart).getByRole('button', { name: 'Inspect January 2026 spending' }))
-    expect(screen.getByRole('status').textContent).toContain('$820.00 across 4 expenses')
+    expect(screen.getByText(/\$820\.00 across 4 expenses/)).toBeTruthy()
     expect(screen.getByText('$1,420.00')).toBeTruthy()
     expect(screen.getByText('$236.67')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '3m' }))

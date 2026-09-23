@@ -83,4 +83,18 @@ describe('paycheque timing', () => {
     })
     expect(paychequeForecast(data, '2026-09-22').estimatedCash).toBe(285)
   })
+  it('adds a later refund to the manual cash estimate', () => {
+    const data = makeDemoData()
+    data.profile.cashOnHand = 300
+    data.profile.cashAsOf = '2026-09-20'
+    data.transactions.push({
+      id: 'refund',
+      date: '2026-09-22',
+      payee: 'Return',
+      amount: 25,
+      type: 'expense',
+      refund: true,
+    })
+    expect(paychequeForecast(data, '2026-09-22').estimatedCash).toBe(325)
+  })
 })

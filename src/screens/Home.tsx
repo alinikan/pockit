@@ -3,12 +3,14 @@ import {
   billsForMonth,
   budgetHealth,
   categoryBudget,
+  currentMonth,
   money,
   shiftMonth,
   spendingByCategory,
   todayISO,
 } from '../lib/finance'
 import { paychequeForecast } from '../lib/payday'
+import { unreviewedTransactions } from '../lib/ledger'
 import { Empty, Icon, Progress, SectionHead } from '../components/UI'
 
 export function HomeScreen({
@@ -16,29 +18,135 @@ export function HomeScreen({
   month,
   setTab,
   openCoach,
+  update,
 }: {
   data: PockitData
   month: MonthKey
   setTab: (tab: 'Activity' | 'Budget' | 'Calendar' | 'More') => void
   openCoach: () => void
+  update: (recipe: (value: PockitData) => PockitData) => void
 }) {
-  const { income, spent, remaining, trouble } = budgetHealth(data, month)
+  const { income, actualIncome, spent, remaining, trouble } = budgetHealth(data, month)
   const spend = spendingByCategory(data.transactions, month)
   const sorted = [...data.categories]
     .filter((c) => !c.archived && (categoryBudget(c, month, income) > 0 || spend[c.id]))
     .sort((a, b) => (spend[b.id] || 0) - (spend[a.id] || 0))
   const bills = billsForMonth(data.bills, month)
-    .filter((b) => !b.paid)
+    .filter((b) => !b.paid && !b.skipped)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 3)
   const max = Math.max(income, spent, 1)
   const previous = shiftMonth(month, -1)
   const prevSpent = data.transactions
     .filter((t) => t.date.startsWith(previous) && t.type === 'expense')
-    .reduce((n, t) => n + t.amount, 0)
+    .reduce((n, t) => n + (t.refund ? -t.amount : t.amount), 0)
   const paycheque = paychequeForecast(data, todayISO())
+  const reviewCount = unreviewedTransactions(data).length
+  const today = todayISO()
+  const nextBill = [currentMonth(), shiftMonth(currentMonth(), 1)]
+    .flatMap((key) => billsForMonth(data.bills, key))
+    .filter((bill) => !bill.paid && !bill.skipped && bill.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0]
+  const cashAge = paycheque.asOf
+    ? Math.max(
+        0,
+        Math.floor(
+          (new Date(`${today}T12:00:00Z`).valueOf() -
+            new Date(`${paycheque.asOf}T12:00:00Z`).valueOf()) /
+            86400000,
+        ),
+      )
+    : null
+  const pulseDue =
+    !data.settings.lastPulseAt ||
+    (new Date(today).valueOf() - new Date(data.settings.lastPulseAt).valueOf()) / 86400000 >= 7
   return (
     <div className="screen-stack">
+      <section className="pockit-today" aria-label="Pockit Today">
+        <div className="today-title">
+          <span className="eyebrow">POCKIT TODAY</span>
+          <h2>Your next good move.</h2>
+          <p>Three useful answers, based on what you have recorded.</p>
+        </div>
+        <button
+          className={`today-card ${reviewCount ? 'attention' : 'good'}`}
+          onClick={() => setTab('Activity')}
+        >
+          <Icon name={reviewCount ? 'ReceiptText' : 'CheckCircle2'} size={23} />
+          <span>
+            <small>TO REVIEW</small>
+            <strong>
+              {reviewCount
+                ? `${reviewCount} transaction${reviewCount === 1 ? '' : 's'}`
+                : 'All caught up'}
+            </strong>
+            <em>{reviewCount ? 'Check imported details' : 'Your activity is reviewed'}</em>
+          </span>
+          <Icon name="ArrowRight" size={17} />
+        </button>
+        <button className="today-card due" onClick={() => setTab('Calendar')}>
+          <Icon name="CalendarClock" size={23} />
+          <span>
+            <small>NEXT BILL</small>
+            <strong>{nextBill ? nextBill.name : 'No upcoming bill'}</strong>
+            <em>
+              {nextBill ? `${nextBill.date} · ${money(nextBill.amount)}` : 'Add one in Calendar'}
+            </em>
+          </span>
+          <Icon name="ArrowRight" size={17} />
+        </button>
+        <button
+          className={`today-card ${cashAge !== null && cashAge > 7 ? 'attention' : 'cash'}`}
+          onClick={() => setTab('More')}
+        >
+          <Icon name="Wallet" size={23} />
+          <span>
+            <small>UNTIL PAYDAY</small>
+            <strong>
+              {paycheque.afterBills === null
+                ? 'Set up estimate'
+                : money(paycheque.afterBills, data.settings.currency, true)}
+            </strong>
+            <em>
+              {cashAge === null
+                ? 'Add a starting balance'
+                : `Starting balance checked ${cashAge} day${cashAge === 1 ? '' : 's'} ago`}
+            </em>
+          </span>
+          <Icon name="ArrowRight" size={17} />
+        </button>
+      </section>
+      <section className="panel pulse-panel" aria-label="Pockit Pulse">
+        <div>
+          <Icon name="Waves" size={24} />
+          <span>
+            <strong>Your five-minute Pockit Pulse</strong>
+            <small>
+              {pulseDue ? 'A quick weekly reset' : `Last checked ${data.settings.lastPulseAt}`}
+            </small>
+          </span>
+        </div>
+        {pulseDue ? (
+          <div className="pulse-actions">
+            <button onClick={() => setTab('Activity')}>1 · Review activity</button>
+            <button onClick={() => setTab('Calendar')}>2 · Check bills</button>
+            <button onClick={() => setTab('Budget')}>3 · Adjust plan</button>
+            <button
+              className="pulse-done"
+              onClick={() =>
+                update((current) => ({
+                  ...current,
+                  settings: { ...current.settings, lastPulseAt: today },
+                }))
+              }
+            >
+              <Icon name="Check" size={16} /> Done for now
+            </button>
+          </div>
+        ) : (
+          <p>Nice work. Your next review opens in a week.</p>
+        )}
+      </section>
       <div className="hero-grid">
         <div className="hero-card">
           <div className="hero-orb orb-one" />
@@ -47,13 +155,13 @@ export function HomeScreen({
             <span>YOUR MONEY AT A GLANCE</span>
             <Icon name="ArrowUpRight" size={19} />
           </div>
-          <div className="hero-big-label">Left after spending</div>
+          <div className="hero-big-label">Monthly plan after recorded spending</div>
           <div className="hero-number">{money(remaining, data.settings.currency, true)}</div>
           <div className="hero-bottom">
             <span>
               {remaining >= 0
-                ? 'You’re within this month’s income.'
-                : 'Spending has passed your income.'}
+                ? 'Planned income minus spending entered for this month.'
+                : 'Recorded spending has passed your planned income.'}
             </span>
             <button onClick={openCoach}>
               Get insight <Icon name="ArrowRight" size={15} />
@@ -66,10 +174,10 @@ export function HomeScreen({
               <Icon name="ArrowDownLeft" />
             </div>
             <div>
-              <span>Income</span>
+              <span>Planned income</span>
               <strong>{money(income, data.settings.currency, true)}</strong>
             </div>
-            <small>this month</small>
+            <small>Received so far: {money(actualIncome, data.settings.currency, true)}</small>
           </div>
           <div className="summary-card">
             <div className="summary-icon spent">
@@ -139,9 +247,9 @@ export function HomeScreen({
               </div>
             )}
             <p className="payday-disclaimer">
-              Estimate based on the amount you entered on {data.profile.cashAsOf}, later income and
-              expenses, and unpaid bills. Transfers and unrecorded spending are excluded. This is
-              not your bank balance.
+              Estimate from {paycheque.source || 'your starting amount'} checked on {paycheque.asOf}
+              , later income and expenses, and unpaid bills. Transfers and unrecorded spending are
+              excluded. This is not your bank balance.
             </p>
           </>
         )}

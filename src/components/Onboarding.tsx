@@ -2,7 +2,7 @@ import { num } from '../lib/numbers'
 import { useEffect, useState } from 'react'
 import type { Frequency, Goal, PockitData } from '../types'
 import { buildOnboardedData } from '../lib/defaults'
-import { money, projectGoal } from '../lib/finance'
+import { money, monthlyPay, projectGoal } from '../lib/finance'
 import { Brand, Icon, Progress } from './UI'
 
 const reasons = [
@@ -428,9 +428,37 @@ export function Onboarding({
             </div>
             <strong>Good things start with a clear picture.</strong>
             <p>
-              We’ve set up your first categories and goals. Add transactions as you go, then Pockit
-              will turn them into useful insights.
+              Here is your starting plan in Canadian dollars. Suggestions fit within about 90% of
+              your estimated monthly take-home pay. Edit any amount in Budget after opening Pockit.
             </p>
+            {(() => {
+              const preview = buildOnboardedData({ ...data, goals: selectedGoals })
+              const income = monthlyPay(data.profile.payAmount, data.profile.payFrequency)
+              const allocated = preview.categories.reduce(
+                (sum, category) => sum + category.baseAmount,
+                0,
+              )
+              return (
+                <div className="onboarding-plan-preview" aria-label="Starting monthly plan">
+                  <div>
+                    <span>Expected monthly pay</span>
+                    <strong>{money(income)}</strong>
+                  </div>
+                  <div>
+                    <span>Suggested category plan</span>
+                    <strong>{money(allocated)}</strong>
+                  </div>
+                  <div>
+                    <span>Still open for choices</span>
+                    <strong>{money(income - allocated)}</strong>
+                  </div>
+                  <small>
+                    These are planning amounts, not recorded spending or money already moved. Check
+                    rent and other fixed bills against what you actually pay.
+                  </small>
+                </div>
+              )
+            })()}
           </div>
         )}
         {error && (

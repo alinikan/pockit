@@ -1,16 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { Category, Goal, PockitData, Transaction } from '../types'
 import {
+  billMonthlyReserve,
   billsForMonth,
   budgetHealth,
   categorizePayee,
   categoryBudget,
   monthKey,
   monthSummary,
+  money,
   monthlyPay,
   projectGoal,
   receiptFields,
   recurringMerchants,
+  setMoneyPrivacy,
   rolloverBalance,
   shiftMonth,
   simulateDebtPlan,
@@ -110,11 +113,41 @@ describe('budgets and spending', () => {
     expect(transactionsInMonth(data.transactions, '2026-04')).toHaveLength(3)
     expect(spendingByCategory(data.transactions, '2026-04').food).toBe(100)
     expect(monthSummary(data, '2026-04')).toMatchObject({
-      income: 2200,
+      income: 4000,
+      plannedIncome: 4000,
+      actualIncome: 2200,
       spent: 100,
-      remaining: 2100,
+      remaining: 3900,
+      recordedNet: 2100,
       allocated: 400,
     })
+  })
+  it('keeps planned allocations steady after the first paycheque', () => {
+    const data = makeInitialData()
+    data.profile.payAmount = 2500
+    data.profile.payFrequency = 'twice-monthly'
+    data.categories = [category({ mode: 'rollover', targetType: 'percent', targetValue: 10 })]
+    const before = monthSummary(data, '2026-09')
+    data.transactions = [tx('2026-09-01', 2500, 'income')]
+    const after = monthSummary(data, '2026-09')
+    expect(before.allocated).toBe(500)
+    expect(after.allocated).toBe(500)
+    expect(after.actualIncome).toBe(2500)
+  })
+  it('subtracts refunds from spending and distributes split expenses', () => {
+    const data = makeInitialData()
+    data.transactions = [
+      {
+        ...tx('2026-09-01', 90),
+        splits: [
+          { categoryId: 'food', amount: 60 },
+          { categoryId: 'care', amount: 30 },
+        ],
+      },
+      { ...tx('2026-09-02', 10), refund: true },
+    ]
+    expect(spendingByCategory(data.transactions, '2026-09')).toEqual({ food: 50, care: 30 })
+    expect(monthSummary(data, '2026-09').spent).toBe(80)
   })
   it('carries unused rollover amounts forward', () => {
     const data = {
@@ -221,10 +254,62 @@ describe('goals and debt', () => {
     ).toBeNull())
 })
 describe('dates and smart helpers', () => {
+  it('masks displayed amounts without changing calculations', () => {
+    setMoneyPrivacy(true)
+    try {
+      expect(money(1234)).toBe('••••')
+    } finally {
+      setMoneyPrivacy(false)
+    }
+    expect(money(1234)).toContain('1,234')
+  })
   it('clamps bills on the 31st in February, including leap years', () => {
     const bill = { id: 'x', name: 'Rent', day: 31, amount: 100, paidMonths: [] }
     expect(billsForMonth([bill], '2028-02')[0].date).toBe('2028-02-29')
     expect(billsForMonth([bill], '2027-02')[0].date).toBe('2027-02-28')
+  })
+  it('schedules quarterly and annual bills only in their due months', () => {
+    const bills = [
+      {
+        id: 'quarter',
+        name: 'Insurance',
+        day: 31,
+        amount: 200,
+        paidMonths: [],
+        frequency: 'quarterly' as const,
+        starts: '2026-01' as const,
+      },
+      {
+        id: 'year',
+        name: 'Annual fee',
+        day: 5,
+        amount: 100,
+        paidMonths: [],
+        frequency: 'yearly' as const,
+        starts: '2026-03' as const,
+      },
+    ]
+    expect(billsForMonth(bills, '2026-02')).toHaveLength(0)
+    expect(billsForMonth(bills, '2026-04').map((bill) => bill.id)).toEqual(['quarter'])
+    expect(billsForMonth(bills, '2027-03').map((bill) => bill.id)).toEqual(['year'])
+  })
+  it('estimates a monthly reserve through the next irregular due month', () => {
+    const quarterly = {
+      id: 'insurance',
+      name: 'Insurance',
+      amount: 300,
+      day: 15,
+      starts: '2026-01' as const,
+      frequency: 'quarterly' as const,
+      paidMonths: [],
+    }
+    expect(billMonthlyReserve(quarterly, '2026-02')).toEqual({ dueMonth: '2026-04', perMonth: 100 })
+    expect(billMonthlyReserve(quarterly, '2026-04')).toEqual({ dueMonth: '2026-04', perMonth: 300 })
+    expect(billMonthlyReserve({ ...quarterly, paidMonths: ['2026-04'] }, '2026-04')).toEqual({
+      dueMonth: '2026-07',
+      perMonth: 100,
+    })
+    expect(billMonthlyReserve({ ...quarterly, frequency: 'monthly' }, '2026-04')).toBeNull()
   })
   it('suggests a matching category without changing other payees', () => {
     const c = category()

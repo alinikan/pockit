@@ -9,15 +9,23 @@ import {
 
 export const UNCATEGORIZED = '__uncategorized__'
 
-export function transactionsBehind(data: PockitData, categoryId: string, month: MonthKey) {
+export function transactionsBehind(
+  data: PockitData,
+  categoryId: string,
+  month: MonthKey,
+  throughDay?: number,
+) {
   const known = new Set(data.categories.map((category) => category.id))
   return transactionsInMonth(data.transactions, month)
     .filter(
       (transaction) =>
         transaction.type === 'expense' &&
+        (!throughDay || Number(transaction.date.slice(-2)) <= throughDay) &&
         (categoryId === UNCATEGORIZED
-          ? !transaction.categoryId || !known.has(transaction.categoryId)
-          : transaction.categoryId === categoryId),
+          ? !transaction.splits?.length &&
+            (!transaction.categoryId || !known.has(transaction.categoryId))
+          : transaction.splits?.some((split) => split.categoryId === categoryId) ||
+            transaction.categoryId === categoryId),
     )
     .sort((a, b) => b.amount - a.amount || b.date.localeCompare(a.date))
 }
@@ -34,22 +42,35 @@ export interface MonthSnapshot {
   categorySpend: Record<string, number>
 }
 
-export function monthSnapshot(data: PockitData, month: MonthKey): MonthSnapshot {
+export function monthSnapshot(
+  data: PockitData,
+  month: MonthKey,
+  throughDay?: number,
+): MonthSnapshot {
   const known = new Set(data.categories.map((category) => category.id))
   const categorySpend: Record<string, number> = {}
   let spent = 0
   let recordedIncome = 0
   let expenseCount = 0
   for (const transaction of transactionsInMonth(data.transactions, month)) {
+    if (throughDay && Number(transaction.date.slice(-2)) > throughDay) continue
     if (transaction.type === 'income') recordedIncome += transaction.amount
     if (transaction.type !== 'expense') continue
-    spent += transaction.amount
+    const sign = transaction.refund ? -1 : 1
+    spent += transaction.amount * sign
     expenseCount++
-    const key =
-      transaction.categoryId && known.has(transaction.categoryId)
-        ? transaction.categoryId
-        : UNCATEGORIZED
-    categorySpend[key] = (categorySpend[key] || 0) + transaction.amount
+    if (transaction.splits?.length) {
+      for (const split of transaction.splits) {
+        const key = known.has(split.categoryId) ? split.categoryId : UNCATEGORIZED
+        categorySpend[key] = (categorySpend[key] || 0) + split.amount * sign
+      }
+    } else {
+      const key =
+        transaction.categoryId && known.has(transaction.categoryId)
+          ? transaction.categoryId
+          : UNCATEGORIZED
+      categorySpend[key] = (categorySpend[key] || 0) + transaction.amount * sign
+    }
   }
   return {
     month,
@@ -59,6 +80,58 @@ export function monthSnapshot(data: PockitData, month: MonthKey): MonthSnapshot 
     expenseCount,
     categorySpend,
   }
+}
+
+export function merchantDrivers(
+  data: PockitData,
+  categoryId: string,
+  before: MonthKey,
+  after: MonthKey,
+  throughDay?: number,
+) {
+  const total = (month: MonthKey) => {
+    const map = new Map<string, { payee: string; amount: number; count: number }>()
+    for (const transaction of transactionsBehind(data, categoryId, month, throughDay)) {
+      const key = transaction.payee.trim().toLowerCase()
+      const amount =
+        (transaction.splits?.find((split) => split.categoryId === categoryId)?.amount ||
+          transaction.amount) * (transaction.refund ? -1 : 1)
+      const previous = map.get(key)
+      map.set(key, {
+        payee: previous?.payee || transaction.payee,
+        amount: (previous?.amount || 0) + amount,
+        count: (previous?.count || 0) + 1,
+      })
+    }
+    return map
+  }
+  const earlier = total(before)
+  const later = total(after)
+  return [...new Set([...earlier.keys(), ...later.keys()])]
+    .map((key) => ({
+      payee: later.get(key)?.payee || earlier.get(key)!.payee,
+      before: earlier.get(key)?.amount || 0,
+      after: later.get(key)?.amount || 0,
+      change: (later.get(key)?.amount || 0) - (earlier.get(key)?.amount || 0),
+      kind: !earlier.has(key)
+        ? ('new' as const)
+        : !later.has(key)
+          ? ('absent' as const)
+          : ('repeated' as const),
+    }))
+    .filter((driver) => Math.abs(driver.change) > 0.001)
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+}
+
+export function comparisonCoverage(before: MonthSnapshot, after: MonthSnapshot) {
+  if (before.expenseCount < 3 || after.expenseCount < 3)
+    return `Limited entries: ${before.expenseCount} in ${before.month} and ${after.expenseCount} in ${after.month}. Check that both months are complete.`
+  const ratio =
+    Math.min(before.expenseCount, after.expenseCount) /
+    Math.max(before.expenseCount, after.expenseCount)
+  return ratio < 0.5
+    ? 'The number of recorded expenses differs a lot between these months. Check for missing entries before drawing conclusions.'
+    : null
 }
 
 export const difference = (before: number, after: number) => ({
@@ -88,7 +161,7 @@ export function categoryComparison(
       group: 'Other',
       values: snapshots.map((snapshot) => snapshot.categorySpend[UNCATEGORIZED] || 0),
     },
-  ].filter((row) => includeEmpty || row.values.some((value) => value > 0))
+  ].filter((row) => includeEmpty || row.values.some((value) => Math.abs(value) > 0.001))
 }
 
 export function budgetComparison(data: PockitData, month: MonthKey) {
@@ -119,7 +192,7 @@ export function budgetComparison(data: PockitData, month: MonthKey) {
     spent: snapshot.categorySpend[UNCATEGORIZED] || 0,
     balance: -(snapshot.categorySpend[UNCATEGORIZED] || 0),
   })
-  return rows.filter((row) => row.planned > 0 || row.spent > 0)
+  return rows.filter((row) => row.planned > 0 || Math.abs(row.spent) > 0.001)
 }
 
 export function comparisonFindings(data: PockitData, before: MonthSnapshot, after: MonthSnapshot) {

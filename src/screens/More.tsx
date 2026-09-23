@@ -8,6 +8,8 @@ import { unsubscribeBrowserPush } from '../lib/push'
 import { Field, Icon, SectionHead, Toggle } from '../components/UI'
 import { PasskeySettings } from '../components/Passkeys'
 import { PushSettings } from '../components/PushSettings'
+import { AccountsSettings } from '../components/AccountsSettings'
+import { parseBackup } from '../lib/backup'
 
 export function MoreScreen({
   data,
@@ -29,6 +31,8 @@ export function MoreScreen({
   const [deletePhrase, setDeletePhrase] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteMessage, setDeleteMessage] = useState('')
+  const [restoreDraft, setRestoreDraft] = useState<PockitData | null>(null)
+  const [restoreMessage, setRestoreMessage] = useState('')
   const setProfile = (patch: Partial<PockitData['profile']>) =>
     update((d) => ({ ...d, profile: { ...d.profile, ...patch } }))
   function exportData() {
@@ -230,34 +234,42 @@ export function MoreScreen({
                 />
               </Field>
             )}
-            <Field label="Money available now">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                value={data.profile.cashOnHand ?? ''}
-                onChange={(e) =>
-                  setProfile({
-                    cashOnHand: e.target.value ? num(e.target.value) : undefined,
-                    cashAsOf: e.target.value ? todayISO() : undefined,
-                    cashUpdatedAt: e.target.value ? new Date().toISOString() : undefined,
-                  })
-                }
-                placeholder="0.00"
-              />
-            </Field>
+            {!data.accounts?.some(
+              (account) =>
+                !account.archived && (account.kind === 'chequing' || account.kind === 'cash'),
+            ) && (
+              <Field label="Money available now">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={data.profile.cashOnHand ?? ''}
+                  onChange={(e) =>
+                    setProfile({
+                      cashOnHand: e.target.value ? num(e.target.value) : undefined,
+                      cashAsOf: e.target.value ? todayISO() : undefined,
+                      cashUpdatedAt: e.target.value ? new Date().toISOString() : undefined,
+                    })
+                  }
+                  placeholder="0.00"
+                />
+              </Field>
+            )}
           </div>
           <div className="soft-note">
-            Enter the amount available to spend today, after transactions already in your account.
-            Future income and expenses you record update the estimate. Transfers are excluded.
-            Refresh this starting amount whenever your bank balance changes in a way Pockit has not
-            recorded.
+            {data.accounts?.some(
+              (account) =>
+                !account.archived && (account.kind === 'chequing' || account.kind === 'cash'),
+            )
+              ? 'Your first active chequing or cash account now starts the payday estimate. Reconcile it below whenever its actual balance differs.'
+              : 'Enter the amount available today, after transactions already in your account. Later recorded income and spending update this estimate. Refresh it when your real balance differs.'}
           </div>
           {data.profile.cashAsOf && (
             <small>Starting amount entered on {data.profile.cashAsOf}.</small>
           )}
         </section>
+        <AccountsSettings data={data} update={update} />
         <section className="panel settings-panel">
           <SectionHead title="Preferences" />
           <Toggle
@@ -277,23 +289,21 @@ export function MoreScreen({
               }))
             }
           />
-          <Field label="Currency">
-            <select
-              value={data.settings.currency}
-              onChange={(e) =>
-                update((d) => ({
-                  ...d,
-                  settings: { ...d.settings, currency: e.target.value as 'CAD' | 'USD' },
-                }))
-              }
-            >
-              <option value="CAD">Canadian dollar (CAD)</option>
-              <option value="USD">US dollar (USD)</option>
-            </select>
-          </Field>
-          <div className="soft-note">
-            Changing currency changes the symbol only; it does not convert balances.
-          </div>
+          <Toggle
+            label="Show optional guides"
+            description="Short, illustrated explanations can open from the question mark in each part of Pockit."
+            checked={data.settings.guide !== false}
+            onChange={(guide) => update((d) => ({ ...d, settings: { ...d.settings, guide } }))}
+          />
+          <Toggle
+            label="Hide money amounts"
+            description="Blur amounts while someone is near your screen. Tap the eye in the top bar to switch quickly."
+            checked={!!data.settings.hideAmounts}
+            onChange={(hideAmounts) =>
+              update((d) => ({ ...d, settings: { ...d.settings, hideAmounts } }))
+            }
+          />
+          <div className="soft-note">Pockit uses Canadian dollars throughout your budget.</div>
         </section>
         <section className="panel settings-panel install-panel">
           <SectionHead
@@ -340,6 +350,68 @@ export function MoreScreen({
               <Icon name="Download" size={16} /> Export
             </button>
           </div>
+          <div className="settings-action">
+            <div>
+              <strong>Restore a backup</strong>
+              <small>
+                Review a JSON backup before replacing this budget. Pockit downloads your current
+                copy first.
+              </small>
+            </div>
+            <label className="secondary-button compact restore-button">
+              <Icon name="FileUp" size={16} /> Choose file
+              <input
+                type="file"
+                accept=".json,application/json"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) return
+                  setRestoreMessage('')
+                  try {
+                    if (file.size > 5_000_000) throw new Error('Choose a backup smaller than 5 MB.')
+                    setRestoreDraft(parseBackup(await file.text()))
+                  } catch (error) {
+                    setRestoreDraft(null)
+                    setRestoreMessage(
+                      error instanceof Error ? error.message : 'Could not read backup.',
+                    )
+                  }
+                  event.target.value = ''
+                }}
+              />
+            </label>
+          </div>
+          {restoreDraft && (
+            <div className="restore-review" role="group" aria-label="Review backup restore">
+              <strong>Review before restoring</strong>
+              <p>
+                {restoreDraft.transactions.length} transactions · {restoreDraft.categories.length}{' '}
+                categories · {restoreDraft.goals.length} goals. This replaces the current budget for
+                this account.
+              </p>
+              <button
+                className="primary-button compact"
+                onClick={() => {
+                  downloadJSON(data, `pockit-before-restore-${todayISO()}.json`)
+                  update(() => restoreDraft)
+                  setRestoreDraft(null)
+                  setRestoreMessage(
+                    'Backup restored. Check your budget before making more changes.',
+                  )
+                }}
+              >
+                Download current copy and restore
+              </button>
+              <button className="text-button" onClick={() => setRestoreDraft(null)}>
+                Cancel
+              </button>
+            </div>
+          )}
+          {restoreMessage && (
+            <p className="form-message" role="status">
+              {restoreMessage}
+            </p>
+          )}
           <div className="settings-action">
             <div>
               <strong>{demo ? 'Preview data' : 'Cloud sync'}</strong>

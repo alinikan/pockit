@@ -1,5 +1,5 @@
 import type { Category, Goal, PockitData, Transaction } from '../types'
-import { currentMonth, shiftMonth } from './finance'
+import { currentMonth, monthlyPay, shiftMonth } from './finance'
 
 export const categoryPresets = [
   ['Rent', 'House', 'Bills & Utilities', '#a9a3f5', 1500],
@@ -109,11 +109,19 @@ export const buildOnboardedData = (input: PockitData): PockitData => {
   if (housing) selected.add(housing)
   if (input.profile.reason === 'Get out of debt') selected.add('Debt Payments')
   if (input.profile.reason === 'Save for something big') selected.add('Savings')
+  if (input.goals.some((goal) => goal.kind === 'debt')) selected.add('Debt Payments')
+  if (input.goals.some((goal) => goal.kind === 'saving')) selected.add('Savings')
   if (input.profile.reason === 'Stop living paycheque to paycheque') selected.add('Payday Buffer')
   if (input.profile.reason === 'See where my money goes') {
     selected.add('Shopping')
     selected.add('Entertainment')
   }
+  const monthlyIncome = monthlyPay(input.profile.payAmount, input.profile.payFrequency)
+  const suggestedTotal = [...selected].reduce(
+    (sum, name) => sum + (categoryPresets.find((preset) => preset[0] === name)?.[4] || 0),
+    0,
+  )
+  const scale = suggestedTotal > 0 ? Math.min(1, (monthlyIncome * 0.9) / suggestedTotal) : 1
   const categories = [...selected].map((name) => {
     const preset = categoryPresets.find((p) => p[0] === name)
     const category = newCategory(
@@ -121,7 +129,7 @@ export const buildOnboardedData = (input: PockitData): PockitData => {
       preset?.[1],
       preset?.[2],
       preset?.[3],
-      preset?.[4] || 0,
+      Math.round(((preset?.[4] || 0) * scale) / 5) * 5,
       month,
     )
     if (
@@ -146,6 +154,7 @@ export const makeDemoData = (): PockitData => {
   const base = makeInitialData('Alex')
   const categories = categoryPresets
     .slice(0, 19)
+    .filter((preset) => !['Mortgage', 'Transit', 'Rideshare'].includes(preset[0]))
     .map((p) => newCategory(p[0], p[1], p[2], p[3], p[4], previous))
   for (const c of categories)
     if (['Savings', 'Car Maintenance', 'Emergency'].includes(c.name)) c.mode = 'rollover'

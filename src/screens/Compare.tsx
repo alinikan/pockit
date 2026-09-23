@@ -5,7 +5,9 @@ import {
   budgetComparison,
   categoryComparison,
   comparisonFindings,
+  comparisonCoverage,
   difference,
+  merchantDrivers,
   monthSnapshot,
   parseMonthInput,
   transactionsBehind,
@@ -20,15 +22,7 @@ const choices: { id: View; title: string; detail: string; icon: string }[] = [
   { id: 'plan', title: 'Plan vs actual', detail: 'Allocation check', icon: 'Target' },
 ]
 
-function Change({
-  before,
-  after,
-  currency,
-}: {
-  before: number
-  after: number
-  currency: 'CAD' | 'USD'
-}) {
+function Change({ before, after, currency }: { before: number; after: number; currency: 'CAD' }) {
   const delta = difference(before, after)
   if (delta.amount === 0) return <span className="compare-change flat">No change</span>
   return (
@@ -51,13 +45,22 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
   const [span, setSpan] = useState(6)
   const [selectedTrend, setSelectedTrend] = useState<MonthKey | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [sameDays, setSameDays] = useState(true)
   const currency = data.settings.currency
-  const snapshots = months.map((key) => monthSnapshot(data, key))
+  const throughDay = sameDays && months.includes(currentMonth()) ? new Date().getDate() : undefined
+  const snapshots = months.map((key) => monthSnapshot(data, key, throughDay))
   const first = snapshots[0]
   const last = snapshots.at(-1)!
   const delta = difference(first.spent, last.spent)
   const partial = months.some((key) => key >= currentMonth())
   const rows = categoryComparison(data, snapshots, showEmpty)
+  const strongest = [...rows].sort(
+    (a, b) => Math.abs(b.values.at(-1)! - b.values[0]) - Math.abs(a.values.at(-1)! - a.values[0]),
+  )[0]
+  const drivers = strongest
+    ? merchantDrivers(data, strongest.id, first.month, last.month, throughDay).slice(0, 3)
+    : []
+  const coverageWarning = comparisonCoverage(first, last)
   const groups = [
     'All categories',
     ...new Set([...data.categories.map((category) => category.group), 'Other']),
@@ -86,12 +89,13 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
   const plan =
     view === 'plan' ? budgetComparison(data, last.month).sort((a, b) => b.spent - a.spent) : []
   const planned = plan.reduce((sum, row) => sum + row.planned, 0)
+  const fullPlanSpent = monthSnapshot(data, last.month).spent
   const selectedRow = rows.find((row) => row.id === selectedCategory)
   const baselineTransactions = selectedCategory
-    ? transactionsBehind(data, selectedCategory, first.month)
+    ? transactionsBehind(data, selectedCategory, first.month, throughDay)
     : []
   const currentTransactions = selectedCategory
-    ? transactionsBehind(data, selectedCategory, last.month)
+    ? transactionsBehind(data, selectedCategory, last.month, throughDay)
     : []
 
   function changeMonth(index: number, value: string) {
@@ -198,6 +202,19 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
             </div>
           ))}
         </div>
+        {months.includes(currentMonth()) && (
+          <label className="compare-same-days">
+            <input
+              type="checkbox"
+              checked={sameDays}
+              onChange={(event) => setSameDays(event.target.checked)}
+            />{' '}
+            Compare through the same day of each month{' '}
+            <small>
+              For a month still in progress, compare day 1 through day {new Date().getDate()}.
+            </small>
+          </label>
+        )}
         {notice && (
           <p className="compare-notice" role="alert">
             {notice}
@@ -209,6 +226,11 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
         <div className="compare-caveat">
           <Icon name="Info" size={18} /> Current or future months may be incomplete. A lower total
           can simply mean transactions have not been entered yet.
+        </div>
+      )}
+      {coverageWarning && (
+        <div className="compare-caveat coverage-warning" role="status">
+          <Icon name="Info" size={18} /> {coverageWarning}
         </div>
       )}
 
@@ -240,19 +262,12 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                     <strong>{snapshot.expenseCount}</strong>
                   </div>
                   <div className="compare-detail-row">
-                    <span>{snapshot.recordedIncome ? 'Recorded income' : 'Expected income*'}</span>
-                    <strong>
-                      {money(snapshot.recordedIncome || snapshot.expectedIncome, currency)}
-                    </strong>
+                    <span>Received so far</span>
+                    <strong>{money(snapshot.recordedIncome, currency)}</strong>
                   </div>
                   <div className="compare-detail-row">
-                    <span>After spending*</span>
-                    <strong>
-                      {money(
-                        (snapshot.recordedIncome || snapshot.expectedIncome) - snapshot.spent,
-                        currency,
-                      )}
-                    </strong>
+                    <span>Monthly plan after spending*</span>
+                    <strong>{money(snapshot.expectedIncome - snapshot.spent, currency)}</strong>
                   </div>
                   {index > 0 && (
                     <div className="compare-card-delta">
@@ -264,8 +279,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               ))}
             </div>
             <p className="compare-footnote">
-              * Expected income comes from your pay setup when no income was recorded. “After
-              spending” uses that estimate and is not an account balance.
+              * Planned income comes from your pay setup. This figure is not an account balance.
             </p>
           </section>
           <section className="compare-callout">
@@ -313,6 +327,56 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               )}
             </div>
           </section>
+          {strongest && drivers.length > 0 && (
+            <section className="panel compare-drivers" aria-label="What drove the change">
+              <div className="compare-section-top">
+                <div>
+                  <h3>What drove {strongest.name}?</h3>
+                  <p>
+                    Changes by payee from {monthLabel(first.month)} to {monthLabel(last.month)}
+                    {throughDay ? `, through day ${throughDay}` : ''}.
+                  </p>
+                </div>
+                <button
+                  className="secondary-button compact"
+                  onClick={() => {
+                    setView('categories')
+                    setSelectedCategory(strongest.id)
+                  }}
+                >
+                  See transactions <Icon name="ArrowRight" size={16} />
+                </button>
+              </div>
+              {drivers.map((driver) => (
+                <div className="driver-row" key={driver.payee}>
+                  <Icon
+                    name={
+                      driver.kind === 'new'
+                        ? 'Plus'
+                        : driver.kind === 'absent'
+                          ? 'TrendingDown'
+                          : 'Repeat2'
+                    }
+                    size={18}
+                  />
+                  <span>
+                    <strong>{driver.payee}</strong>
+                    <small>
+                      {driver.kind === 'new'
+                        ? 'New in the last month'
+                        : driver.kind === 'absent'
+                          ? 'Not recorded in the last month'
+                          : 'Recorded in both months'}
+                    </small>
+                  </span>
+                  <strong className={driver.change > 0 ? 'negative' : 'positive'}>
+                    {driver.change > 0 ? '+' : '−'}
+                    {money(Math.abs(driver.change))}
+                  </strong>
+                </div>
+              ))}
+            </section>
+          )}
         </>
       )}
 
@@ -583,12 +647,12 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
             </div>
             <div>
               <span>SPENT</span>
-              <strong>{money(last.spent, currency)}</strong>
+              <strong>{money(fullPlanSpent, currency)}</strong>
             </div>
             <div>
               <span>THIS MONTH GAP</span>
-              <strong className={last.spent > planned ? 'compare-negative' : ''}>
-                {money(planned - last.spent, currency)}
+              <strong className={fullPlanSpent > planned ? 'compare-negative' : ''}>
+                {money(planned - fullPlanSpent, currency)}
               </strong>
             </div>
           </div>

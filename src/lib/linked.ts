@@ -14,56 +14,49 @@ export function changeTransaction(
     : after
       ? [...data.transactions, after]
       : data.transactions
-  const linkedGoalId = before?.goalId || after?.goalId
-  const delta = linkedGoalId ? (after?.amount || 0) - (before?.amount || 0) : 0
-  const goals = linkedGoalId
-    ? data.goals.map((goal) =>
-        goal.id !== linkedGoalId
-          ? goal
-          : {
-              ...goal,
-              balance: Math.max(0, goal.balance + (goal.kind === 'debt' ? -delta : delta)),
-              history: after
-                ? before
-                  ? goal.history.map((entry) =>
-                      entry.transactionId === before.id
-                        ? {
-                            ...entry,
-                            date: after.date,
-                            amount: after.amount,
-                            note: after.note || entry.note,
-                          }
-                        : entry,
-                    )
-                  : [
-                      {
-                        date: after.date,
-                        amount: after.amount,
-                        note: after.note || (goal.kind === 'debt' ? 'Payment' : 'Contribution'),
-                        transactionId: after.id,
-                      },
-                      ...goal.history,
-                    ]
-                : goal.history.filter((entry) => entry.transactionId !== before!.id),
-            },
-      )
-    : data.goals
-  const linkedBillId = before?.billId || after?.billId
-  const bills = linkedBillId
-    ? data.bills.map((bill) => {
-        if (bill.id !== linkedBillId) return bill
-        const previousMonth = before?.date.slice(0, 7)
-        const nextMonth = after?.date.slice(0, 7)
-        return {
-          ...bill,
-          paidMonths: [
-            ...new Set([
-              ...bill.paidMonths.filter((month) => month !== previousMonth),
-              ...(nextMonth ? [nextMonth] : []),
-            ]),
-          ],
-        }
+  const goals = data.goals.map((goal) => {
+    const oldImpact = before?.goalId === goal.id ? goalImpact(goal.kind, before) : 0
+    const newImpact = after?.goalId === goal.id ? goalImpact(goal.kind, after) : 0
+    if (!oldImpact && !newImpact) return goal
+    const balance = goal.balance - oldImpact + newImpact
+    if (balance < -0.001) throw new Error(`The linked movement exceeds ${goal.name}'s balance.`)
+    const history = goal.history.filter((entry) => entry.transactionId !== before?.id)
+    if (newImpact && after)
+      history.unshift({
+        date: after.date,
+        amount: Math.abs(newImpact),
+        note: after.note || (newImpact < 0 ? 'Withdrawal or payment' : 'Contribution'),
+        transactionId: after.id,
       })
-    : data.bills
+    return { ...goal, balance: Math.max(0, balance), history }
+  })
+  const bills = data.bills.map((bill) => {
+    const affected = [before, after].some((entry) => entry?.billId === bill.id)
+    if (!affected) return bill
+    const linkedMonths = new Set(
+      transactions
+        .filter((entry) => entry.billId === bill.id)
+        .map((entry) => entry.date.slice(0, 7)),
+    )
+    const previousMonth = before?.billId === bill.id ? before.date.slice(0, 7) : undefined
+    return {
+      ...bill,
+      paidMonths: [
+        ...new Set([
+          ...bill.paidMonths.filter((month) => month !== previousMonth || linkedMonths.has(month)),
+          ...linkedMonths,
+        ]),
+      ],
+    }
+  })
   return { ...data, transactions, goals, bills }
+}
+
+function goalImpact(kind: 'saving' | 'debt', transaction: Transaction) {
+  if (kind === 'debt') return -transaction.amount
+  return transaction.type === 'expense' && !transaction.refund
+    ? -transaction.amount
+    : transaction.refund
+      ? transaction.amount
+      : transaction.amount
 }

@@ -21,16 +21,16 @@ describe('reviewed CSV import', () => {
       'Date,Description,Amount\n09/20/2026,Costco,-24.50\n09/21/2026,Salary,100.00\n09/20/2026,Costco,-24.50'
     const result = previewCSV(text, data.transactions, data.categories)
     expect(
-      result.transactions.map((transaction) => [
-        transaction.date,
-        transaction.type,
-        transaction.amount,
-      ]),
+      result.transactions
+        .slice(0, 2)
+        .map((transaction) => [transaction.date, transaction.type, transaction.amount]),
     ).toEqual([
       ['2026-09-20', 'expense', 24.5],
       ['2026-09-21', 'income', 100],
     ])
     expect(result.duplicates).toBe(1)
+    expect(result.transactions).toHaveLength(3)
+    expect(result.possibleDuplicateIds).toEqual([result.transactions[2].id])
     expect(result.transactions[0].categoryId).toBe(
       data.categories.find((category) => category.name === 'Groceries')?.id,
     )
@@ -39,7 +39,11 @@ describe('reviewed CSV import', () => {
       [],
       data.categories,
     )
-    expect(debit.transactions.map((transaction) => transaction.type)).toEqual(['expense', 'income'])
+    expect(debit.transactions.map((transaction) => transaction.type)).toEqual([
+      'expense',
+      'expense',
+    ])
+    expect(debit.transactions[1].refund).toBe(true)
   })
   it('reports bad rows while keeping good rows for preview', () => {
     const result = previewCSV(

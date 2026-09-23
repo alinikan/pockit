@@ -17,13 +17,20 @@ export const monthLabel = (key: MonthKey) => {
     new Date(year, month - 1, 1),
   )
 }
-export const money = (value: number, currency: 'CAD' | 'USD' = 'CAD', compact = false) =>
-  new Intl.NumberFormat('en-CA', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: compact ? 0 : 2,
-    minimumFractionDigits: compact ? 0 : 2,
-  }).format(Number.isFinite(value) ? value : 0)
+let hideDisplayAmounts = false
+/** Display-only masking for the single Pockit app root. This is not encryption or a session lock. */
+export const setMoneyPrivacy = (hidden: boolean) => {
+  hideDisplayAmounts = hidden
+}
+export const money = (value: number, _currency: 'CAD' = 'CAD', compact = false) =>
+  hideDisplayAmounts
+    ? '••••'
+    : new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+        maximumFractionDigits: compact ? 0 : 2,
+        minimumFractionDigits: compact ? 0 : 2,
+      }).format(Number.isFinite(value) ? value : 0)
 export const monthlyPay = (amount: number, frequency: Frequency) =>
   amount * { weekly: 52 / 12, biweekly: 26 / 12, 'twice-monthly': 2, monthly: 1 }[frequency]
 export const transactionsInMonth = (transactions: Transaction[], month: MonthKey) =>
@@ -46,25 +53,37 @@ export const categoryBudget = (category: Category, month: MonthKey, monthlyIncom
 }
 export const spendingByCategory = (transactions: Transaction[], month: MonthKey) => {
   const totals: Record<string, number> = {}
-  for (const t of transactionsInMonth(transactions, month))
-    if (t.type === 'expense' && t.categoryId)
-      totals[t.categoryId] = (totals[t.categoryId] || 0) + t.amount
+  for (const t of transactionsInMonth(transactions, month)) {
+    if (t.type !== 'expense') continue
+    const direction = t.refund ? -1 : 1
+    if (t.splits?.length) {
+      for (const split of t.splits)
+        totals[split.categoryId] = (totals[split.categoryId] || 0) + split.amount * direction
+    } else if (t.categoryId)
+      totals[t.categoryId] = (totals[t.categoryId] || 0) + t.amount * direction
+  }
   return totals
 }
 export const monthSummary = (data: PockitData, month: MonthKey) => {
-  const monthlyIncome = monthlyPay(data.profile.payAmount, data.profile.payFrequency)
+  const plannedIncome = monthlyPay(data.profile.payAmount, data.profile.payFrequency)
   const txs = transactionsInMonth(data.transactions, month)
   const actualIncome = txs.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
-  const income = actualIncome || monthlyIncome
-  const spent = txs.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
-  const allocated = data.categories.reduce((sum, c) => sum + categoryBudget(c, month, income), 0)
+  const spent = txs
+    .filter((t) => t.type === 'expense')
+    .reduce((sum, t) => sum + (t.refund ? -t.amount : t.amount), 0)
+  const allocated = data.categories.reduce(
+    (sum, c) => sum + categoryBudget(c, month, plannedIncome),
+    0,
+  )
   return {
-    income,
+    income: plannedIncome,
+    plannedIncome,
     actualIncome,
     spent,
-    remaining: income - spent,
+    remaining: plannedIncome - spent,
+    recordedNet: actualIncome - spent,
     allocated,
-    unallocated: income - allocated,
+    unallocated: plannedIncome - allocated,
   }
 }
 export const rolloverBalance = (category: Category, data: PockitData, month: MonthKey) => {
@@ -144,11 +163,35 @@ export const budgetHealth = (data: PockitData, month: MonthKey) => {
 export const billsForMonth = (bills: Bill[], month: MonthKey) => {
   const [year, number] = month.split('-').map(Number)
   const days = new Date(year, number, 0).getDate()
-  return bills.map((bill) => ({
-    ...bill,
-    date: `${month}-${String(Math.min(bill.day, days)).padStart(2, '0')}`,
-    paid: bill.paidMonths.includes(month),
-  }))
+  return bills
+    .filter((bill) => {
+      if (!bill.starts) return !bill.frequency || bill.frequency === 'monthly'
+      if (!bill.frequency || bill.frequency === 'monthly') return month >= bill.starts
+      const [startYear, startMonth] = bill.starts.split('-').map(Number)
+      const distance = (year - startYear) * 12 + number - startMonth
+      return distance >= 0 && distance % (bill.frequency === 'quarterly' ? 3 : 12) === 0
+    })
+    .map((bill) => ({
+      ...bill,
+      date: `${month}-${String(Math.min(bill.day, days)).padStart(2, '0')}`,
+      paid: bill.paidMonths.includes(month),
+      skipped: bill.skippedMonths?.includes(month) || false,
+    }))
+}
+/** An estimate to set aside each month until the next quarterly or yearly bill. */
+export const billMonthlyReserve = (bill: Bill, month: MonthKey) => {
+  if (bill.frequency !== 'quarterly' && bill.frequency !== 'yearly') return null
+  const period = bill.frequency === 'quarterly' ? 3 : 12
+  for (let offset = 0; offset <= 24; offset++) {
+    const dueMonth = shiftMonth(month, offset)
+    const due = billsForMonth([bill], dueMonth)[0]
+    if (due && !due.paid && !due.skipped)
+      return {
+        dueMonth,
+        perMonth: Math.ceil((bill.amount / Math.min(period, offset + 1)) * 100) / 100,
+      }
+  }
+  return null
 }
 export const categorizePayee = (payee: string, categories: Category[]) => {
   const q = payee.toLowerCase()
