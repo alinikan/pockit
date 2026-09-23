@@ -8,13 +8,15 @@ The product was inspired by the clarity of modern budgeting apps, including Wayp
 
 - **Guided setup:** reason for budgeting, take-home pay and frequency, housing, transport, spending categories, savings goals, debts, goal projections, and Smart Features. Draft answers and the current step save to Supabase so a returning user can resume.
 - **Home:** monthly income, spending, remaining money, category breakdown, overspent categories, upcoming bills, and income compared with expenses.
-- **Activity:** manual income, expense, and transfer transactions; search, type and category filters; six sort modes; edit and delete; merchant-based category suggestions; on-device receipt text recognition.
+- **Activity:** quick add, repeat a recent merchant, manual income/expense/transfer entries, reviewed CSV import with duplicate checks, search and filters, six sort modes, edit/delete with one-step undo, merchant-based category suggestions, and on-device receipt text recognition.
 - **Budget:** monthly allocations, a colour breakdown, category groups, weekly/biweekly/twice-monthly/monthly amounts, payment day, notes, one-month overrides, fresh or rollover balances, fixed or percentage contributions, and manual funding.
-- **Calendar:** transaction and bill markers, daily details, bill reminders, paid status, and the next seven days.
-- **Goals:** savings and debt balances, interest-aware dates, progress history, and a debt plan with highest-rate, smallest-balance, or custom order plus extra monthly payments.
-- **Compare:** choose two to four months for aligned expense, income, and category columns; filter and sort categories or include categories with no spending; view a 3, 6, or 12-month spending trend; compare allocations with actual spending; and see transaction-based findings and budget warnings.
+- **Calendar:** transaction and bill markers, daily details, paid status, the next seven days, and an explicit Record payment action that also creates an Activity expense.
+- **Goals:** savings and debt balances, interest-aware dates, progress history, and a debt plan with highest-rate, smallest-balance, or custom order plus extra monthly payments. Recorded progress can create a linked Activity entry. The What-if Lab explores extra payments, savings, and expense changes without changing saved data.
+- **Compare:** choose two to four months for aligned expense, income, and category columns; filter and sort categories or include categories with no spending; view a 3, 6, or 12-month spending trend; compare allocations with actual spending; see transaction-based findings and budget warnings; open a category to inspect the transactions behind its change.
 - **Money Coach:** local, data-based answers about spending, goals, bills, income, and month comparisons. It does **not** call a paid AI API.
-- **Settings:** dark/light theme, Smart Features, profile preferences, CAD/USD display, JSON export, password update, account deletion, and sign-out.
+- **Settings:** dark/light theme, Smart Features, paycheque timing and a manually entered starting amount, optional bill push reminders, iPhone installation help, CAD/USD display, JSON export, password update, account deletion, and sign-out.
+- **Saving across devices:** local pending copy, cloud save status, revision-checked writes, retry, and a review screen when two devices changed the same budget. Download the device copy before choosing a winner.
+- **Phone-ready charts:** labelled colours plus tap targets for Budget allocations and Compare trend bars, and a slider for reading projected balances in Goals. Touch controls have at least a 44-pixel target on coarse-pointer devices, and reduced-motion preferences are respected.
 - **Account emails:** branded deletion receipts and owner alerts for confirmed signups, with a private notification outbox and retry job.
 - **Private accounts:** Supabase email/password authentication and one JSON budget document per user protected by Postgres row-level security (RLS).
 - **Passkeys:** optional Face ID, Touch ID, device PIN, or security-key sign-in after the user registers a passkey in Settings. See the [passkey setup guide](PASSKEYS.md).
@@ -22,9 +24,9 @@ The product was inspired by the clarity of modern budgeting apps, including Wayp
 
 ## What Pockit does not do yet
 
-Pockit does not connect to bank accounts, send push notifications, share a budget between accounts, convert currencies, or use a language model. Transactions and goal payments are entered manually. Recording a goal payment does not automatically create an Activity transaction; add one there if you want it reflected in spending. Bill reminders do not create transactions automatically. Receipt recognition extracts likely merchant and total from an image on the device; review the values before saving. The first scan downloads Tesseract's recognition data. Goal dates and debt plans are estimates based on fixed monthly payments and rates; they do not include fees or future rate changes.
+Pockit does not connect to bank accounts, share a budget between accounts, convert currencies, or use a language model. Bank CSV imports need review because banks use different signs and column names. Receipt recognition extracts likely merchant and total from an image on the device; review the values before saving. The first scan downloads Tesseract's recognition data. Goal dates and debt plans are estimates based on fixed monthly payments and rates; they do not include fees or future rate changes. Push reminders are optional, require deployment setup, and can arrive later than a bill's due time.
 
-The installed web app needs a connection to sign in and sync cloud data. Its shell can load from cache after the first visit, but it is not an offline-first budgeting system.
+The installed web app needs a connection to sign in and sync cloud data. After a first visit, its shell and a signed-in device copy can load while offline. Pending edits stay on that device until a later sync. This is a fallback, not a guarantee against browser storage removal; use JSON export for another backup. If two devices edit the same budget before syncing, Pockit asks which entire copy to keep. It does not merge individual transactions automatically.
 
 ## Technology
 
@@ -36,7 +38,7 @@ The installed web app needs a connection to sign in and sync cloud data. Its she
 | Receipt reading         | Tesseract.js                           | On-device OCR, no paid API or receipt upload                                               |
 | Charts                  | SVG and CSS                            | Lightweight, responsive visuals                                                            |
 | Hosting                 | Vercel static deployment and Functions | GitHub-connected deployment, private account/email endpoints, and a free `.vercel.app` URL |
-| Tests                   | Vitest                                 | Budget and date edge-case coverage                                                         |
+| Tests                   | Vitest and Playwright                  | Calculation, interaction, and real-browser layout checks                                   |
 
 The browser receives only a **Supabase publishable key**. It is designed to be public. RLS in `supabase/schema.sql` is what protects each user's data. Never put a Supabase secret or service-role key, a Resend key, or an SMTP password in `VITE_` variables or Git.
 
@@ -58,7 +60,7 @@ The browser receives only a **Supabase publishable key**. It is designed to be p
    cp .env.example .env.local
    ```
 
-3. Replace the two placeholders in `.env.local` with your Supabase project URL and publishable key. For a no-account preview, leave the placeholders and use **Preview Pockit**. This file is for local development; Vercel needs the same two values entered in its own project environment-variable settings. `npm run dev` serves only the browser UI; Vercel's `/api` functions run after deployment or under `vercel dev`. See [account email setup](ACCOUNT_EMAILS.md) for the additional **server-only** Vercel variables. No AI or SMTP password is needed in `.env.local`.
+3. Replace the Supabase placeholders in `.env.local` with your project URL and publishable key. Add `VITE_VAPID_PUBLIC_KEY` only if enabling browser reminders. For a no-account preview, leave the placeholders and use **Preview Pockit**. This file is for local development; Vercel needs browser values entered in its own project environment-variable settings. `npm run dev` serves only the browser UI; Vercel's `/api` functions run after deployment or under `vercel dev`. See [account email setup](ACCOUNT_EMAILS.md) for the additional **server-only** Vercel variables. No AI, SMTP, VAPID private, or Supabase secret key belongs in `.env.local`.
 4. Run `npm run dev`. Open the local URL Vite prints, normally `http://localhost:5173`.
 
 ### Run locally on Windows
@@ -73,7 +75,7 @@ The browser receives only a **Supabase publishable key**. It is designed to be p
 
 3. Fill in `.env.local`, then run `npm run dev` and open the printed URL.
 
-On either system, run `npm test` for the unit tests and `npm run build` to type-check and make the production `dist/` folder. `npm run preview` serves the built version locally. Use `npm run format` before committing code changes; `npm run format:check` verifies formatting without changing files.
+On either system, run `npm test` for the unit and interaction tests and `npm run build` to type-check and make the production `dist/` folder. For the browser layout suite, run `npx playwright install chromium` once, then `npm run test:ui`. The browser suite starts its own local server, uses Preview mode, and needs no Supabase account. `npm run preview` serves the built version locally. Use `npm run format` before committing code changes; `npm run format:check` verifies formatting without changing files.
 
 ## Cloud setup, in order
 
@@ -95,8 +97,7 @@ Replace `YOUR_USERNAME`. The `.gitignore` excludes `.env.local`, `node_modules/`
 ### 2. Create the Supabase project and database
 
 1. In [Supabase](https://supabase.com/dashboard), create a **Free** project. Save its database password in a password manager. Choose a nearby region.
-2. Wait until the project is ready. Open **SQL Editor** → **New query**. Paste the full contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**. It creates `public.pockit_data`, enables RLS, and limits each user to their own row.
-   Then run [`supabase/notifications.sql`](supabase/notifications.sql) in a second new query to enable account deletion receipts and owner signup alerts.
+2. Wait until the project is ready. Open **SQL Editor** → **New query**. Paste the full contents of [`supabase/schema.sql`](supabase/schema.sql) and click **Run**. It creates `public.pockit_data`, enables RLS, and installs the `pockit_save` function for revision-checked saves. **If Pockit is already deployed, rerun this updated file before deploying this version.** Then run [`supabase/notifications.sql`](supabase/notifications.sql) in a second query for account emails. If you want push reminders, run [`supabase/push.sql`](supabase/push.sql) in a third query.
 3. Open the project's **Connect** panel or **Settings → API Keys**. Copy the **Project URL** and the **publishable key** (`sb_publishable_...`). Do **not** use the secret key.
 4. Create `.env.local` in the repository root:
 
@@ -108,7 +109,7 @@ Replace `YOUR_USERNAME`. The `.gitignore` excludes `.env.local`, `node_modules/`
 5. Open **Authentication → Providers → Email** and keep email/password sign-up enabled. Keep email confirmation enabled for normal use. The SMTP step below is needed before people outside the Supabase project team can receive those emails.
 6. In **Authentication → URL Configuration**, set **Site URL** to the final Vercel production URL, such as `https://pockit-example.vercel.app`. Add redirect URLs for that exact URL and local development, for example `http://localhost:5173/**` and `http://127.0.0.1:5173/**`. Add a preview URL pattern only if you will test sign-up on Vercel preview deployments.
 
-The single JSONB row is deliberate for a tiny personal project. If Pockit grows to many users or needs cross-device conflict resolution, migrate transactions, goals, and categories into separate relational tables.
+The single JSONB row is deliberate for a tiny personal project. Revision checks prevent silent overwrites but resolve conflicts at the whole-budget level. For larger use or automatic merging, move transactions, goals, and categories into relational tables.
 
 ### 3. Configure email delivery
 
@@ -170,12 +171,34 @@ For a short private test with no outgoing email, you can temporarily turn **Conf
    VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_KEY
    ```
 
+   If enabling push reminders, also add `VITE_VAPID_PUBLIC_KEY` using the public key from step 4b below. Vercel's **Import .env** is optional; manual entry makes it easier to check each name. Never import a file containing secret server keys as `VITE_` values. Put server keys in separate Vercel environment variables as described in the account email and push setup sections.
+
 4. Deploy. Open the generated `https://...vercel.app` URL. Put that **exact** URL into Supabase's **Site URL** and redirect allow-list if you did not know it earlier. Redeploy if you added or changed Vercel environment variables after the first build.
 5. Sign up with one email, confirm it, finish onboarding, add a test transaction, sign out, sign in, and confirm the transaction remains. Test a second account to confirm it sees its own empty setup rather than the first account's budget.
 
 ### 4a. Enable deletion receipts and owner alerts
 
 Follow the exact [account email setup guide](ACCOUNT_EMAILS.md) to add the private Supabase key and Brevo API key to Vercel, configure the immediate database webhook, and test signup and deletion. The new `/api/delete-account` route will refuse to delete an account until the private notification outbox is installed. The owner receives only an email address and confirmation time, never budget contents.
+
+### 4b. Enable optional bill push reminders
+
+1. Run [`supabase/push.sql`](supabase/push.sql) in **Supabase → SQL Editor → New query**. It creates a private per-device subscription table. Confirm the query succeeds.
+2. In this repository after `npm ci`, run `npx web-push generate-vapid-keys --json` in Terminal or PowerShell. Copy the `publicKey` and `privateKey` into a password manager. Use one stable key pair; changing it requires users to turn reminders off and on again.
+3. In **Vercel → Pockit project → Settings → Environment Variables**, add the following for **Production**:
+
+   | Name                    | Value                                | Visibility                     |
+   | ----------------------- | ------------------------------------ | ------------------------------ |
+   | `VITE_VAPID_PUBLIC_KEY` | Generated `publicKey`                | Public browser value           |
+   | `VAPID_PUBLIC_KEY`      | The same `publicKey`                 | Server value, safe to disclose |
+   | `VAPID_PRIVATE_KEY`     | Generated `privateKey`               | **Secret; server only**        |
+   | `VAPID_SUBJECT`         | `mailto:your-real-email@example.com` | Server contact address         |
+
+   The daily function also uses `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `CRON_SECRET` from [account email setup](ACCOUNT_EMAILS.md). Add them if they are not already present. Do not prefix private keys with `VITE_` and do not commit them.
+
+4. Redeploy in **Vercel → Deployments → latest deployment → Redeploy** so the browser receives the public key and the scheduled function receives the server values. In **Settings → Cron Jobs**, confirm `/api/bill-reminders` appears. Vercel Hobby runs this check once daily, approximately within the scheduled UTC hour.
+5. On an iPhone, open the deployed site in Safari, **Share → Add to Home Screen**, then launch Pockit from the new icon. Sign in, open **More → Bill reminders → Turn on**, and allow notifications in the iOS prompt. Add a bill due today in Calendar. On another device, enable reminders separately if desired. A private, generic message is sent when an unpaid bill is due, and tapping it opens Calendar. Check Vercel function logs if it does not arrive; delivery also depends on iPhone notification and Focus settings.
+
+The public and private VAPID keys are not Supabase API keys. `.env.local` may contain the public VAPID value, but the local Vite app does not register push; use the deployed app to test reminders. Notifications contain no bill name, amount, or budget figures.
 
 Vercel Hobby is free for **personal, non-commercial** use. Check its terms and upgrade if the project becomes commercial. Supabase Free currently includes two active projects and may pause a project after one week of inactivity; a paused project must be restored in Supabase before sign-in works. Free-tier limits can change.
 
@@ -184,6 +207,8 @@ Vercel Hobby is free for **personal, non-commercial** use. Check its terms and u
 1. Open the production `https://...vercel.app` URL in **Safari**.
 2. Tap the **Share** icon and choose **Add to Home Screen**.
 3. Name it **Pockit** and tap **Add**. Launch it from the Home Screen, then sign in.
+
+On MacBook or Windows, use the same Vercel URL in a current browser. Pockit's responsive navigation changes for larger screens. iPhone Web Push works from the Home Screen app; on desktop, browser support and permission rules vary.
 
 This is a progressive web app (PWA), not an App Store binary. No Apple Developer account is needed for Home Screen installation. Publishing to the App Store later would require a separate native wrapper and Apple's review process.
 
@@ -198,6 +223,9 @@ This is a progressive web app (PWA), not an App Store binary. No Apple Developer
 - **Debt and savings dates:** simulated month by month with the entered annual rate divided by 12. A debt whose payment does not cover interest has no payoff date. Projections stop at 600 months rather than displaying a misleading date.
 - **Debt plan:** minimum payments are applied first; remaining monthly capacity goes to debts in the chosen order. Freed payments move to the next debt. This is an estimate, not a lender statement.
 - **Compare:** months are independent columns, so you can compare any months or years. The first column is the baseline and the last is the endpoint for findings. Your chosen months and view stay in place while switching tabs during a visit. Spending includes expense transactions only; deleted or missing categories appear under Uncategorized so category totals still match overall spending. Income is labelled expected when no income transaction was entered. In Plan vs actual, a rollover category is flagged only when its accumulated balance is negative. Current and future months are marked as incomplete. A blank month means no expenses were entered, not necessarily that none happened.
+- **Paycheque view:** uses the payday pattern you set and an optional manually entered starting amount. It adds later recorded income, subtracts later recorded expenses and unpaid bills before the next payday, then divides the remainder by days. It is an estimate, not a live bank balance.
+- **What-if Lab:** adds hypothetical monthly debt/savings contributions or expense changes to the current plan. Sliders never save transactions or allocations. The unallocated amount is planned income minus allocations and hypothetical changes, not a bank balance.
+- **Cross-device saving:** each successful write increases a database revision. A device with an older revision cannot replace a newer cloud copy without showing the conflict screen. Pending edits are stored in that device's browser storage; the Saved indicator means the cloud write finished.
 
 ## Repository layout
 
@@ -209,18 +237,22 @@ src/screens/         Home, Activity, Budget, Calendar, Goals, Compare, More, Coa
 src/types.ts         Shared data types
 src/styles.css       Dark and light design system, responsive layout
 src/screens/Compare.css  Compare layout and compact seven-tab navigation
+e2e/                 Playwright phone, tablet, and desktop UI tests
+playwright.config.ts Local test server and browser configuration
 supabase/schema.sql  Private database table and RLS policies
+supabase/push.sql    Private browser push subscriptions and RLS
 supabase/notifications.sql  Private email outbox and account triggers
 server/              Branded email templates and delivery/retry logic
 api/                 Vercel account deletion, webhook, and retry endpoints
-vercel.json           Daily retry schedule
+vercel.json           Daily email retry and bill reminder schedules
 ACCOUNT_EMAILS.md     Detailed setup and testing guide
 PASSKEYS.md           Passkey configuration and iPhone walkthrough
+BANK_CONNECTION.md    Bank connection design, setup, cost, and testing guide
 ```
 
 ## Testing and troubleshooting
 
-Run `npm test` and `npm run build` before every deployment. The finance tests cover month and year boundaries, leap years, pay frequencies, category overrides, rollover, transfers, debt interest, payoff order, recurring charges, and receipt parsing. Comparison tests cover month boundaries, transfers, uncategorized spending, zero baselines, expected versus recorded income, and the view controls.
+Run `npm test`, `npm run test:ui`, and `npm run build` before every deployment. Unit and interaction tests cover month/year boundaries, pay frequencies, payday estimates, category overrides, rollover, debt projections, What-if scenarios, CSV parsing and duplicate detection, linked goal/bill payments, push due dates, and comparison math. Playwright checks all seven tabs, layout at several phone and desktop widths, dialog placement, quick add, undo, CSV review, theme, reduced motion, chart value controls, 44-pixel touch targets, comparison details, and install help. Failed browser tests save screenshots and traces in ignored `test-results/`. For an extra check against the production bundle on Mac or Linux, run `npm run build` followed by `POCKIT_PREVIEW=1 npm run test:ui`.
 
 | Symptom                                     | Check                                                                                                                                                                    |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -233,10 +265,13 @@ Run `npm test` and `npm run build` before every deployment. The finance tests co
 | An installed iPhone app looks old           | Refresh it while online, then relaunch. The service worker caches the shell and updates from the network.                                                                |
 | Receipt scan fails                          | Use a clear, well-lit image with a printed total; enter details manually if OCR cannot read it.                                                                          |
 | A Supabase project is paused                | Restore it in the Supabase dashboard, or move to a paid tier if inactivity pauses are unacceptable.                                                                      |
+| Saving says “Sync needs attention”          | Check internet access, press **Retry sync**, and confirm the updated `supabase/schema.sql` ran. Download a JSON backup before clearing browser storage.                  |
+| Two-device review appears                   | Download the local copy, compare with the other device, then choose **Use cloud copy** or **Use this device’s copy**. The choice replaces the entire budget.             |
+| Bill push does not arrive                   | Run `supabase/push.sql`, set all VAPID variables and `CRON_SECRET`, redeploy, enable on the installed iPhone app, and check Vercel Cron/Function logs.                   |
 
 ## Privacy and cost notes
 
-This app does not request banking credentials. Receipt images are read in the browser and are not stored in Supabase. Account data and budget data live in the Supabase project selected by the deployer. Exported JSON files contain financial information; store them privately. Supabase RLS restricts a signed-in user to their own row, and the `anon` role has no table access.
+This app does not request banking credentials. CSV and receipt files are read in the browser and are not uploaded as files. Imported transactions and other account data live in the Supabase project selected by the deployer. Pending and cached budget copies live in each signed-in device's browser storage, which may be accessible to someone using that device profile. Avoid shared browser profiles, sign out when finished, and keep exported JSON files private. Supabase RLS restricts a signed-in user to their own row, and the `anon` role has no table access.
 
 For 2–3 people using this as a personal, non-commercial app, Vercel Hobby + Supabase Free + an eligible free Brevo sender can remain at $0, subject to account activation and service limits. A custom domain for Resend, commercial Vercel use, higher usage, or a paid AI service would change that. The current coach and Smart Features require no AI subscription. Email delivery is best effort: outages and provider restrictions can delay or prevent delivery.
 
@@ -246,4 +281,5 @@ For 2–3 people using this as a personal, non-commercial app, Vercel Hobby + Su
 - [Vercel Git deployments](https://vercel.com/docs/git), [Hobby plan](https://vercel.com/docs/plans/hobby)
 - [Resend SMTP](https://resend.com/changelog/smtp-service), [Resend pricing](https://resend.com/pricing)
 - [Brevo sender verification](https://help.brevo.com/hc/en-us/articles/208836149-Create-a-new-sender-From-name-and-From-email), [Brevo SMTP setup](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP)
-- [Supabase Database Webhooks](https://supabase.com/docs/guides/database/webhooks), [deleteUser](https://supabase.com/docs/reference/javascript/auth-admin-deleteuser), [Brevo transactional email API](https://developers.brevo.com/reference/send-transac-email), [Vercel cron jobs](https://vercel.com/docs/cron-jobs/usage-and-pricing)
+- [Supabase Database Webhooks](https://supabase.com/docs/guides/database/webhooks), [deleteUser](https://supabase.com/docs/reference/javascript/auth-admin-deleteuser), [Brevo transactional email API](https://developers.brevo.com/reference/send-transac-email), [Vercel cron jobs](https://vercel.com/docs/cron-jobs/manage-cron-jobs)
+- [WebKit Home Screen Web Push](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/), [Plaid Transactions](https://plaid.com/docs/transactions/), [Plaid pricing and billing](https://plaid.com/docs/account/billing/)

@@ -2,8 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import type { MonthKey, PockitData } from './types'
 import { currentMonth } from './lib/finance'
+import { disablePushForCurrentAccount } from './lib/push'
 import { makeDemoData, makeInitialData } from './lib/defaults'
-import { loadCloud, readDemo, saveCloud, saveDemo, supabase } from './lib/storage'
+import {
+  clearCache,
+  clearPending,
+  downloadJSON,
+  isConflictError,
+  loadCloud,
+  readCache,
+  readDemo,
+  readPending,
+  saveCloud,
+  saveDemo,
+  sameData,
+  supabase,
+  writeCache,
+  writePending,
+  type CloudSnapshot,
+  type PendingSnapshot,
+} from './lib/storage'
 import { Auth } from './components/Auth'
 import { Onboarding } from './components/Onboarding'
 import { Brand, Icon, MonthPicker } from './components/UI'
@@ -38,12 +56,64 @@ export default function App() {
   const [data, setData] = useState<PockitData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<Tab>('Home')
+  const [tab, setTab] = useState<Tab>(() =>
+    new URLSearchParams(window.location.search).get('open') === 'calendar' ? 'Calendar' : 'Home',
+  )
+  const [quickAdd, setQuickAdd] = useState(0)
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [coachOpen, setCoachOpen] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<
+    'saved' | 'saving' | 'offline' | 'conflict' | 'error'
+  >('saved')
+  const [conflict, setConflict] = useState<{
+    local: PendingSnapshot
+    remote: CloudSnapshot
+  } | null>(null)
+  const [retry, setRetry] = useState(0)
   const saveQueue = useRef(Promise.resolve())
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ready = useRef(false)
+  const revision = useRef(0)
+  const suppressNextSave = useRef(false)
+  const dataRef = useRef(data)
+  const conflictRef = useRef(conflict)
+  dataRef.current = data
+  conflictRef.current = conflict
+
+  useEffect(() => {
+    const retryPending = () => {
+      if (!session || conflictRef.current) return
+      if (readPending(session.user.id)) {
+        setRetry((value) => value + 1)
+        return
+      }
+      void loadCloud(session)
+        .then((remote) => {
+          if (
+            remote &&
+            remote.revision > revision.current &&
+            !readPending(session.user.id) &&
+            !conflictRef.current
+          ) {
+            revision.current = remote.revision
+            writeCache(session.user.id, remote)
+            suppressNextSave.current = true
+            setData(remote.data)
+            setSyncStatus('saved')
+          }
+        })
+        .catch(() => {})
+    }
+    window.addEventListener('online', retryPending)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') retryPending()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('online', retryPending)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [session?.user.id])
 
   useEffect(() => {
     if (!supabase) {
@@ -60,6 +130,7 @@ export default function App() {
       if (!next) {
         setData(null)
         ready.current = false
+        setConflict(null)
       }
     })
     return () => listener.subscription.unsubscribe()
@@ -73,15 +144,40 @@ export default function App() {
     loadCloud(session)
       .then((cloud) => {
         if (!cancelled) {
-          setData(cloud || makeInitialData(session.user.user_metadata?.name || ''))
+          const pending = readPending(session.user.id)
+          revision.current = cloud?.revision || 0
+          if (cloud) writeCache(session.user.id, cloud)
+          if (pending && (!cloud || !sameData(pending.data, cloud.data))) {
+            setData(pending.data)
+            if (pending.revision !== revision.current) {
+              setConflict({
+                local: pending,
+                remote: cloud || { data: makeInitialData(), revision: 0 },
+              })
+              setSyncStatus('conflict')
+            } else setSyncStatus(navigator.onLine ? 'saving' : 'offline')
+          } else {
+            if (pending) clearPending(session.user.id)
+            suppressNextSave.current = !!cloud
+            setData(cloud?.data || makeInitialData(session.user.user_metadata?.name || ''))
+            setSyncStatus('saved')
+          }
           ready.current = true
           setError('')
         }
       })
       .catch((e) => {
-        if (!cancelled)
+        if (cancelled) return
+        const local = readPending(session.user.id) || readCache(session.user.id)
+        if (local) {
+          revision.current = local.revision
+          setData(local.data)
+          ready.current = true
+          setSyncStatus('offline')
+          setError('Working from this device’s saved copy. Reconnect to check for newer edits.')
+        } else
           setError(
-            `Could not load your budget: ${e.message}. Check that you ran supabase/schema.sql.`,
+            `Could not load your budget: ${e.message}. Run the updated supabase/schema.sql in Supabase.`,
           )
       })
       .finally(() => {
@@ -95,6 +191,28 @@ export default function App() {
   useEffect(() => {
     if (!data || !ready.current) return
     document.documentElement.dataset.theme = data.settings.theme
+    if (conflict) return
+    if (suppressNextSave.current) {
+      suppressNextSave.current = false
+      return
+    }
+    if (!demo && session) {
+      try {
+        writePending(session.user.id, {
+          data,
+          revision: revision.current,
+          changedAt: new Date().toISOString(),
+        })
+        setSyncStatus(navigator.onLine ? 'saving' : 'offline')
+      } catch {
+        setSyncStatus('error')
+        setError(
+          'This device could not keep a pending copy. Free up browser storage before making more changes.',
+        )
+        return
+      }
+      if (!navigator.onLine) return
+    }
     const timer = setTimeout(() => {
       saveTimer.current = null
       if (demo) {
@@ -106,10 +224,38 @@ export default function App() {
         }
       } else if (session)
         saveQueue.current = saveQueue.current
-          .then(() => saveCloud(session, data))
-          .then(() => setError(''))
-          .catch((e) => {
-            setError(`Changes could not sync: ${e.message}`)
+          .then(async () => {
+            if (!ready.current || conflictRef.current) return
+            const nextRevision = await saveCloud(session, data, revision.current)
+            revision.current = nextRevision
+            writeCache(session.user.id, { data, revision: nextRevision })
+            if (dataRef.current === data) {
+              clearPending(session.user.id)
+              setSyncStatus('saved')
+            } else if (dataRef.current)
+              writePending(session.user.id, {
+                data: dataRef.current,
+                revision: nextRevision,
+                changedAt: new Date().toISOString(),
+              })
+            setError('')
+          })
+          .catch(async (e) => {
+            if (isConflictError(e)) {
+              try {
+                const remote = await loadCloud(session)
+                const local = readPending(session.user.id)
+                if (remote && local) {
+                  setConflict({ local, remote })
+                  setSyncStatus('conflict')
+                  return
+                }
+              } catch {
+                /* Show the sync error below. */
+              }
+            }
+            setSyncStatus(navigator.onLine ? 'error' : 'offline')
+            setError(`Changes are saved on this device but could not sync: ${e.message}`)
           })
     }, 400)
     saveTimer.current = timer
@@ -117,7 +263,40 @@ export default function App() {
       clearTimeout(timer)
       if (saveTimer.current === timer) saveTimer.current = null
     }
-  }, [data, demo, session])
+  }, [data, demo, session, conflict, retry])
+
+  async function resolveConflict(choice: 'device' | 'cloud') {
+    if (!conflict || !session) return
+    if (choice === 'cloud') {
+      revision.current = conflict.remote.revision
+      writeCache(session.user.id, conflict.remote)
+      clearPending(session.user.id)
+      suppressNextSave.current = true
+      setData(conflict.remote.data)
+      setConflict(null)
+      setSyncStatus('saved')
+      setError('')
+      return
+    }
+    setSyncStatus('saving')
+    try {
+      const nextRevision = await saveCloud(session, conflict.local.data, conflict.remote.revision)
+      revision.current = nextRevision
+      writeCache(session.user.id, { data: conflict.local.data, revision: nextRevision })
+      clearPending(session.user.id)
+      suppressNextSave.current = true
+      setConflict(null)
+      setSyncStatus('saved')
+      setError('')
+    } catch (e) {
+      const remote = await loadCloud(session).catch(() => null)
+      if (remote) setConflict({ ...conflict, remote })
+      setSyncStatus('conflict')
+      setError(
+        `Could not finish resolving the conflict: ${e instanceof Error ? e.message : 'Try again.'}`,
+      )
+    }
+  }
 
   function startDemo() {
     setDemo(true)
@@ -135,7 +314,14 @@ export default function App() {
   }
   async function logout() {
     if (demo) exitDemo()
-    else await supabase?.auth.signOut()
+    else {
+      await disablePushForCurrentAccount().catch(() => {
+        setError(
+          'Signed out, but this device may still receive generic reminders. Turn off Pockit notifications in device settings if needed.',
+        )
+      })
+      await supabase?.auth.signOut()
+    }
   }
   if (loading)
     return (
@@ -164,6 +350,39 @@ export default function App() {
         {error && <div className="global-error">{error}</div>}
       </>
     )
+  if (conflict)
+    return (
+      <div className="sync-conflict-screen">
+        <Brand />
+        <section
+          className="panel sync-conflict-card"
+          role="alertdialog"
+          aria-label="Review changes from two devices"
+        >
+          <Icon name="CloudAlert" size={30} />
+          <h1>Review changes from two devices</h1>
+          <p>
+            This device has changes that differ from your cloud copy. Choose which copy to use.
+            Download this device’s copy first if you want to keep it before choosing.
+          </p>
+          <div className="sync-conflict-actions">
+            <button
+              className="secondary-button"
+              onClick={() => downloadJSON(conflict.local.data, 'pockit-device-backup.json')}
+            >
+              Download this device’s copy
+            </button>
+            <button className="secondary-button" onClick={() => void resolveConflict('cloud')}>
+              Use cloud copy
+            </button>
+            <button className="primary-button" onClick={() => void resolveConflict('device')}>
+              Use this device’s copy
+            </button>
+          </div>
+          {error && <p role="alert">{error}</p>}
+        </section>
+      </div>
+    )
   if (!data.onboarded)
     return (
       <Onboarding
@@ -177,7 +396,18 @@ export default function App() {
           }
           saveQueue.current = saveQueue.current
             .catch(() => undefined)
-            .then(() => saveCloud(session, next))
+            .then(async () => {
+              writePending(session.user.id, {
+                data: next,
+                revision: revision.current,
+                changedAt: new Date().toISOString(),
+              })
+              const nextRevision = await saveCloud(session, next, revision.current)
+              revision.current = nextRevision
+              writeCache(session.user.id, { data: next, revision: nextRevision })
+              clearPending(session.user.id)
+              suppressNextSave.current = true
+            })
           await saveQueue.current
           setError('')
         }}
@@ -258,9 +488,35 @@ export default function App() {
             <div className="avatar small">{data.profile.name?.[0]?.toUpperCase() || 'P'}</div>
           </div>
         </header>
+        {!demo && (
+          <div className={`sync-chip ${syncStatus}`} role="status">
+            <Icon
+              name={
+                syncStatus === 'saved'
+                  ? 'CloudCheck'
+                  : syncStatus === 'offline'
+                    ? 'CloudOff'
+                    : 'CloudUpload'
+              }
+              size={15}
+            />
+            {syncStatus === 'saved'
+              ? 'Saved'
+              : syncStatus === 'saving'
+                ? 'Saving…'
+                : syncStatus === 'offline'
+                  ? 'Offline copy'
+                  : syncStatus === 'conflict'
+                    ? 'Review changes'
+                    : 'Sync needs attention'}
+          </div>
+        )}
         {error && (
           <div className="sync-error" role="alert">
             {error}
+            {!demo && session && readPending(session.user.id) && !conflict && (
+              <button onClick={() => setRetry((value) => value + 1)}>Retry sync</button>
+            )}
             <button onClick={() => setError('')} aria-label="Dismiss">
               <Icon name="X" size={15} />
             </button>
@@ -300,7 +556,9 @@ export default function App() {
               openCoach={() => setCoachOpen(true)}
             />
           )}
-          {tab === 'Activity' && <ActivityScreen data={data} month={month} update={update} />}
+          {tab === 'Activity' && (
+            <ActivityScreen data={data} month={month} update={update} quickAdd={quickAdd} />
+          )}
           {tab === 'Budget' && <BudgetScreen data={data} month={month} update={update} />}
           {tab === 'Calendar' && <CalendarScreen data={data} month={month} update={update} />}
           {tab === 'Goals' && <GoalsScreen data={data} month={month} update={update} />}
@@ -314,6 +572,10 @@ export default function App() {
               logout={logout}
               onDeleted={() => {
                 if (saveTimer.current) clearTimeout(saveTimer.current)
+                if (session) {
+                  clearPending(session.user.id)
+                  clearCache(session.user.id)
+                }
                 ready.current = false
                 setSession(null)
                 setData(null)
@@ -332,6 +594,18 @@ export default function App() {
           </button>
         ))}
       </nav>
+      <button
+        className="quick-add-fab"
+        aria-label="Quick add transaction"
+        title="Quick add transaction"
+        onClick={() => {
+          setMonth(currentMonth())
+          setTab('Activity')
+          setQuickAdd((value) => value + 1)
+        }}
+      >
+        <Icon name="Plus" size={24} />
+      </button>
       {coachOpen && <Coach data={data} month={month} onClose={() => setCoachOpen(false)} />}
     </div>
   )

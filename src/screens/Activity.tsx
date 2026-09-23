@@ -1,5 +1,5 @@
-import { num } from '../lib/numbers'
-import { useMemo, useState } from 'react'
+import { num, validISODate } from '../lib/numbers'
+import { useEffect, useMemo, useState } from 'react'
 import type { MonthKey, PockitData, Transaction, TransactionType } from '../types'
 import {
   categorizePayee,
@@ -10,6 +10,8 @@ import {
   transactionsInMonth,
 } from '../lib/finance'
 import { Empty, Field, Icon, Modal, SectionHead } from '../components/UI'
+import { changeTransaction } from '../lib/linked'
+import { previewCSV, type CSVPreview } from '../lib/csv'
 
 const blank = (): Transaction => ({
   id: crypto.randomUUID(),
@@ -22,10 +24,12 @@ export function ActivityScreen({
   data,
   month,
   update,
+  quickAdd = 0,
 }: {
   data: PockitData
   month: MonthKey
   update: (recipe: (value: PockitData) => PockitData) => void
+  quickAdd?: number
 }) {
   const [search, setSearch] = useState('')
   const [type, setType] = useState<'all' | TransactionType>('all')
@@ -34,6 +38,18 @@ export function ActivityScreen({
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [scanBusy, setScanBusy] = useState(false)
   const [scanError, setScanError] = useState('')
+  const [importOpen, setImportOpen] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [csvText, setCsvText] = useState('')
+  const [preview, setPreview] = useState<CSVPreview | null>(null)
+  const [undo, setUndo] = useState<{
+    before: Transaction | null
+    after: Transaction | null
+    message: string
+  } | null>(null)
+  useEffect(() => {
+    if (quickAdd > 0) setEditing(blank())
+  }, [quickAdd])
   const monthTxs = transactionsInMonth(data.transactions, month)
   const counts = {
     all: monthTxs.length,
@@ -64,22 +80,65 @@ export function ActivityScreen({
     [monthTxs, type, category, search, sort, data.categories],
   )
   const subscriptions = data.settings.smart ? recurringMerchants(data.transactions) : []
+  const recent = [...data.transactions]
+    .filter((transaction) => transaction.type === 'expense')
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .filter(
+      (transaction, index, list) =>
+        list.findIndex((item) => item.payee.toLowerCase() === transaction.payee.toLowerCase()) ===
+        index,
+    )
+    .slice(0, 4)
   const setDraft = (patch: Partial<Transaction>) => setEditing((d) => (d ? { ...d, ...patch } : d))
   function save() {
-    if (!editing?.payee.trim() || editing.amount <= 0) return
-    const value = { ...editing, payee: editing.payee.trim() }
-    update((d) => ({
-      ...d,
-      transactions: d.transactions.some((t) => t.id === value.id)
-        ? d.transactions.map((t) => (t.id === value.id ? value : t))
-        : [...d.transactions, value],
-    }))
+    if (!editing?.payee.trim() || editing.amount <= 0 || !validISODate(editing.date)) return
+    const before = data.transactions.find((transaction) => transaction.id === editing.id) || null
+    const value = {
+      ...editing,
+      payee: editing.payee.trim(),
+      createdAt: editing.createdAt || new Date().toISOString(),
+    }
+    if (before?.goalId) {
+      const goal = data.goals.find((item) => item.id === before.goalId)
+      if (goal?.kind === 'debt' && value.amount > goal.balance + before.amount) return
+    }
+    update((d) => changeTransaction(d, before, value))
+    setUndo({
+      before,
+      after: value,
+      message: before ? 'Transaction updated.' : 'Transaction added.',
+    })
     setEditing(null)
   }
   function remove() {
     if (!editing || !window.confirm(`Delete ${editing.payee}?`)) return
-    update((d) => ({ ...d, transactions: d.transactions.filter((t) => t.id !== editing.id) }))
+    update((d) => changeTransaction(d, editing, null))
+    setUndo({ before: editing, after: null, message: 'Transaction deleted.' })
     setEditing(null)
+  }
+  function undoLast() {
+    if (!undo) return
+    update((d) => {
+      const current =
+        d.transactions.find((transaction) => transaction.id === (undo.after || undo.before)?.id) ||
+        null
+      if (JSON.stringify(current) !== JSON.stringify(undo.after)) return d
+      return changeTransaction(d, undo.after, undo.before)
+    })
+    setUndo(null)
+  }
+  async function readCSV(file: File) {
+    setImportError('')
+    setPreview(null)
+    try {
+      if (file.size > 2_000_000) throw new Error('Choose a CSV smaller than 2 MB.')
+      const text = await file.text()
+      const result = previewCSV(text, data.transactions, data.categories)
+      setCsvText(text)
+      setPreview(result)
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Could not read this CSV.')
+    }
   }
   async function scan(file: File) {
     setScanBusy(true)
@@ -111,18 +170,49 @@ export function ActivityScreen({
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <button
-          className="primary-button"
-          onClick={() =>
-            setEditing({
-              ...blank(),
-              date: `${month}-${String(Math.min(new Date().getDate(), new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate())).padStart(2, '0')}`,
-            })
-          }
-        >
-          <Icon name="Plus" size={18} /> Add transaction
-        </button>
+        <div className="activity-actions">
+          <button className="secondary-button" onClick={() => setImportOpen(true)}>
+            <Icon name="FileUp" size={17} /> Import CSV
+          </button>
+          <button
+            className="primary-button"
+            onClick={() =>
+              setEditing({
+                ...blank(),
+                date: `${month}-${String(Math.min(new Date().getDate(), new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate())).padStart(2, '0')}`,
+              })
+            }
+          >
+            <Icon name="Plus" size={18} /> Add transaction
+          </button>
+        </div>
       </div>
+      {recent.length > 0 && (
+        <div className="recent-merchants">
+          <span>Quick repeat</span>
+          {recent.map((transaction) => (
+            <button
+              key={transaction.id}
+              onClick={() =>
+                setEditing({
+                  ...blank(),
+                  date: `${month}-${String(Math.min(new Date().getDate(), new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate())).padStart(2, '0')}`,
+                  payee: transaction.payee,
+                  amount: transaction.amount,
+                  categoryId: transaction.categoryId,
+                })
+              }
+            >
+              {transaction.payee}
+            </button>
+          ))}
+        </div>
+      )}
+      {undo && (
+        <div className="undo-strip" role="status">
+          {undo.message} <button onClick={undoLast}>Undo</button>
+        </div>
+      )}
       <div className="filter-row">
         <div className="segmented">
           {(['all', 'income', 'expense', 'transfer'] as const).map((item) => (
@@ -258,6 +348,7 @@ export function ActivityScreen({
               {(['expense', 'income', 'transfer'] as const).map((item) => (
                 <button
                   key={item}
+                  disabled={!!editing.goalId || !!editing.billId}
                   className={editing.type === item ? 'active' : ''}
                   onClick={() => setDraft({ type: item })}
                 >
@@ -274,14 +365,25 @@ export function ActivityScreen({
                   setDraft({
                     payee,
                     categoryId:
-                      data.settings.smart && !editing.categoryId
+                      data.transactions.find(
+                        (transaction) =>
+                          transaction.payee.trim().toLowerCase() === payee.trim().toLowerCase() &&
+                          transaction.categoryId,
+                      )?.categoryId ||
+                      (data.settings.smart && !editing.categoryId
                         ? categorizePayee(payee, data.categories)
-                        : editing.categoryId,
+                        : editing.categoryId),
                   })
                 }}
                 placeholder="e.g. Fresh Market"
               />
             </Field>
+            {editing.goalId && (
+              <div className="soft-note">
+                Linked to a goal. Changing its amount or date also updates goal progress. Deleting
+                this transaction undoes the linked progress.
+              </div>
+            )}
             <div className="form-grid">
               <Field label="Amount">
                 <input
@@ -357,11 +459,96 @@ export function ActivityScreen({
               <button
                 className="primary-button"
                 onClick={save}
-                disabled={!editing.payee.trim() || editing.amount <= 0}
+                disabled={
+                  !editing.payee.trim() ||
+                  editing.amount <= 0 ||
+                  !validISODate(editing.date) ||
+                  (!!editing.goalId &&
+                    data.goals.some(
+                      (goal) =>
+                        goal.id === editing.goalId &&
+                        goal.kind === 'debt' &&
+                        editing.amount >
+                          goal.balance +
+                            (data.transactions.find((transaction) => transaction.id === editing.id)
+                              ?.amount || 0),
+                    ))
+                }
               >
                 Save transaction
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+      {importOpen && (
+        <Modal title="Import transactions" onClose={() => setImportOpen(false)} wide>
+          <div className="modal-body">
+            <p className="modal-description">
+              Choose a CSV with Date, Description or Payee, and Amount or Debit/Credit columns.
+              Negative Amount means expense; positive Amount means income unless a Type column says
+              otherwise. Review the preview before importing. Files stay in this browser.
+            </p>
+            <Field label="Bank CSV file">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void readCSV(file)
+                }}
+              />
+            </Field>
+            {importError && (
+              <div className="form-message" role="alert">
+                {importError}
+              </div>
+            )}
+            {preview && (
+              <>
+                <div className="import-summary">
+                  {preview.transactions.length} ready · {preview.duplicates} duplicates skipped ·{' '}
+                  {preview.errors.length} rows need review
+                </div>
+                {preview.errors.length > 0 && (
+                  <div className="import-errors" role="alert">
+                    {preview.errors.slice(0, 5).join(' ')}
+                    {preview.errors.length > 5 ? ' See your CSV for more rows.' : ''}
+                  </div>
+                )}
+                <div className="import-preview">
+                  {preview.transactions.slice(0, 8).map((transaction) => (
+                    <div key={transaction.id}>
+                      <span>
+                        {transaction.date} · {transaction.payee}
+                      </span>
+                      <strong>
+                        {transaction.type} · {money(transaction.amount, data.settings.currency)}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="modal-actions">
+                  <button
+                    className="primary-button"
+                    disabled={!preview.transactions.length}
+                    onClick={() => {
+                      update((d) => ({
+                        ...d,
+                        transactions: [
+                          ...d.transactions,
+                          ...previewCSV(csvText, d.transactions, d.categories).transactions,
+                        ],
+                      }))
+                      setImportOpen(false)
+                      setPreview(null)
+                    }}
+                  >
+                    Import {preview.transactions.length} transactions
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}

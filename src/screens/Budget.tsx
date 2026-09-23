@@ -36,11 +36,13 @@ export function BudgetScreen({
   const [groupsOpen, setGroupsOpen] = useState(false)
   const [groupDraft, setGroupDraft] = useState<Record<string, string>>({})
   const [groupSelected, setGroupSelected] = useState<Record<string, boolean>>({})
+  const [focusedSlice, setFocusedSlice] = useState<string | null>(null)
   const summary = monthSummary(data, month)
   const spend = spendingByCategory(data.transactions, month)
   const active = data.categories.filter((c) => !c.archived)
   const allocated = active.reduce((n, c) => n + categoryBudget(c, month, summary.income), 0)
   const chartColors = active.filter((c) => categoryBudget(c, month, summary.income) > 0)
+  const focusedCategory = chartColors.find((category) => category.id === focusedSlice)
   let cursor = 0
   const slices = chartColors.map((c) => {
     const percent =
@@ -162,13 +164,25 @@ export function BudgetScreen({
         </div>
       </div>
       <div className="budget-legend">
-        {chartColors.slice(0, 8).map((c) => (
-          <span key={c.id}>
+        {chartColors.map((c) => (
+          <button
+            key={c.id}
+            className={focusedSlice === c.id ? 'active' : ''}
+            onClick={() => setFocusedSlice(c.id)}
+            aria-label={`Inspect ${c.name} allocation`}
+          >
             <i style={{ background: c.color }} />
             {c.name}
-          </span>
+          </button>
         ))}
       </div>
+      {focusedCategory && (
+        <p className="budget-chart-detail" role="status">
+          {focusedCategory.name}:{' '}
+          {money(categoryBudget(focusedCategory, month, summary.income), data.settings.currency)}{' '}
+          planned for {monthLabel(month)}.
+        </p>
+      )}
       <section className="panel allocation-panel">
         <SectionHead
           title="Monthly allocations"
@@ -371,7 +385,10 @@ export function BudgetScreen({
                           step="0.1"
                           value={editing.targetValue || ''}
                           onChange={(e) =>
-                            setEditing({ ...editing, targetValue: num(e.target.value) })
+                            setEditing({
+                              ...editing,
+                              targetValue: Math.min(100, num(e.target.value)),
+                            })
                           }
                         />
                       </Field>

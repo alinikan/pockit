@@ -7,6 +7,8 @@ import {
   comparisonFindings,
   difference,
   monthSnapshot,
+  parseMonthInput,
+  transactionsBehind,
 } from '../lib/compare'
 import { Icon } from '../components/UI'
 
@@ -47,6 +49,8 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
   const [sort, setSort] = useState<'largest' | 'change' | 'name'>('largest')
   const [showEmpty, setShowEmpty] = useState(false)
   const [span, setSpan] = useState(6)
+  const [selectedTrend, setSelectedTrend] = useState<MonthKey | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const currency = data.settings.currency
   const snapshots = months.map((key) => monthSnapshot(data, key))
   const first = snapshots[0]
@@ -54,7 +58,10 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
   const delta = difference(first.spent, last.spent)
   const partial = months.some((key) => key >= currentMonth())
   const rows = categoryComparison(data, snapshots, showEmpty)
-  const groups = ['All categories', ...new Set(rows.map((row) => row.group))]
+  const groups = [
+    'All categories',
+    ...new Set([...data.categories.map((category) => category.group), 'Other']),
+  ]
   const visibleRows = rows
     .filter((row) => group === 'All categories' || row.group === group)
     .sort((a, b) =>
@@ -65,31 +72,56 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
           : b.values.reduce((n, value) => n + value, 0) -
             a.values.reduce((n, value) => n + value, 0),
     )
+  const visibleTotals = months.map((_, index) =>
+    visibleRows.reduce((total, row) => total + row.values[index], 0),
+  )
   const findings = view === 'overview' ? comparisonFindings(data, first, last) : []
   const maxSpend = Math.max(1, ...snapshots.map((snapshot) => snapshot.spent))
   const trendMonths = Array.from({ length: span }, (_, index) =>
     shiftMonth(last.month, index - span + 1),
   )
   const trend = trendMonths.map((key) => monthSnapshot(data, key))
+  const inspectedTrend = trend.find((snapshot) => snapshot.month === selectedTrend)
   const trendMax = Math.max(1, ...trend.map((snapshot) => snapshot.spent))
   const plan =
     view === 'plan' ? budgetComparison(data, last.month).sort((a, b) => b.spent - a.spent) : []
   const planned = plan.reduce((sum, row) => sum + row.planned, 0)
+  const selectedRow = rows.find((row) => row.id === selectedCategory)
+  const baselineTransactions = selectedCategory
+    ? transactionsBehind(data, selectedCategory, first.month)
+    : []
+  const currentTransactions = selectedCategory
+    ? transactionsBehind(data, selectedCategory, last.month)
+    : []
 
   function changeMonth(index: number, value: string) {
-    if (!/^\d{4}-\d{2}$/.test(value)) return
-    if (months.some((key, i) => i !== index && key === value)) {
+    const chosen = parseMonthInput(value)
+    if (!chosen) {
+      setNotice('Choose a valid month.')
+      return
+    }
+    if (months.some((key, i) => i !== index && key === chosen)) {
       setNotice('Choose a different month for each column.')
       return
     }
-    setMonths((current) => current.map((key, i) => (i === index ? (value as MonthKey) : key)))
+    setMonths((current) => current.map((key, i) => (i === index ? chosen : key)))
     setNotice('')
   }
 
   function addMonth() {
     let candidate = shiftMonth(months[0], -1)
+    let prepend = true
     while (months.includes(candidate)) candidate = shiftMonth(candidate, -1)
-    setMonths([candidate, ...months])
+    if (!parseMonthInput(candidate)) {
+      candidate = shiftMonth(months.at(-1)!, 1)
+      prepend = false
+      while (months.includes(candidate)) candidate = shiftMonth(candidate, 1)
+    }
+    if (!parseMonthInput(candidate)) {
+      setNotice('No more months are available to add.')
+      return
+    }
+    setMonths(prepend ? [candidate, ...months] : [...months, candidate])
     setNotice('')
   }
 
@@ -149,6 +181,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                 <input
                   id={`compare-month-${index}`}
                   type="month"
+                  min="1000-01"
                   value={key}
                   onChange={(event) => changeMonth(index, event.target.value)}
                 />
@@ -334,11 +367,15 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                 {visibleRows.map((row) => (
                   <tr key={row.id}>
                     <th scope="row">
-                      <span className="compare-category-name">
+                      <button
+                        className="compare-category-name compare-category-button"
+                        onClick={() => setSelectedCategory(row.id)}
+                        aria-label={`Explain ${row.name}`}
+                      >
                         <i style={{ background: row.color }} />
                         <Icon name={row.icon} size={17} />
-                        {row.name}
-                      </span>
+                        <span>{row.name}</span>
+                      </button>
                     </th>
                     {row.values.map((value, index) => (
                       <td key={months[index]}>{money(value, currency)}</td>
@@ -362,21 +399,91 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               </tbody>
               <tfoot>
                 <tr>
-                  <th scope="row">Total expenses</th>
-                  {snapshots.map((snapshot) => (
-                    <td key={snapshot.month}>{money(snapshot.spent, currency)}</td>
+                  <th scope="row">
+                    {group === 'All categories' ? 'Total expenses' : `${group} total`}
+                  </th>
+                  {visibleTotals.map((total, index) => (
+                    <td key={months[index]}>{money(total, currency)}</td>
                   ))}
                   <td>
-                    <Change before={first.spent} after={last.spent} currency={currency} />
+                    <Change
+                      before={visibleTotals[0]}
+                      after={visibleTotals.at(-1)!}
+                      currency={currency}
+                    />
                   </td>
                 </tr>
+                {group !== 'All categories' && (
+                  <tr>
+                    <th scope="row">All expenses</th>
+                    {snapshots.map((snapshot) => (
+                      <td key={snapshot.month}>{money(snapshot.spent, currency)}</td>
+                    ))}
+                    <td>
+                      <Change before={first.spent} after={last.spent} currency={currency} />
+                    </td>
+                  </tr>
+                )}
               </tfoot>
             </table>
           </div>
           <p className="compare-footnote">
             Swipe the table sideways on a phone. Uncategorized includes expenses with no category or
-            a removed category.
+            a removed category. Tap a category to see the entries behind its change.
           </p>
+          {selectedRow && (
+            <div className="compare-drilldown" aria-live="polite">
+              <div className="compare-section-top">
+                <div>
+                  <h3>Why {selectedRow.name} changed</h3>
+                  <p>
+                    {monthLabel(first.month)} to {monthLabel(last.month)} · expense entries only
+                  </p>
+                </div>
+                <button
+                  className="icon-button"
+                  aria-label="Close category detail"
+                  onClick={() => setSelectedCategory(null)}
+                >
+                  <Icon name="X" size={18} />
+                </button>
+              </div>
+              <div className="compare-detail-columns">
+                {[
+                  { month: first.month, entries: baselineTransactions },
+                  { month: last.month, entries: currentTransactions },
+                ].map(({ month: key, entries }) => (
+                  <div key={key}>
+                    <strong>
+                      {monthLabel(key)} ·{' '}
+                      {money(
+                        entries.reduce((sum, entry) => sum + entry.amount, 0),
+                        currency,
+                      )}
+                    </strong>
+                    {entries.length ? (
+                      entries.map((transaction) => (
+                        <div className="compare-transaction" key={transaction.id}>
+                          <span>
+                            {transaction.payee}
+                            <small>{transaction.date}</small>
+                          </span>
+                          <strong>{money(transaction.amount, currency)}</strong>
+                        </div>
+                      ))
+                    ) : (
+                      <p>No expenses recorded.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="compare-footnote">
+                Difference: {money(selectedRow.values.at(-1)! - selectedRow.values[0], currency)}. A
+                large purchase or an unfinished month can explain much of a change; review the
+                entries before adjusting your budget.
+              </p>
+            </div>
+          )}
         </section>
       )}
 
@@ -418,11 +525,16 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
           </div>
           <div
             className="compare-trend-chart"
-            role="img"
+            role="group"
             aria-label={`Spending over ${span} months ending ${monthLabel(last.month)}`}
           >
             {trend.map((snapshot) => (
-              <div className="compare-trend-item" key={snapshot.month}>
+              <button
+                className={`compare-trend-item ${selectedTrend === snapshot.month ? 'active' : ''}`}
+                key={snapshot.month}
+                onClick={() => setSelectedTrend(snapshot.month)}
+                aria-label={`Inspect ${monthLabel(snapshot.month)} spending`}
+              >
                 <strong>{money(snapshot.spent, currency, true)}</strong>
                 <div className="compare-trend-track">
                   <div style={{ height: `${(snapshot.spent / trendMax) * 100}%` }} />
@@ -437,9 +549,18 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                     year: span === 12 ? '2-digit' : undefined,
                   })}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
+          {inspectedTrend && (
+            <div className="compare-trend-detail" role="status">
+              <strong>{monthLabel(inspectedTrend.month)}</strong>
+              <span>
+                {money(inspectedTrend.spent, currency)} across {inspectedTrend.expenseCount}{' '}
+                {inspectedTrend.expenseCount === 1 ? 'expense' : 'expenses'}.
+              </span>
+            </div>
+          )}
           <p className="compare-footnote">
             A $0 bar means no expenses were entered for that month. The average includes those
             months.
@@ -477,7 +598,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                 <div className="compare-plan-row-top">
                   <span>
                     <i style={{ background: row.color }} />
-                    {row.name}
+                    <span>{row.name}</span>
                   </span>
                   <strong>
                     {money(row.spent, currency)} <small>/ {money(row.planned, currency)}</small>

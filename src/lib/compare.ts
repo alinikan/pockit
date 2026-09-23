@@ -9,6 +9,22 @@ import {
 
 export const UNCATEGORIZED = '__uncategorized__'
 
+export function transactionsBehind(data: PockitData, categoryId: string, month: MonthKey) {
+  const known = new Set(data.categories.map((category) => category.id))
+  return transactionsInMonth(data.transactions, month)
+    .filter(
+      (transaction) =>
+        transaction.type === 'expense' &&
+        (categoryId === UNCATEGORIZED
+          ? !transaction.categoryId || !known.has(transaction.categoryId)
+          : transaction.categoryId === categoryId),
+    )
+    .sort((a, b) => b.amount - a.amount || b.date.localeCompare(a.date))
+}
+
+export const parseMonthInput = (value: string): MonthKey | null =>
+  /^[1-9]\d{3}-(0[1-9]|1[0-2])$/.test(value) ? (value as MonthKey) : null
+
 export interface MonthSnapshot {
   month: MonthKey
   spent: number

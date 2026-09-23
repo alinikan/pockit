@@ -1,10 +1,13 @@
 import { num } from '../lib/numbers'
 import { useState } from 'react'
 import type { Frequency, PockitData } from '../types'
-import { monthlyPay, money } from '../lib/finance'
-import { supabase } from '../lib/storage'
+import { monthlyPay, money, todayISO } from '../lib/finance'
+import { validISODate } from '../lib/numbers'
+import { downloadJSON, supabase } from '../lib/storage'
+import { unsubscribeBrowserPush } from '../lib/push'
 import { Field, Icon, SectionHead, Toggle } from '../components/UI'
 import { PasskeySettings } from '../components/Passkeys'
+import { PushSettings } from '../components/PushSettings'
 
 export function MoreScreen({
   data,
@@ -29,13 +32,7 @@ export function MoreScreen({
   const setProfile = (patch: Partial<PockitData['profile']>) =>
     update((d) => ({ ...d, profile: { ...d.profile, ...patch } }))
   function exportData() {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `pockit-backup-${new Date().toISOString().slice(0, 10)}.json`
-    link.click()
-    URL.revokeObjectURL(url)
+    downloadJSON(data, `pockit-backup-${new Date().toISOString().slice(0, 10)}.json`)
   }
   async function changePassword() {
     if (!supabase || password.length < 6) return
@@ -63,6 +60,7 @@ export function MoreScreen({
       const result = (await response.json()) as { error?: string; deleted?: boolean }
       if (!response.ok || !result.deleted)
         throw new Error(result.error || 'Could not delete your account. Please try again.')
+      await unsubscribeBrowserPush().catch(() => {})
       await supabase.auth.signOut({ scope: 'local' })
       onDeleted()
     } catch (error) {
@@ -181,6 +179,86 @@ export function MoreScreen({
           </div>
         </section>
         <section className="panel settings-panel">
+          <SectionHead
+            title="Your paycheque rhythm"
+            help="Set your next pay date and the amount available in your spending account. Pockit uses these to estimate what is left after upcoming bills. It does not connect to your bank."
+          />
+          <div className="form-grid">
+            {data.profile.payFrequency === 'twice-monthly' ? (
+              <>
+                <Field label="First payday each month">
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={data.profile.paydayDays?.[0] ?? 1}
+                    onChange={(e) =>
+                      setProfile({
+                        paydayDays: [
+                          Math.min(31, Math.max(1, Math.floor(num(e.target.value)))),
+                          data.profile.paydayDays?.[1] ?? 15,
+                        ],
+                      })
+                    }
+                  />
+                </Field>
+                <Field label="Second payday each month">
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={data.profile.paydayDays?.[1] ?? 15}
+                    onChange={(e) =>
+                      setProfile({
+                        paydayDays: [
+                          data.profile.paydayDays?.[0] ?? 1,
+                          Math.min(31, Math.max(1, Math.floor(num(e.target.value)))),
+                        ],
+                      })
+                    }
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field label="A payday on your schedule">
+                <input
+                  type="date"
+                  value={data.profile.paydayAnchor || ''}
+                  onChange={(e) =>
+                    setProfile({ paydayAnchor: validISODate(e.target.value) ? e.target.value : '' })
+                  }
+                />
+              </Field>
+            )}
+            <Field label="Money available now">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={data.profile.cashOnHand ?? ''}
+                onChange={(e) =>
+                  setProfile({
+                    cashOnHand: e.target.value ? num(e.target.value) : undefined,
+                    cashAsOf: e.target.value ? todayISO() : undefined,
+                    cashUpdatedAt: e.target.value ? new Date().toISOString() : undefined,
+                  })
+                }
+                placeholder="0.00"
+              />
+            </Field>
+          </div>
+          <div className="soft-note">
+            Enter the amount available to spend today, after transactions already in your account.
+            Future income and expenses you record update the estimate. Transfers are excluded.
+            Refresh this starting amount whenever your bank balance changes in a way Pockit has not
+            recorded.
+          </div>
+          {data.profile.cashAsOf && (
+            <small>Starting amount entered on {data.profile.cashAsOf}.</small>
+          )}
+        </section>
+        <section className="panel settings-panel">
           <SectionHead title="Preferences" />
           <Toggle
             label="Smart Features"
@@ -217,6 +295,40 @@ export function MoreScreen({
             Changing currency changes the symbol only; it does not convert balances.
           </div>
         </section>
+        <section className="panel settings-panel install-panel">
+          <SectionHead
+            title="Put Pockit on your Home Screen"
+            help="The installed web app opens in its own window with Pockit’s icon. Your account and budget stay the same."
+          />
+          <div className="install-steps">
+            <div>
+              <span>1</span>
+              <strong>On iPhone</strong>
+              <p>Open your Pockit website in Safari. Tap Share, then Add to Home Screen.</p>
+            </div>
+            <div>
+              <span>2</span>
+              <strong>Open the icon</strong>
+              <p>
+                Launch Pockit from its new Home Screen icon and sign in. Face ID can work through a
+                passkey you add in Account security.
+              </p>
+            </div>
+            <div>
+              <span>3</span>
+              <strong>On a computer</strong>
+              <p>
+                Open the same website in your browser. In Chrome or Edge, use the browser’s Install
+                option if you want a separate window.
+              </p>
+            </div>
+          </div>
+          <div className="soft-note">
+            The website also works without installing it. Bill notifications on iPhone require the
+            Home Screen version and your permission.
+          </div>
+        </section>
+        <PushSettings demo={demo} />
         <section className="panel settings-panel">
           <SectionHead title="Your data" />
           <div className="settings-action">

@@ -57,7 +57,7 @@ In the same Supabase project, open **Settings → API Keys** (or the **Connect**
 3. On a Mac, generate each random string in Terminal with `openssl rand -hex 32`; run it **twice** and copy the two distinct results into your password manager and the matching Vercel fields. Do not commit either to GitHub. On Windows with Node installed, use `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` twice.
 4. Select **Production** for the webhook, Brevo, and Supabase secret variables. Do not enable these for publicly shared Preview deployments unless you intentionally want preview signups to send live emails. The two `VITE_` variables may also be enabled for Preview if you test there.
 5. You do **not** need **Import .env**. Add these in the Vercel dashboard. Importing a local file can accidentally upload values to the wrong environment. Save, then open **Deployments → latest production deployment → ⋯ → Redeploy**. Choose the current code revision; wait for **Ready**. New environment values apply only to new deployments.
-6. Check **Settings → Cron Jobs** after deployment. `vercel.json` should create one job for `/api/retry-notifications` at `08:00 UTC` daily. Vercel Hobby may run it any time during that hour. Vercel automatically sends `Authorization: Bearer <CRON_SECRET>` to that job.
+6. Check **Settings → Cron Jobs** after deployment. `vercel.json` should create `/api/retry-notifications` at `08:00 UTC` daily; if you enabled bill push, it also creates `/api/bill-reminders` at `17:00 UTC` daily. Vercel Hobby may run each job any time during its scheduled hour. Vercel automatically sends `Authorization: Bearer <CRON_SECRET>` to both jobs.
 
 ## 5. Create the immediate Supabase webhook
 

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { Bill, MonthKey, PockitData } from '../types'
 import { billsForMonth, money, transactionsInMonth } from '../lib/finance'
 import { Empty, Field, Icon, Modal, SectionHead } from '../components/UI'
+import { changeTransaction } from '../lib/linked'
 
 export function CalendarScreen({
   data,
@@ -72,6 +73,13 @@ export function CalendarScreen({
     setEditing(null)
   }
   function togglePaid(id: string) {
+    const linked = data.transactions.find(
+      (transaction) => transaction.billId === id && transaction.date.slice(0, 7) === month,
+    )
+    if (linked) {
+      update((d) => changeTransaction(d, linked, null))
+      return
+    }
     update((d) => ({
       ...d,
       bills: d.bills.map((b) =>
@@ -85,6 +93,27 @@ export function CalendarScreen({
           : b,
       ),
     }))
+  }
+  function recordPayment(bill: Bill, date: string) {
+    if (
+      data.transactions.some(
+        (transaction) =>
+          transaction.billId === bill.id && transaction.date.slice(0, 7) === date.slice(0, 7),
+      )
+    )
+      return
+    update((d) =>
+      changeTransaction(d, null, {
+        id: crypto.randomUUID(),
+        date,
+        payee: bill.name,
+        amount: bill.amount,
+        createdAt: new Date().toISOString(),
+        type: 'expense',
+        categoryId: bill.categoryId,
+        billId: bill.id,
+      }),
+    )
   }
   return (
     <div className="calendar-layout">
@@ -174,6 +203,14 @@ export function CalendarScreen({
                 >
                   {b.paid ? 'Undo' : 'Paid'}
                 </button>
+                {!data.transactions.some(
+                  (transaction) =>
+                    transaction.billId === b.id && transaction.date.slice(0, 7) === month,
+                ) && (
+                  <button className="mark-button" onClick={() => recordPayment(b, b.date)}>
+                    Record payment
+                  </button>
+                )}
               </div>
             ))}
             {dayTxs.map((t) => (

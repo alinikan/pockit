@@ -35,6 +35,9 @@ export interface Transaction {
   categoryId?: string
   note?: string
   receiptName?: string
+  createdAt?: string
+  goalId?: string
+  billId?: string
 }
 
 export interface Goal {
@@ -47,7 +50,7 @@ export interface Goal {
   annualInterest: number
   color: string
   icon: string
-  history: { date: string; amount: number; note: string }[]
+  history: { date: string; amount: number; note: string; transactionId?: string }[]
 }
 
 export interface Bill {
@@ -71,6 +74,11 @@ export interface PockitData {
     housing: string
     transport: string
     extras: string[]
+    paydayAnchor?: string
+    paydayDays?: [number, number]
+    cashOnHand?: number
+    cashAsOf?: string
+    cashUpdatedAt?: string
   }
   settings: { theme: 'dark' | 'light'; smart: boolean; currency: 'CAD' | 'USD' }
   categories: Category[]

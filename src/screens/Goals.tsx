@@ -1,4 +1,5 @@
 import { num } from '../lib/numbers'
+import { WhatIfLab } from '../components/WhatIfLab'
 import { useState } from 'react'
 import type { Goal, MonthKey, PockitData } from '../types'
 import { money, projectGoal, projectionText, simulateDebtPlan, todayISO } from '../lib/finance'
@@ -16,7 +17,8 @@ const newGoal = (kind: Goal['kind']): Goal => ({
   icon: kind === 'saving' ? 'Flag' : 'CreditCard',
   history: [],
 })
-function GoalChart({ goal }: { goal: Goal }) {
+function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' | 'USD' }) {
+  const [selectedPoint, setSelectedPoint] = useState(0)
   const projection = projectGoal(goal)
   const months = Math.max(1, Math.min(projection.months || 24, 24))
   let balance = goal.balance
@@ -30,9 +32,15 @@ function GoalChart({ goal }: { goal: Goal }) {
   }
   const ceiling = Math.max(goal.target, goal.balance, ...values, 1)
   const points = values.map((v, i) => `${(i / months) * 100},${50 - (v / ceiling) * 42}`).join(' ')
+  const point = Math.min(selectedPoint, months)
   return (
     <div className="goal-chart">
-      <svg viewBox="0 0 100 55" preserveAspectRatio="none" aria-label="Projected balance chart">
+      <svg
+        viewBox="0 0 100 55"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label={`${goal.name} projected balance from today to ${months} months`}
+      >
         <line
           x1="0"
           y1="50"
@@ -56,11 +64,27 @@ function GoalChart({ goal }: { goal: Goal }) {
         <span>Today</span>
         <span>{months} months</span>
       </div>
+      <label className="goal-chart-inspector">
+        <span>Inspect projection</span>
+        <input
+          type="range"
+          min="0"
+          max={months}
+          step="1"
+          value={point}
+          aria-label={`Inspect ${goal.name} projection`}
+          onChange={(event) => setSelectedPoint(Number(event.target.value))}
+        />
+        <output aria-live="polite">
+          {point === 0 ? 'Today' : `Month ${point}`}: {money(values[point], currency)}
+        </output>
+      </label>
     </div>
   )
 }
 export function GoalsScreen({
   data,
+  month,
   update,
 }: {
   data: PockitData
@@ -71,6 +95,7 @@ export function GoalsScreen({
   const [activity, setActivity] = useState<Goal | null>(null)
   const [activityAmount, setActivityAmount] = useState('')
   const [activityNote, setActivityNote] = useState('')
+  const [recordTransaction, setRecordTransaction] = useState(true)
   const [planOpen, setPlanOpen] = useState(false)
   const [planDraft, setPlanDraft] = useState<NonNullable<PockitData['debtPlan']>>(
     data.debtPlan || { strategy: 'interest', extra: 0, order: [] },
@@ -96,10 +121,31 @@ export function GoalsScreen({
     setEditing(null)
   }
   function recordActivity() {
-    if (!activity || !Number(activityAmount)) return
-    const change = Number(activityAmount)
+    const change = num(activityAmount)
+    if (!activity || change <= 0 || (activity.kind === 'debt' && change > activity.balance)) return
+    const transactionId = recordTransaction ? crypto.randomUUID() : undefined
+    const date = todayISO()
     update((d) => ({
       ...d,
+      transactions: transactionId
+        ? [
+            ...d.transactions,
+            {
+              id: transactionId,
+              date,
+              payee: activity.name,
+              amount: change,
+              createdAt: new Date().toISOString(),
+              type: activity.kind === 'debt' ? ('expense' as const) : ('transfer' as const),
+              categoryId: d.categories.find(
+                (category) =>
+                  category.name === (activity.kind === 'debt' ? 'Debt Payments' : 'Savings'),
+              )?.id,
+              goalId: activity.id,
+              note: activityNote || undefined,
+            },
+          ]
+        : d.transactions,
       goals: d.goals.map((g) =>
         g.id === activity.id
           ? {
@@ -107,9 +153,10 @@ export function GoalsScreen({
               balance: Math.max(0, g.balance + (g.kind === 'debt' ? -change : change)),
               history: [
                 {
-                  date: todayISO(),
+                  date,
                   amount: change,
                   note: activityNote || (g.kind === 'debt' ? 'Payment' : 'Contribution'),
+                  transactionId,
                 },
                 ...g.history,
               ],
@@ -154,7 +201,7 @@ export function GoalsScreen({
           </span>
         </div>
         {goal.kind === 'saving' && <Progress value={progress} color={goal.color} />}
-        <GoalChart goal={goal} />
+        <GoalChart goal={goal} currency={data.settings.currency} />
         <div className="goal-card-footer">
           <div>
             <Icon name="CalendarClock" size={16} />
@@ -165,6 +212,7 @@ export function GoalsScreen({
               setActivity(goal)
               setActivityAmount('')
               setActivityNote('')
+              setRecordTransaction(true)
             }}
           >
             {goal.kind === 'saving' ? 'Add progress' : 'Record payment'}{' '}
@@ -284,6 +332,7 @@ export function GoalsScreen({
           )}
         </div>
       </section>
+      <WhatIfLab data={data} month={month} />
       {editing && (
         <Modal
           title={`${data.goals.some((g) => g.id === editing.id) ? 'Edit' : 'Add'} ${editing.kind === 'saving' ? 'savings goal' : 'debt'}`}
@@ -365,8 +414,8 @@ export function GoalsScreen({
         >
           <div className="modal-body">
             <p className="modal-description">
-              This updates the {activity.name} balance and its history. Add a transaction separately
-              if you want it in Activity too.
+              This updates {activity.name} and its history. You can record the same payment in
+              Activity at the same time.
             </p>
             <Field label="Amount">
               <input
@@ -379,6 +428,12 @@ export function GoalsScreen({
                 placeholder="0.00"
               />
             </Field>
+            {activity.kind === 'debt' && num(activityAmount) > activity.balance && (
+              <div className="form-message" role="alert">
+                A payment cannot exceed the balance shown for this debt. Update the balance first if
+                it has changed.
+              </div>
+            )}
             <Field label="Note (optional)">
               <input
                 value={activityNote}
@@ -386,11 +441,22 @@ export function GoalsScreen({
                 placeholder="e.g. Extra payment"
               />
             </Field>
+            <label className="linked-action">
+              <input
+                type="checkbox"
+                checked={recordTransaction}
+                onChange={(e) => setRecordTransaction(e.target.checked)}
+              />{' '}
+              Also record in Activity as {activity.kind === 'debt' ? 'an expense' : 'a transfer'}
+            </label>
             <div className="modal-actions">
               <button
                 className="primary-button"
                 onClick={recordActivity}
-                disabled={!Number(activityAmount)}
+                disabled={
+                  num(activityAmount) <= 0 ||
+                  (activity.kind === 'debt' && num(activityAmount) > activity.balance)
+                }
               >
                 Save progress
               </button>

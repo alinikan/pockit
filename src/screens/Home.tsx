@@ -6,7 +6,9 @@ import {
   money,
   shiftMonth,
   spendingByCategory,
+  todayISO,
 } from '../lib/finance'
+import { paychequeForecast } from '../lib/payday'
 import { Empty, Icon, Progress, SectionHead } from '../components/UI'
 
 export function HomeScreen({
@@ -17,7 +19,7 @@ export function HomeScreen({
 }: {
   data: PockitData
   month: MonthKey
-  setTab: (tab: 'Activity' | 'Budget' | 'Calendar') => void
+  setTab: (tab: 'Activity' | 'Budget' | 'Calendar' | 'More') => void
   openCoach: () => void
 }) {
   const { income, spent, remaining, trouble } = budgetHealth(data, month)
@@ -34,6 +36,7 @@ export function HomeScreen({
   const prevSpent = data.transactions
     .filter((t) => t.date.startsWith(previous) && t.type === 'expense')
     .reduce((n, t) => n + t.amount, 0)
+  const paycheque = paychequeForecast(data, todayISO())
   return (
     <div className="screen-stack">
       <div className="hero-grid">
@@ -49,7 +52,7 @@ export function HomeScreen({
           <div className="hero-bottom">
             <span>
               {remaining >= 0
-                ? 'You’re keeping more than you spend.'
+                ? 'You’re within this month’s income.'
                 : 'Spending has passed your income.'}
             </span>
             <button onClick={openCoach}>
@@ -80,6 +83,69 @@ export function HomeScreen({
           </div>
         </div>
       </div>
+      <section className="panel payday-panel">
+        <div className="payday-heading">
+          <div>
+            <span className="eyebrow">UNTIL YOUR NEXT PAYCHEQUE</span>
+            <h2>
+              {paycheque.payday
+                ? new Intl.DateTimeFormat('en-CA', { month: 'long', day: 'numeric' }).format(
+                    new Date(`${paycheque.payday}T12:00:00`),
+                  )
+                : 'Set your pay schedule'}
+            </h2>
+          </div>
+          <div className="payday-icon">
+            <Icon name="WalletCards" size={23} />
+          </div>
+        </div>
+        {paycheque.afterBills === null ? (
+          <>
+            <p>
+              Set your payday and today’s available money to see what remains after bills due before
+              your next paycheque.
+            </p>
+            <button className="secondary-button compact" onClick={() => setTab('More')}>
+              Set up in More <Icon name="ArrowRight" size={15} />
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="payday-metrics">
+              <div>
+                <span>Estimated after upcoming bills</span>
+                <strong className={paycheque.afterBills < 0 ? 'negative' : ''}>
+                  {money(paycheque.afterBills, data.settings.currency)}
+                </strong>
+              </div>
+              <div>
+                <span>
+                  Per day for {paycheque.days} {paycheque.days === 1 ? 'day' : 'days'}
+                </span>
+                <strong>{money(paycheque.perDay || 0, data.settings.currency)}</strong>
+              </div>
+              <div>
+                <span>Unpaid bills before payday</span>
+                <strong>{paycheque.bills.length}</strong>
+              </div>
+            </div>
+            {paycheque.bills.length > 0 && (
+              <div className="payday-bills">
+                {paycheque.bills.slice(0, 3).map(({ bill, date }) => (
+                  <span key={`${bill.id}-${date}`}>
+                    {bill.name} · {date} · {money(bill.amount, data.settings.currency)}
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="payday-disclaimer">
+              Estimate based on the amount you entered on {data.profile.cashAsOf}, later income and
+              expenses, and unpaid bills. Transfers and unrecorded spending are excluded. This is
+              not your bank balance.
+            </p>
+          </>
+        )}
+      </section>
       <div className="dashboard-grid">
         <section className="panel actual-panel">
           <SectionHead

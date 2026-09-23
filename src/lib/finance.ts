@@ -98,14 +98,17 @@ export interface Projection {
 }
 export const projectGoal = (goal: Goal, extra = 0): Projection => {
   const principal = Math.max(0, goal.balance)
-  const payment = Math.max(0, goal.monthly + (goal.kind === 'debt' ? extra : 0))
+  const payment = Math.max(0, goal.monthly + extra)
   const rate = Math.max(0, goal.annualInterest) / 1200
   const monthlyInterest = principal * rate
   if (goal.kind === 'debt' && principal === 0)
     return { months: 0, monthlyInterest: 0, endingBalance: 0 }
   if (goal.kind === 'saving' && principal >= goal.target)
     return { months: 0, monthlyInterest, endingBalance: principal }
-  if (payment <= 0 || (goal.kind === 'debt' && payment <= monthlyInterest))
+  if (
+    (payment <= 0 && (goal.kind === 'debt' || rate <= 0)) ||
+    (goal.kind === 'debt' && payment <= monthlyInterest)
+  )
     return { months: null, monthlyInterest, endingBalance: principal }
   let balance = principal
   for (let months = 1; months <= 600; months++) {
@@ -203,7 +206,8 @@ export const simulateDebtPlan = (goals: Goal[], plan: NonNullable<PockitData['de
       ? b.annualInterest - a.annualInterest
       : plan.strategy === 'balance'
         ? a.balance - b.balance
-        : plan.order.indexOf(a.id) - plan.order.indexOf(b.id),
+        : (plan.order.includes(a.id) ? plan.order.indexOf(a.id) : Number.MAX_SAFE_INTEGER) -
+          (plan.order.includes(b.id) ? plan.order.indexOf(b.id) : Number.MAX_SAFE_INTEGER),
   )
   const balances = Object.fromEntries(ordered.map((g) => [g.id, g.balance])) as Record<
     string,

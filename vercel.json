@@ -1,3 +1,6 @@
 {
-  "crons": [{ "path": "/api/retry-notifications", "schedule": "0 8 * * *" }]
+  "crons": [
+    { "path": "/api/retry-notifications", "schedule": "0 8 * * *" },
+    { "path": "/api/bill-reminders", "schedule": "0 17 * * *" }
+  ]
 }

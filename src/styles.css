@@ -1109,6 +1109,7 @@ small {
 }
 .screen-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
 }
 .panel {
@@ -1898,17 +1899,33 @@ small {
   gap: 9px 18px;
   margin: -6px 0 3px;
 }
-.budget-legend span {
+.budget-legend button {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 10px;
   color: var(--muted);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  padding: 5px 7px;
+}
+.budget-legend button.active {
+  color: var(--text);
+  border-color: var(--line);
+  background: var(--surface-2);
 }
 .budget-legend i {
   height: 7px;
   width: 7px;
   border-radius: 50%;
+}
+.budget-chart-detail {
+  margin: 2px 0 10px;
+  color: var(--muted);
+  font-size: 12px;
 }
 .allocation-list {
   margin-top: 20px;
@@ -1944,6 +1961,10 @@ small {
 .allocation-main strong,
 .allocation-values strong {
   font-size: 12px;
+}
+.allocation-main strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .allocation-main small {
   font-size: 10px;
@@ -2229,6 +2250,7 @@ small {
   border-radius: 17px;
   background: var(--surface);
   padding: 20px;
+  min-width: 0;
 }
 .goal-card-top {
   display: flex;
@@ -2240,6 +2262,7 @@ small {
   flex-direction: column;
   gap: 3px;
   flex: 1;
+  min-width: 0;
 }
 .goal-card-top strong {
   font-size: 12px;
@@ -2275,6 +2298,30 @@ small {
   justify-content: space-between;
   font-size: 9px;
   color: var(--muted);
+}
+.goal-chart-inspector {
+  display: grid;
+  gap: 3px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.goal-chart-inspector input {
+  width: 100%;
+  accent-color: var(--lime);
+}
+.goal-chart-inspector output {
+  color: var(--text);
+  font-weight: 700;
+}
+
+@media (pointer: coarse) {
+  button,
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    min-height: 44px !important;
+  }
 }
 .goal-card-footer {
   display: flex;
@@ -2853,7 +2900,7 @@ small {
 @media (max-width: 760px) {
   .app-shell {
     display: block;
-    padding-bottom: calc(67px + env(safe-area-inset-bottom));
+    padding-bottom: calc(125px + env(safe-area-inset-bottom));
   }
   .sidebar {
     display: none;
@@ -2868,12 +2915,14 @@ small {
     background: color-mix(in srgb, var(--sidebar) 95%, transparent);
     backdrop-filter: blur(18px);
     border-top: 1px solid var(--line);
-    padding: 6px max(8px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom))
-      max(8px, env(safe-area-inset-left));
+    padding: 6px max(4px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom))
+      max(4px, env(safe-area-inset-left));
     justify-content: space-around;
   }
   .bottom-nav button {
-    min-width: 0;
+    min-width: 44px;
+    min-height: 44px;
+    flex: 1;
     display: flex;
     align-items: center;
     flex-direction: column;
@@ -2956,7 +3005,7 @@ small {
   .calendar-side,
   .goals-grid,
   .settings-side {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .spending-chart {
     gap: 15px;
@@ -3145,4 +3194,395 @@ small {
 }
 .extras-setting input {
   accent-color: var(--lime);
+}
+
+/* Everyday actions and device feedback */
+.sync-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 36px 0;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  width: fit-content;
+}
+.sync-chip.saved {
+  color: var(--lime);
+}
+.sync-chip.offline,
+.sync-chip.error,
+.sync-chip.conflict {
+  color: var(--peach);
+}
+.sync-conflict-screen {
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 25px;
+  padding: 24px;
+  background: var(--bg);
+}
+.sync-conflict-card {
+  width: min(100%, 590px);
+  padding: 32px;
+}
+.sync-conflict-card > svg {
+  color: var(--peach);
+}
+.sync-conflict-card h1 {
+  font-size: 26px;
+  margin: 15px 0 8px;
+}
+.sync-conflict-card p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.sync-conflict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+.quick-add-fab {
+  position: fixed;
+  z-index: 9;
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--lime);
+  color: #14231b;
+  box-shadow: 0 10px 28px #0005;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.quick-add-fab:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px #0006;
+}
+.payday-panel {
+  display: grid;
+  gap: 16px;
+  overflow: hidden;
+  background: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--lime) 8%, var(--surface)),
+    var(--surface)
+  );
+}
+.payday-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.payday-heading h2 {
+  margin: 5px 0 0;
+  font-size: clamp(21px, 2.5vw, 28px);
+}
+.payday-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--lime) 17%, var(--surface));
+  color: var(--lime);
+  flex: none;
+}
+.payday-panel > p {
+  max-width: 660px;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+.payday-panel .secondary-button {
+  width: fit-content;
+}
+.payday-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.payday-metrics > div {
+  min-width: 0;
+  padding: 15px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+.payday-metrics span,
+.payday-metrics strong {
+  display: block;
+}
+.payday-metrics span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.payday-metrics strong {
+  margin-top: 8px;
+  font-size: clamp(17px, 2.5vw, 23px);
+  overflow-wrap: anywhere;
+}
+.payday-bills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.payday-bills span {
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11px;
+}
+.payday-disclaimer {
+  font-size: 11px !important;
+  line-height: 1.5;
+}
+.activity-actions {
+  display: flex;
+  gap: 9px;
+}
+.recent-merchants {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+}
+.recent-merchants > span {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.recent-merchants button {
+  flex: none;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+}
+.undo-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--lime);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--lime) 9%, var(--surface));
+  font-size: 12px;
+}
+.undo-strip button {
+  color: var(--lime);
+  border: 0;
+  background: none;
+  font-weight: 800;
+  min-height: 36px;
+}
+.import-summary {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+.import-errors {
+  color: var(--red);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.import-preview {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.import-preview > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+.import-preview span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.import-preview strong {
+  white-space: nowrap;
+}
+.linked-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.linked-action input {
+  accent-color: var(--lime);
+  width: 18px;
+  height: 18px;
+}
+.whatif-panel {
+  display: grid;
+  gap: 16px;
+}
+.whatif-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+.whatif-controls label {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 9px;
+  padding: 15px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+.whatif-controls label strong {
+  color: var(--text);
+}
+.whatif-controls input,
+.whatif-controls select {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--lime);
+}
+.whatif-results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.whatif-results > div {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+.whatif-results svg {
+  color: var(--lime);
+}
+.whatif-results span,
+.whatif-results small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.whatif-results strong {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.whatif-note {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 0;
+}
+.install-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.install-steps > div {
+  min-width: 0;
+  padding: 15px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.install-steps span {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 8px;
+  background: var(--lime);
+  color: #14231b;
+  font-size: 11px;
+  font-weight: 800;
+}
+.install-steps strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.install-steps p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+@media (max-width: 760px) {
+  .quick-add-fab {
+    right: max(17px, env(safe-area-inset-right));
+    bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+  .sync-chip {
+    margin: 8px 17px 0;
+  }
+  .payday-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .payday-metrics > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .whatif-results,
+  .install-steps {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 440px) {
+  .activity-actions .secondary-button {
+    font-size: 0;
+    min-width: 45px;
+    padding: 0;
+  }
+  .activity-actions .secondary-button svg {
+    width: 20px;
+    height: 20px;
+  }
+  .whatif-controls {
+    grid-template-columns: 1fr;
+  }
+  .payday-metrics strong {
+    font-size: 18px;
+  }
+  .import-preview > div {
+    flex-direction: column;
+    gap: 3px;
+  }
+  .import-preview strong {
+    white-space: normal;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

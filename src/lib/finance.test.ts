@@ -170,6 +170,38 @@ describe('goals and debt', () => {
         monthly: 100,
       }).months,
     ).toBe(12))
+  it('can reach a savings goal through interest even without new contributions', () => {
+    expect(
+      projectGoal({
+        ...debt(),
+        kind: 'saving',
+        balance: 1000,
+        target: 1100,
+        monthly: 0,
+        annualInterest: 12,
+      }).months,
+    ).toBe(10)
+    expect(
+      projectGoal({
+        ...debt(),
+        kind: 'saving',
+        balance: 1000,
+        target: 1100,
+        monthly: 0,
+        annualInterest: 0,
+      }).months,
+    ).toBeNull()
+  })
+  it('puts newly added debt after the saved custom payoff order', () => {
+    const goals = [debt({ id: 'first' }), debt({ id: 'new' }), debt({ id: 'second' })]
+    expect(
+      simulateDebtPlan(goals, {
+        strategy: 'custom',
+        extra: 0,
+        order: ['second', 'first'],
+      }).order.map((goal) => goal.id),
+    ).toEqual(['second', 'first', 'new'])
+  })
   it('applies freed payments to later debts in a plan', () => {
     const goals = [
       debt({ id: 'a', balance: 100, monthly: 100, annualInterest: 0 }),
