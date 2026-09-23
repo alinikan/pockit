@@ -12,6 +12,7 @@ The product was inspired by the clarity of modern budgeting apps, including Wayp
 - **Budget:** monthly allocations, a colour breakdown, category groups, weekly/biweekly/twice-monthly/monthly amounts, payment day, notes, one-month overrides, fresh or rollover balances, fixed or percentage contributions, and manual funding.
 - **Calendar:** transaction and bill markers, daily details, bill reminders, paid status, and the next seven days.
 - **Goals:** savings and debt balances, interest-aware dates, progress history, and a debt plan with highest-rate, smallest-balance, or custom order plus extra monthly payments.
+- **Compare:** choose two to four months for aligned expense, income, and category columns; filter and sort categories or include categories with no spending; view a 3, 6, or 12-month spending trend; compare allocations with actual spending; and see transaction-based findings and budget warnings.
 - **Money Coach:** local, data-based answers about spending, goals, bills, income, and month comparisons. It does **not** call a paid AI API.
 - **Settings:** dark/light theme, Smart Features, profile preferences, CAD/USD display, JSON export, password update, account deletion, and sign-out.
 - **Account emails:** branded deletion receipts and owner alerts for confirmed signups, with a private notification outbox and retry job.
@@ -196,6 +197,7 @@ This is a progressive web app (PWA), not an App Store binary. No Apple Developer
 - **Rollover category:** contributions minus expenses, accumulated from the category start month. Manual funding counts linked income or transfer transactions; automatic funding uses the planned contribution.
 - **Debt and savings dates:** simulated month by month with the entered annual rate divided by 12. A debt whose payment does not cover interest has no payoff date. Projections stop at 600 months rather than displaying a misleading date.
 - **Debt plan:** minimum payments are applied first; remaining monthly capacity goes to debts in the chosen order. Freed payments move to the next debt. This is an estimate, not a lender statement.
+- **Compare:** months are independent columns, so you can compare any months or years. The first column is the baseline and the last is the endpoint for findings. Your chosen months and view stay in place while switching tabs during a visit. Spending includes expense transactions only; deleted or missing categories appear under Uncategorized so category totals still match overall spending. Income is labelled expected when no income transaction was entered. In Plan vs actual, a rollover category is flagged only when its accumulated balance is negative. Current and future months are marked as incomplete. A blank month means no expenses were entered, not necessarily that none happened.
 
 ## Repository layout
 
@@ -203,9 +205,10 @@ This is a progressive web app (PWA), not an App Store binary. No Apple Developer
 public/              PWA manifest, service worker, icons
 src/components/      Reusable UI, authentication, onboarding
 src/lib/             Finance calculations, defaults, Supabase storage, tests
-src/screens/         Home, Activity, Budget, Calendar, Goals, More, Coach
+src/screens/         Home, Activity, Budget, Calendar, Goals, Compare, More, Coach
 src/types.ts         Shared data types
 src/styles.css       Dark and light design system, responsive layout
+src/screens/Compare.css  Compare layout and compact seven-tab navigation
 supabase/schema.sql  Private database table and RLS policies
 supabase/notifications.sql  Private email outbox and account triggers
 server/              Branded email templates and delivery/retry logic
@@ -217,7 +220,7 @@ PASSKEYS.md           Passkey configuration and iPhone walkthrough
 
 ## Testing and troubleshooting
 
-Run `npm test` and `npm run build` before every deployment. The finance tests cover month and year boundaries, leap years, pay frequencies, category overrides, rollover, transfers, debt interest, payoff order, recurring charges, and receipt parsing.
+Run `npm test` and `npm run build` before every deployment. The finance tests cover month and year boundaries, leap years, pay frequencies, category overrides, rollover, transfers, debt interest, payoff order, recurring charges, and receipt parsing. Comparison tests cover month boundaries, transfers, uncategorized spending, zero baselines, expected versus recorded income, and the view controls.
 
 | Symptom                                     | Check                                                                                                                                                                    |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

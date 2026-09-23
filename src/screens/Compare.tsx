@@ -1,0 +1,522 @@
+import { useState } from 'react'
+import type { MonthKey, PockitData } from '../types'
+import { currentMonth, money, monthLabel, shiftMonth } from '../lib/finance'
+import {
+  budgetComparison,
+  categoryComparison,
+  comparisonFindings,
+  difference,
+  monthSnapshot,
+} from '../lib/compare'
+import { Icon } from '../components/UI'
+
+type View = 'overview' | 'categories' | 'trend' | 'plan'
+const choices: { id: View; title: string; detail: string; icon: string }[] = [
+  { id: 'overview', title: 'Whole picture', detail: 'Months side by side', icon: 'Columns3' },
+  { id: 'categories', title: 'Categories', detail: 'Where it changed', icon: 'ChartPie' },
+  { id: 'trend', title: 'Trend', detail: 'The longer view', icon: 'TrendingUp' },
+  { id: 'plan', title: 'Plan vs actual', detail: 'Allocation check', icon: 'Target' },
+]
+
+function Change({
+  before,
+  after,
+  currency,
+}: {
+  before: number
+  after: number
+  currency: 'CAD' | 'USD'
+}) {
+  const delta = difference(before, after)
+  if (delta.amount === 0) return <span className="compare-change flat">No change</span>
+  return (
+    <span className={`compare-change ${delta.amount > 0 ? 'up' : 'down'}`}>
+      <Icon name={delta.amount > 0 ? 'TrendingUp' : 'TrendingDown'} size={14} />
+      {delta.amount > 0 ? '+' : '−'}
+      {money(Math.abs(delta.amount), currency)}
+      {delta.percent === null ? ' · new' : ` · ${Math.abs(delta.percent).toFixed(0)}%`}
+    </span>
+  )
+}
+
+export function CompareScreen({ data, month }: { data: PockitData; month: MonthKey }) {
+  const [months, setMonths] = useState<MonthKey[]>([shiftMonth(month, -1), month])
+  const [view, setView] = useState<View>('overview')
+  const [notice, setNotice] = useState('')
+  const [group, setGroup] = useState('All categories')
+  const [sort, setSort] = useState<'largest' | 'change' | 'name'>('largest')
+  const [showEmpty, setShowEmpty] = useState(false)
+  const [span, setSpan] = useState(6)
+  const currency = data.settings.currency
+  const snapshots = months.map((key) => monthSnapshot(data, key))
+  const first = snapshots[0]
+  const last = snapshots.at(-1)!
+  const delta = difference(first.spent, last.spent)
+  const partial = months.some((key) => key >= currentMonth())
+  const rows = categoryComparison(data, snapshots, showEmpty)
+  const groups = ['All categories', ...new Set(rows.map((row) => row.group))]
+  const visibleRows = rows
+    .filter((row) => group === 'All categories' || row.group === group)
+    .sort((a, b) =>
+      sort === 'name'
+        ? a.name.localeCompare(b.name)
+        : sort === 'change'
+          ? Math.abs(b.values.at(-1)! - b.values[0]) - Math.abs(a.values.at(-1)! - a.values[0])
+          : b.values.reduce((n, value) => n + value, 0) -
+            a.values.reduce((n, value) => n + value, 0),
+    )
+  const findings = view === 'overview' ? comparisonFindings(data, first, last) : []
+  const maxSpend = Math.max(1, ...snapshots.map((snapshot) => snapshot.spent))
+  const trendMonths = Array.from({ length: span }, (_, index) =>
+    shiftMonth(last.month, index - span + 1),
+  )
+  const trend = trendMonths.map((key) => monthSnapshot(data, key))
+  const trendMax = Math.max(1, ...trend.map((snapshot) => snapshot.spent))
+  const plan =
+    view === 'plan' ? budgetComparison(data, last.month).sort((a, b) => b.spent - a.spent) : []
+  const planned = plan.reduce((sum, row) => sum + row.planned, 0)
+
+  function changeMonth(index: number, value: string) {
+    if (!/^\d{4}-\d{2}$/.test(value)) return
+    if (months.some((key, i) => i !== index && key === value)) {
+      setNotice('Choose a different month for each column.')
+      return
+    }
+    setMonths((current) => current.map((key, i) => (i === index ? (value as MonthKey) : key)))
+    setNotice('')
+  }
+
+  function addMonth() {
+    let candidate = shiftMonth(months[0], -1)
+    while (months.includes(candidate)) candidate = shiftMonth(candidate, -1)
+    setMonths([candidate, ...months])
+    setNotice('')
+  }
+
+  return (
+    <div className="screen-stack compare-screen">
+      <section className="compare-intro">
+        <div>
+          <span className="eyebrow">A CLOSER LOOK</span>
+          <h2>See what changed. Know why.</h2>
+          <p>
+            Pick the months that matter to you. Every number comes from the transactions you
+            entered.
+          </p>
+        </div>
+        <div className="compare-intro-mark" aria-hidden="true">
+          <Icon name="GitCompareArrows" size={36} />
+        </div>
+      </section>
+
+      <div className="compare-views" role="tablist" aria-label="Comparison views">
+        {choices.map((choice) => (
+          <button
+            key={choice.id}
+            role="tab"
+            aria-selected={view === choice.id}
+            className={view === choice.id ? 'active' : ''}
+            onClick={() => setView(choice.id)}
+          >
+            <Icon name={choice.icon} size={19} />
+            <span>
+              <strong>{choice.title}</strong>
+              <small>{choice.detail}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <section className="panel compare-selector">
+        <div className="compare-section-top">
+          <div>
+            <h3>Choose your months</h3>
+            <p>Read left to right. The first month is your baseline.</p>
+          </div>
+          {months.length < 4 && (
+            <button className="compare-add" onClick={addMonth}>
+              <Icon name="Plus" size={16} /> Add month
+            </button>
+          )}
+        </div>
+        <div className="compare-month-grid">
+          {months.map((key, index) => (
+            <div className="compare-month-control" key={`${index}-${key}`}>
+              <label htmlFor={`compare-month-${index}`}>
+                {index === 0 ? 'BASELINE' : `MONTH ${index + 1}`}
+              </label>
+              <div>
+                <input
+                  id={`compare-month-${index}`}
+                  type="month"
+                  value={key}
+                  onChange={(event) => changeMonth(index, event.target.value)}
+                />
+                {months.length > 2 && (
+                  <button
+                    aria-label={`Remove ${monthLabel(key)}`}
+                    title="Remove month"
+                    onClick={() => setMonths(months.filter((_, i) => i !== index))}
+                  >
+                    <Icon name="X" size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {notice && (
+          <p className="compare-notice" role="alert">
+            {notice}
+          </p>
+        )}
+      </section>
+
+      {partial && (
+        <div className="compare-caveat">
+          <Icon name="Info" size={18} /> Current or future months may be incomplete. A lower total
+          can simply mean transactions have not been entered yet.
+        </div>
+      )}
+
+      {view === 'overview' && (
+        <>
+          <section className="panel compare-overview">
+            <div className="compare-section-top">
+              <div>
+                <h3>Expenses, side by side</h3>
+                <p>Only expense transactions count. Transfers stay out.</p>
+              </div>
+            </div>
+            <div
+              className="compare-overview-grid"
+              style={{ gridTemplateColumns: `repeat(${months.length}, minmax(180px, 1fr))` }}
+            >
+              {snapshots.map((snapshot, index) => (
+                <div className="compare-overview-column" key={snapshot.month}>
+                  <span className="compare-column-index">
+                    {String(index + 1).padStart(2, '0')} / {monthLabel(snapshot.month)}
+                  </span>
+                  <span className="compare-metric-label">TOTAL SPENT</span>
+                  <strong className="compare-main-number">{money(snapshot.spent, currency)}</strong>
+                  <div className="compare-bar-track">
+                    <div style={{ width: `${(snapshot.spent / maxSpend) * 100}%` }} />
+                  </div>
+                  <div className="compare-detail-row">
+                    <span>Expense entries</span>
+                    <strong>{snapshot.expenseCount}</strong>
+                  </div>
+                  <div className="compare-detail-row">
+                    <span>{snapshot.recordedIncome ? 'Recorded income' : 'Expected income*'}</span>
+                    <strong>
+                      {money(snapshot.recordedIncome || snapshot.expectedIncome, currency)}
+                    </strong>
+                  </div>
+                  <div className="compare-detail-row">
+                    <span>After spending*</span>
+                    <strong>
+                      {money(
+                        (snapshot.recordedIncome || snapshot.expectedIncome) - snapshot.spent,
+                        currency,
+                      )}
+                    </strong>
+                  </div>
+                  {index > 0 && (
+                    <div className="compare-card-delta">
+                      <span>Spending vs baseline</span>
+                      <Change before={first.spent} after={snapshot.spent} currency={currency} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="compare-footnote">
+              * Expected income comes from your pay setup when no income was recorded. “After
+              spending” uses that estimate and is not an account balance.
+            </p>
+          </section>
+          <section className="compare-callout">
+            <div className="compare-callout-icon">
+              <Icon name={delta.amount > 0 ? 'TrendingUp' : 'TrendingDown'} size={23} />
+            </div>
+            <div>
+              <span>FIRST TO LAST MONTH</span>
+              <h3>
+                {first.expenseCount && last.expenseCount
+                  ? delta.amount === 0
+                    ? 'Spending held steady.'
+                    : `Spending ${delta.amount > 0 ? 'rose' : 'fell'} by ${money(Math.abs(delta.amount), currency)}.`
+                  : 'Add expenses in both months to compare.'}
+              </h3>
+              <p>
+                {first.expenseCount && last.expenseCount
+                  ? `${monthLabel(first.month)} to ${monthLabel(last.month)}${delta.percent === null ? ' · new spending' : ` · ${Math.abs(delta.percent).toFixed(0)}% ${delta.amount > 0 ? 'higher' : 'lower'}`}`
+                  : 'You can choose any two months above.'}
+              </p>
+            </div>
+          </section>
+          <section className="panel compare-findings">
+            <div className="compare-section-top">
+              <div>
+                <h3>What stands out</h3>
+                <p>Clues from your entries, with no AI or bank connection.</p>
+              </div>
+            </div>
+            <div className="compare-finding-grid">
+              {findings.length ? (
+                findings.map((finding) => (
+                  <div className={`compare-finding ${finding.kind}`} key={finding.title}>
+                    <Icon name={finding.kind === 'good' ? 'TrendingDown' : 'Info'} size={19} />
+                    <div>
+                      <strong>{finding.title}</strong>
+                      <p>{finding.text}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="compare-empty">
+                  Add expense transactions in both selected months to see category insights.
+                </p>
+              )}
+            </div>
+          </section>
+        </>
+      )}
+
+      {view === 'categories' && (
+        <section className="panel compare-category-panel">
+          <div className="compare-section-top">
+            <div>
+              <h3>Category by category</h3>
+              <p>Scan the same category across every selected month.</p>
+            </div>
+          </div>
+          <div className="compare-filter-row">
+            <label>
+              Group{' '}
+              <select value={group} onChange={(event) => setGroup(event.target.value)}>
+                {groups.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Sort{' '}
+              <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+                <option value="largest">Most spent</option>
+                <option value="change">Biggest change</option>
+                <option value="name">Name</option>
+              </select>
+            </label>
+            <label className="compare-show-empty">
+              <input
+                type="checkbox"
+                checked={showEmpty}
+                onChange={(event) => setShowEmpty(event.target.checked)}
+              />
+              Include $0 categories
+            </label>
+          </div>
+          <div className="compare-table-scroll">
+            <table className="compare-table" style={{ minWidth: 285 + months.length * 125 }}>
+              <thead>
+                <tr>
+                  <th scope="col">Category</th>
+                  {months.map((key) => (
+                    <th scope="col" key={key}>
+                      {monthLabel(key)}
+                    </th>
+                  ))}
+                  <th scope="col">First → last</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => (
+                  <tr key={row.id}>
+                    <th scope="row">
+                      <span className="compare-category-name">
+                        <i style={{ background: row.color }} />
+                        <Icon name={row.icon} size={17} />
+                        {row.name}
+                      </span>
+                    </th>
+                    {row.values.map((value, index) => (
+                      <td key={months[index]}>{money(value, currency)}</td>
+                    ))}
+                    <td>
+                      <Change
+                        before={row.values[0]}
+                        after={row.values.at(-1)!}
+                        currency={currency}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {!visibleRows.length && (
+                  <tr>
+                    <td colSpan={months.length + 2} className="compare-empty">
+                      No spending in this group for these months.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row">Total expenses</th>
+                  {snapshots.map((snapshot) => (
+                    <td key={snapshot.month}>{money(snapshot.spent, currency)}</td>
+                  ))}
+                  <td>
+                    <Change before={first.spent} after={last.spent} currency={currency} />
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p className="compare-footnote">
+            Swipe the table sideways on a phone. Uncategorized includes expenses with no category or
+            a removed category.
+          </p>
+        </section>
+      )}
+
+      {view === 'trend' && (
+        <section className="panel compare-trend-panel">
+          <div className="compare-section-top">
+            <div>
+              <h3>The longer view</h3>
+              <p>Monthly expense totals ending in {monthLabel(last.month)}.</p>
+            </div>
+            <div className="compare-span" aria-label="Trend length">
+              {[3, 6, 12].map((count) => (
+                <button
+                  key={count}
+                  className={span === count ? 'active' : ''}
+                  onClick={() => setSpan(count)}
+                >
+                  {count}m
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="compare-trend-summary">
+            <span>
+              Total across these months{' '}
+              <strong>
+                {money(
+                  trend.reduce((sum, snapshot) => sum + snapshot.spent, 0),
+                  currency,
+                )}
+              </strong>
+            </span>
+            <span>
+              Average per month{' '}
+              <strong>
+                {money(trend.reduce((sum, snapshot) => sum + snapshot.spent, 0) / span, currency)}
+              </strong>
+            </span>
+          </div>
+          <div
+            className="compare-trend-chart"
+            role="img"
+            aria-label={`Spending over ${span} months ending ${monthLabel(last.month)}`}
+          >
+            {trend.map((snapshot) => (
+              <div className="compare-trend-item" key={snapshot.month}>
+                <strong>{money(snapshot.spent, currency, true)}</strong>
+                <div className="compare-trend-track">
+                  <div style={{ height: `${(snapshot.spent / trendMax) * 100}%` }} />
+                </div>
+                <span>
+                  {new Date(
+                    Number(snapshot.month.slice(0, 4)),
+                    Number(snapshot.month.slice(5)) - 1,
+                    1,
+                  ).toLocaleDateString('en-CA', {
+                    month: 'short',
+                    year: span === 12 ? '2-digit' : undefined,
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="compare-footnote">
+            A $0 bar means no expenses were entered for that month. The average includes those
+            months.
+          </p>
+        </section>
+      )}
+
+      {view === 'plan' && (
+        <section className="panel compare-plan-panel">
+          <div className="compare-section-top">
+            <div>
+              <h3>Plan vs actual</h3>
+              <p>For {monthLabel(last.month)}. See which allocations need a look.</p>
+            </div>
+          </div>
+          <div className="compare-plan-summary">
+            <div>
+              <span>ALLOCATED</span>
+              <strong>{money(planned, currency)}</strong>
+            </div>
+            <div>
+              <span>SPENT</span>
+              <strong>{money(last.spent, currency)}</strong>
+            </div>
+            <div>
+              <span>THIS MONTH GAP</span>
+              <strong className={last.spent > planned ? 'compare-negative' : ''}>
+                {money(planned - last.spent, currency)}
+              </strong>
+            </div>
+          </div>
+          <div className="compare-plan-list">
+            {plan.map((row) => (
+              <div className="compare-plan-row" key={row.id}>
+                <div className="compare-plan-row-top">
+                  <span>
+                    <i style={{ background: row.color }} />
+                    {row.name}
+                  </span>
+                  <strong>
+                    {money(row.spent, currency)} <small>/ {money(row.planned, currency)}</small>
+                  </strong>
+                </div>
+                <div className="compare-plan-track">
+                  <div
+                    style={{
+                      width: `${Math.min(100, row.planned ? (row.spent / row.planned) * 100 : row.spent ? 100 : 0)}%`,
+                      background: row.balance < 0 ? 'var(--red)' : row.color,
+                    }}
+                  />
+                </div>
+                <small className={row.balance < 0 ? 'compare-negative' : ''}>
+                  {row.mode === 'rollover'
+                    ? row.balance < 0
+                      ? `${money(Math.abs(row.balance), currency)} over available rollover balance`
+                      : `${money(row.balance, currency)} available with rollover`
+                    : row.planned === 0 && row.spent > 0
+                      ? 'Spent without a monthly allocation'
+                      : row.balance < 0
+                        ? `${money(Math.abs(row.balance), currency)} over allocation`
+                        : `${money(row.balance, currency)} left in allocation`}
+                </small>
+              </div>
+            ))}
+            {!plan.length && (
+              <p className="compare-empty">
+                There are no allocations or expenses for this month yet.
+              </p>
+            )}
+          </div>
+          <p className="compare-footnote">
+            Allocations are plans, not transactions. The overall gap compares this month's
+            allocations with spending; rollover row balances include earlier months. Uncategorized
+            spending has no allocation. Current or future months may be incomplete.
+          </p>
+        </section>
+      )}
+    </div>
+  )
+}

@@ -12,16 +12,18 @@ import { ActivityScreen } from './screens/Activity'
 import { BudgetScreen } from './screens/Budget'
 import { CalendarScreen } from './screens/Calendar'
 import { GoalsScreen } from './screens/Goals'
+import { CompareScreen } from './screens/Compare'
 import { MoreScreen } from './screens/More'
 import { Coach } from './screens/Coach'
 
-type Tab = 'Home' | 'Activity' | 'Budget' | 'Calendar' | 'Goals' | 'More'
+type Tab = 'Home' | 'Activity' | 'Budget' | 'Calendar' | 'Goals' | 'Compare' | 'More'
 const tabs: [Tab, string][] = [
   ['Home', 'House'],
   ['Activity', 'ListFilter'],
   ['Budget', 'ChartPie'],
   ['Calendar', 'CalendarDays'],
   ['Goals', 'Target'],
+  ['Compare', 'GitCompareArrows'],
   ['More', 'Grid2X2'],
 ]
 
@@ -277,14 +279,18 @@ export default function App() {
                     ? 'Make it yours.'
                     : tab === 'Goals'
                       ? 'Every step counts.'
-                      : tab === 'Activity'
-                        ? 'The full picture.'
-                        : tab === 'Budget'
-                          ? 'Give every dollar a direction.'
-                          : 'See what’s ahead.'}
+                      : tab === 'Compare'
+                        ? 'Put your months in perspective.'
+                        : tab === 'Activity'
+                          ? 'The full picture.'
+                          : tab === 'Budget'
+                            ? 'Give every dollar a direction.'
+                            : 'See what’s ahead.'}
               </h1>
             </div>
-            {tab !== 'More' && tab !== 'Goals' && <MonthPicker month={month} setMonth={setMonth} />}
+            {tab !== 'More' && tab !== 'Goals' && tab !== 'Compare' && (
+              <MonthPicker month={month} setMonth={setMonth} />
+            )}
           </div>
           {tab === 'Home' && (
             <HomeScreen
@@ -298,6 +304,9 @@ export default function App() {
           {tab === 'Budget' && <BudgetScreen data={data} month={month} update={update} />}
           {tab === 'Calendar' && <CalendarScreen data={data} month={month} update={update} />}
           {tab === 'Goals' && <GoalsScreen data={data} month={month} update={update} />}
+          <div hidden={tab !== 'Compare'}>
+            <CompareScreen data={data} month={month} />
+          </div>
           {tab === 'More' && (
             <MoreScreen
               data={data}
