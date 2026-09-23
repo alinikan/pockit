@@ -63,10 +63,11 @@ In the same Supabase project, open **Settings → API Keys** (or the **Connect**
 
 Do this **after** the Vercel redeployment so its receiver is ready.
 
-1. In Supabase, open **Database → Webhooks**. Click **Create a new hook** or **Enable webhooks**, then create one named `pockit-notifications`.
-2. Select schema **public** and table **pockit_notifications**. Select **INSERT** only. Leave UPDATE and DELETE unchecked.
-3. Choose an **HTTP Request** webhook, method **POST**. Set the URL to your exact production address plus `/api/notify`, for example `https://YOUR-PROJECT.vercel.app/api/notify`. Use the stable production domain, not a preview deployment URL.
-4. Add HTTP headers:
+1. First open **Integrations → Database Webhooks → Overview** in Supabase and click **Install integration**. Supabase has also called this **Enable Database Webhooks** or, in older dashboard layouts, **Database → Webhooks → Enable webhooks**. Complete any installation prompt, wait for it to finish, then refresh the page. This provisions the `supabase_functions` schema and its `http_request()` function. Merely enabling the `pg_net` extension does not do that.
+2. Open **Database → Webhooks** (or the Webhooks integration's hooks page) and click **Create a new hook**. Name it `pockit-notifications`.
+3. Select schema **public** and table **pockit_notifications**. Select **INSERT** only. Leave UPDATE and DELETE unchecked.
+4. Choose an **HTTP Request** webhook, method **POST**. Set the URL to your exact production address plus `/api/notify`, for example `https://YOUR-PROJECT.vercel.app/api/notify`. Use the stable production domain, not a preview deployment URL.
+5. Add HTTP headers:
 
    ```text
    Content-Type: application/json
@@ -75,7 +76,16 @@ Do this **after** the Vercel redeployment so its receiver is ready.
 
    Copy the secret from your password manager or Vercel's saved value. It must match exactly. **Do not add the Supabase secret key as a webhook header.**
 
-5. Save the webhook. If the dashboard exposes a timeout, use 10,000 ms. The webhook payload contains the minimal outbox row, not the whole `auth.users` record.
+6. Save the webhook. If the dashboard exposes a timeout, use 10,000 ms. The webhook payload contains the minimal outbox row, not the whole `auth.users` record.
+
+If saving says `schema "supabase_functions" does not exist`, return to the **Install integration** step above. You can check provisioning in **SQL Editor** with this read-only query:
+
+```sql
+select to_regnamespace('supabase_functions') as webhook_schema,
+       to_regprocedure('supabase_functions.http_request()') as webhook_function;
+```
+
+Both results should have values after enabling. If either remains `NULL` even though the integration says enabled, this is a Supabase provisioning issue: contact Supabase support with the error and project reference. Do **not** create an empty `supabase_functions` schema yourself; the required function and permissions would still be missing. Pockit's daily retry job can send pending signup alerts while the immediate webhook is unavailable.
 
 ## 6. Test with a real throwaway account
 

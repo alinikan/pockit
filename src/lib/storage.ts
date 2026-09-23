@@ -6,7 +6,12 @@ const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VIT
 export const supabase: SupabaseClient | null =
   url && key && !url.includes('YOUR_PROJECT_REF')
     ? createClient(url, key, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          experimental: { passkey: true },
+        },
       })
     : null
 

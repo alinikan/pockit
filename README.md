@@ -16,6 +16,7 @@ The product was inspired by the clarity of modern budgeting apps, including Wayp
 - **Settings:** dark/light theme, Smart Features, profile preferences, CAD/USD display, JSON export, password update, account deletion, and sign-out.
 - **Account emails:** branded deletion receipts and owner alerts for confirmed signups, with a private notification outbox and retry job.
 - **Private accounts:** Supabase email/password authentication and one JSON budget document per user protected by Postgres row-level security (RLS).
+- **Passkeys:** optional Face ID, Touch ID, device PIN, or security-key sign-in after the user registers a passkey in Settings. See the [passkey setup guide](PASSKEYS.md).
 - **Preview mode:** sample data stored only in the current browser, so the interface can be explored before cloud setup.
 
 ## What Pockit does not do yet
@@ -30,7 +31,7 @@ The installed web app needs a connection to sign in and sync cloud data. Its she
 | ----------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------ |
 | UI                      | React 19, TypeScript, Vite             | Small static deployment and fast local development                                         |
 | Styling                 | Custom CSS and Lucide icons            | App-like design without a component framework                                              |
-| Authentication and data | Supabase Auth + Postgres JSONB         | Managed accounts and private per-user data                                                 |
+| Authentication and data | Supabase Auth + Postgres JSONB         | Managed accounts, optional passkeys, and private per-user data                             |
 | Receipt reading         | Tesseract.js                           | On-device OCR, no paid API or receipt upload                                               |
 | Charts                  | SVG and CSS                            | Lightweight, responsive visuals                                                            |
 | Hosting                 | Vercel static deployment and Functions | GitHub-connected deployment, private account/email endpoints, and a free `.vercel.app` URL |
@@ -211,6 +212,7 @@ server/              Branded email templates and delivery/retry logic
 api/                 Vercel account deletion, webhook, and retry endpoints
 vercel.json           Daily retry schedule
 ACCOUNT_EMAILS.md     Detailed setup and testing guide
+PASSKEYS.md           Passkey configuration and iPhone walkthrough
 ```
 
 ## Testing and troubleshooting

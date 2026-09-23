@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Brand, Icon } from './UI'
 import { supabase } from '../lib/storage'
+import { passkeysSupported } from '../lib/passkeys'
 
 export function Auth({
   onDemo,
@@ -20,6 +21,24 @@ export function Auth({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const canUsePasskeys = passkeysSupported()
+  async function signInWithPasskey() {
+    if (!supabase || loading) return
+    setLoading(true)
+    setMessage('')
+    try {
+      const { error } = await supabase.auth.signInWithPasskey()
+      if (error) throw error
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Passkey sign-in did not work. Try again or use your password.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     if (!supabase)
@@ -188,6 +207,23 @@ export function Auth({
               <Icon name="ArrowRight" size={18} />
             </button>
           </form>
+          {mode === 'signin' && canUsePasskeys && (
+            <>
+              <div className="auth-divider">or sign in another way</div>
+              <button
+                className="secondary-button full passkey-signin-button"
+                type="button"
+                onClick={signInWithPasskey}
+                disabled={loading}
+              >
+                <Icon name="Fingerprint" size={20} /> Sign in with a passkey
+              </button>
+              <small className="passkey-note">
+                Use Face ID, Touch ID, your device PIN, or a security key. Set up a passkey in More
+                after signing in once.
+              </small>
+            </>
+          )}
           {mode !== 'recovery' && (
             <div className="auth-links">
               {mode === 'signup' ? (

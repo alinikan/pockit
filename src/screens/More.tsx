@@ -4,6 +4,7 @@ import type { Frequency, PockitData } from '../types'
 import { monthlyPay, money } from '../lib/finance'
 import { supabase } from '../lib/storage'
 import { Field, Icon, SectionHead, Toggle } from '../components/UI'
+import { PasskeySettings } from '../components/Passkeys'
 
 export function MoreScreen({
   data,
@@ -264,6 +265,7 @@ export function MoreScreen({
             {message && <div className="form-message">{message}</div>}
           </section>
         )}
+        {!demo && <PasskeySettings />}
         {!demo && (
           <section className="panel settings-panel delete-account-panel">
             <SectionHead
