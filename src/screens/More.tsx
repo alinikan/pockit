@@ -9,15 +9,22 @@ export function MoreScreen({
   data,
   update,
   logout,
+  onDeleted,
   demo,
 }: {
   data: PockitData
   update: (recipe: (value: PockitData) => PockitData) => void
   logout: () => void
+  onDeleted: () => void
   demo: boolean
 }) {
   const [message, setMessage] = useState('')
   const [password, setPassword] = useState('')
+  const [showDelete, setShowDelete] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deletePhrase, setDeletePhrase] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteMessage, setDeleteMessage] = useState('')
   const setProfile = (patch: Partial<PockitData['profile']>) =>
     update((d) => ({ ...d, profile: { ...d.profile, ...patch } }))
   function exportData() {
@@ -34,6 +41,34 @@ export function MoreScreen({
     const { error } = await supabase.auth.updateUser({ password })
     setMessage(error ? error.message : 'Password updated.')
     if (!error) setPassword('')
+  }
+  async function deleteAccount() {
+    if (!supabase || deletePhrase !== 'DELETE' || !deletePassword || deleting) return
+    setDeleting(true)
+    setDeleteMessage('')
+    try {
+      const { data: current, error: currentError } = await supabase.auth.getUser()
+      if (currentError || !current.user?.email) throw new Error('Sign in again and try once more.')
+      const { data: sessionResult } = await supabase.auth.getSession()
+      if (!sessionResult.session) throw new Error('Sign in again and try once more.')
+      const response = await fetch('/api/delete-account', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${sessionResult.session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password: deletePassword }),
+      })
+      const result = (await response.json()) as { error?: string; deleted?: boolean }
+      if (!response.ok || !result.deleted)
+        throw new Error(result.error || 'Could not delete your account. Please try again.')
+      await supabase.auth.signOut({ scope: 'local' })
+      onDeleted()
+    } catch (error) {
+      setDeleteMessage(error instanceof Error ? error.message : 'Could not delete your account.')
+    } finally {
+      setDeleting(false)
+    }
   }
   return (
     <div className="settings-grid">
@@ -227,6 +262,72 @@ export function MoreScreen({
               Update password
             </button>
             {message && <div className="form-message">{message}</div>}
+          </section>
+        )}
+        {!demo && (
+          <section className="panel settings-panel delete-account-panel">
+            <SectionHead
+              title="Delete account"
+              help="This permanently removes your Pockit sign-in and the budget saved with it. Download a backup above first if you want one."
+            />
+            <p className="soft-note">
+              We’ll email a confirmation to your account address after deletion. This cannot be
+              undone.
+            </p>
+            {!showDelete ? (
+              <button
+                className="secondary-button compact delete-account-trigger"
+                onClick={() => setShowDelete(true)}
+              >
+                <Icon name="Trash2" size={16} /> Delete my account
+              </button>
+            ) : (
+              <div className="delete-account-form">
+                <Field label="Current password">
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={deletePassword}
+                    onChange={(event) => setDeletePassword(event.target.value)}
+                    placeholder="Enter your password"
+                  />
+                </Field>
+                <Field label="Type DELETE to confirm">
+                  <input
+                    value={deletePhrase}
+                    onChange={(event) => setDeletePhrase(event.target.value)}
+                    placeholder="DELETE"
+                    autoComplete="off"
+                  />
+                </Field>
+                <div className="delete-account-actions">
+                  <button
+                    className="secondary-button compact"
+                    disabled={deleting}
+                    onClick={() => {
+                      setShowDelete(false)
+                      setDeletePassword('')
+                      setDeletePhrase('')
+                      setDeleteMessage('')
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="delete-account-button"
+                    disabled={deleting || !deletePassword || deletePhrase !== 'DELETE'}
+                    onClick={deleteAccount}
+                  >
+                    {deleting ? 'Deleting…' : 'Permanently delete account'}
+                  </button>
+                </div>
+                {deleteMessage && (
+                  <div className="form-message" role="alert">
+                    {deleteMessage}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
         )}
       </div>

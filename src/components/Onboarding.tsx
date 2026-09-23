@@ -1,5 +1,5 @@
 import { num } from '../lib/numbers'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Frequency, Goal, PockitData } from '../types'
 import { buildOnboardedData } from '../lib/defaults'
 import { money, projectGoal } from '../lib/finance'
@@ -41,14 +41,22 @@ const savingOptions = [
 export function Onboarding({
   initial,
   onDone,
+  onChange,
+  onSave,
 }: {
   initial: PockitData
   onDone: (value: PockitData) => void
+  onChange?: (value: PockitData) => void
+  onSave?: (value: PockitData) => Promise<void>
 }) {
   const [data, setData] = useState(initial)
-  const [step, setStep] = useState(0)
-  const [selectedGoals, setSelectedGoals] = useState<Goal[]>([])
+  const [step, setStep] = useState(() => Math.max(0, Math.min(8, initial.onboardingStep ?? 0)))
+  const [selectedGoals, setSelectedGoals] = useState<Goal[]>(initial.goals)
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    onChange?.({ ...data, goals: selectedGoals })
+  }, [data, selectedGoals, onChange])
   const setProfile = (patch: Partial<PockitData['profile']>) =>
     setData((d) => ({ ...d, profile: { ...d.profile, ...patch } }))
   const updateGoal = (id: string, patch: Partial<Goal>) =>
@@ -73,15 +81,38 @@ export function Onboarding({
             },
           ],
     )
+  const moveTo = (nextStep: number) => {
+    const finished = nextStep === 9
+    const next = finished
+      ? buildOnboardedData({ ...data, goals: selectedGoals })
+      : { ...data, goals: selectedGoals, onboardingStep: nextStep }
+    const apply = () => {
+      if (finished) onDone(next)
+      else {
+        setData(next)
+        setStep(nextStep)
+      }
+    }
+    if (!onSave) return apply()
+    setSaving(true)
+    onSave(next)
+      .then(apply)
+      .catch((cause) =>
+        setError(
+          `Your progress could not be saved. Please try again. ${cause instanceof Error ? cause.message : ''}`,
+        ),
+      )
+      .finally(() => setSaving(false))
+  }
   const advance = () => {
+    if (saving) return
     setError('')
     if (step === 1 && data.profile.payAmount <= 0)
       return setError('Enter your take-home pay to continue.')
     if (step === 2 && !data.profile.housing) return setError('Choose where you live to continue.')
     if (step === 3 && !data.profile.transport)
       return setError('Choose how you get around to continue.')
-    if (step === 8) return onDone(buildOnboardedData({ ...data, goals: selectedGoals }))
-    setStep(step + 1)
+    moveTo(step + 1)
   }
   const card = (
     label: string,
@@ -409,16 +440,25 @@ export function Onboarding({
         )}
         <div className="onboarding-actions">
           {step > 0 && (
-            <button className="text-button" onClick={() => setStep(step - 1)}>
+            <button
+              className="text-button"
+              disabled={saving}
+              onClick={() => {
+                setError('')
+                moveTo(step - 1)
+              }}
+            >
               <Icon name="ArrowLeft" size={18} /> Back
             </button>
           )}
-          <button className="primary-button" onClick={advance}>
-            {step === 8
-              ? 'Open my Pockit'
-              : step === 4 || step === 5 || step === 6
-                ? 'Continue'
-                : 'Continue'}
+          <button className="primary-button" disabled={saving} onClick={advance}>
+            {saving
+              ? 'Saving…'
+              : step === 8
+                ? 'Open my Pockit'
+                : step === 4 || step === 5 || step === 6
+                  ? 'Continue'
+                  : 'Continue'}
             <Icon name="ArrowRight" size={18} />
           </button>
         </div>

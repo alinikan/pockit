@@ -12,8 +12,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "format": "prettier --write src index.html vite.config.ts public/sw.js",
-    "format:check": "prettier --check src index.html vite.config.ts public/sw.js"
+    "format": "prettier --write src server api index.html vite.config.ts vercel.json public/sw.js README.md ACCOUNT_EMAILS.md emails/README.md",
+    "format:check": "prettier --check src server api index.html vite.config.ts vercel.json public/sw.js README.md ACCOUNT_EMAILS.md emails/README.md"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",

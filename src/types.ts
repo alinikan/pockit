@@ -62,6 +62,7 @@ export interface Bill {
 export interface PockitData {
   version: 1
   onboarded: boolean
+  onboardingStep?: number
   profile: {
     name: string
     reason: string

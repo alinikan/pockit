@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confirm your new Pockit email</title>
+</head>
+<body style="margin:0;padding:0;background-color:#101817;color:#f4f6f0;font-family:Arial,Helvetica,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">One quick check to update the email on your Pockit account.</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;background-color:#101817;">
+    <tr><td align="center" style="padding:32px 14px 40px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:100%;max-width:600px;">
+        <tr><td style="padding:0 6px 20px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="center" valign="middle" width="38" height="38" style="width:38px;height:38px;background-color:#c1ef76;border-radius:12px;color:#122019;font-size:27px;font-weight:800;line-height:38px;letter-spacing:-3px;">p</td>
+            <td style="padding-left:10px;color:#f4f6f0;font-size:25px;font-weight:800;letter-spacing:-1.5px;">pockit<span style="color:#c1ef76;">.</span></td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="background-color:#182320;border:1px solid #2b3933;border-radius:22px;overflow:hidden;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr><td style="height:5px;background-color:#c1ef76;font-size:1px;line-height:5px;">&nbsp;</td></tr>
+            <tr><td style="padding:44px 42px 0;">
+              <p style="margin:0 0 18px;color:#c1ef76;font-size:11px;font-weight:700;letter-spacing:2px;line-height:1.5;">ACCOUNT DETAILS</p>
+              <h1 style="margin:0 0 19px;color:#f4f6f0;font-size:34px;font-weight:800;line-height:1.16;letter-spacing:-1.4px;">Let’s keep your account yours.</h1>
+              <p style="margin:0;color:#c6d2c9;font-size:16px;line-height:1.65;">You asked to change the email address for your Pockit account. Confirm this address to finish the update.</p>
+            </td></tr>
+            <tr><td style="padding:30px 42px 28px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#c1ef76" style="background-color:#c1ef76;border-radius:12px;">
+                <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:16px 25px;color:#142017;text-decoration:none;font-size:15px;font-weight:800;line-height:1.2;">Confirm new email &nbsp;→</a>
+              </td></tr></table>
+            </td></tr>
+            <tr><td style="padding:0 42px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#21302a;border:1px solid #33443a;border-radius:12px;"><tr><td style="padding:15px 18px;color:#c6d2c9;font-size:13px;line-height:1.55;">
+                <span style="color:#c1ef76;font-weight:700;">A little note</span><br>If Supabase asks you to confirm both your old and new address, follow the instructions in each message.
+              </td></tr></table>
+            </td></tr>
+            <tr><td style="padding:23px 42px 33px;border-top:1px solid #2b3933;">
+              <p style="margin:0 0 9px;color:#94a79b;font-size:12px;line-height:1.6;">Didn’t request this change? Do not click the button. Check your account and contact the person who manages your Pockit app.</p>
+              <p style="margin:0;color:#94a79b;font-size:12px;line-height:1.6;">Button not working? Copy this link into your browser:<br><a href="{{ .ConfirmationURL }}" style="color:#c1ef76;text-decoration:underline;overflow-wrap:anywhere;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td style="padding:24px 8px 0;color:#91a29a;font-size:12px;line-height:1.6;text-align:center;">
+          Made for real life, not perfect spreadsheets.<br>
+          <span style="color:#c1ef76;">Pockit</span> · Your money, in focus.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

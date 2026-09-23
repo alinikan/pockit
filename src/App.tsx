@@ -27,6 +27,11 @@ const tabs: [Tab, string][] = [
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
+  const [recovering, setRecovering] = useState(
+    () =>
+      window.location.hash.includes('type=recovery') ||
+      new URLSearchParams(window.location.search).get('type') === 'recovery',
+  )
   const [demo, setDemo] = useState(false)
   const [data, setData] = useState<PockitData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -35,6 +40,7 @@ export default function App() {
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [coachOpen, setCoachOpen] = useState(false)
   const saveQueue = useRef(Promise.resolve())
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ready = useRef(false)
 
   useEffect(() => {
@@ -46,8 +52,9 @@ export default function App() {
       .getSession()
       .then(({ data: result }) => setSession(result.session))
       .finally(() => setLoading(false))
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true)
       if (!next) {
         setData(null)
         ready.current = false
@@ -87,6 +94,7 @@ export default function App() {
     if (!data || !ready.current) return
     document.documentElement.dataset.theme = data.settings.theme
     const timer = setTimeout(() => {
+      saveTimer.current = null
       if (demo) {
         try {
           saveDemo(data)
@@ -102,7 +110,11 @@ export default function App() {
             setError(`Changes could not sync: ${e.message}`)
           })
     }, 400)
-    return () => clearTimeout(timer)
+    saveTimer.current = timer
+    return () => {
+      clearTimeout(timer)
+      if (saveTimer.current === timer) saveTimer.current = null
+    }
   }, [data, demo, session])
 
   function startDemo() {
@@ -131,6 +143,18 @@ export default function App() {
         <p>Making room for clarity…</p>
       </div>
     )
+  if (recovering)
+    return (
+      <Auth
+        key="recovery"
+        onDemo={startDemo}
+        recovery
+        onRecovered={() => {
+          setRecovering(false)
+          window.history.replaceState({}, '', window.location.pathname)
+        }}
+      />
+    )
   if (!data)
     return (
       <>
@@ -138,7 +162,26 @@ export default function App() {
         {error && <div className="global-error">{error}</div>}
       </>
     )
-  if (!data.onboarded) return <Onboarding initial={data} onDone={setData} />
+  if (!data.onboarded)
+    return (
+      <Onboarding
+        initial={data}
+        onChange={setData}
+        onSave={async (next) => {
+          if (!session) throw new Error('Your session has expired. Sign in again.')
+          if (saveTimer.current) {
+            clearTimeout(saveTimer.current)
+            saveTimer.current = null
+          }
+          saveQueue.current = saveQueue.current
+            .catch(() => undefined)
+            .then(() => saveCloud(session, next))
+          await saveQueue.current
+          setError('')
+        }}
+        onDone={setData}
+      />
+    )
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -255,7 +298,21 @@ export default function App() {
           {tab === 'Budget' && <BudgetScreen data={data} month={month} update={update} />}
           {tab === 'Calendar' && <CalendarScreen data={data} month={month} update={update} />}
           {tab === 'Goals' && <GoalsScreen data={data} month={month} update={update} />}
-          {tab === 'More' && <MoreScreen data={data} update={update} logout={logout} demo={demo} />}
+          {tab === 'More' && (
+            <MoreScreen
+              data={data}
+              update={update}
+              logout={logout}
+              onDeleted={() => {
+                if (saveTimer.current) clearTimeout(saveTimer.current)
+                ready.current = false
+                setSession(null)
+                setData(null)
+                setTab('Home')
+              }}
+              demo={demo}
+            />
+          )}
         </main>
       </div>
       <nav className="bottom-nav">

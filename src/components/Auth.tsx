@@ -2,11 +2,22 @@ import { useState } from 'react'
 import { Brand, Icon } from './UI'
 import { supabase } from '../lib/storage'
 
-export function Auth({ onDemo }: { onDemo: () => void }) {
-  const [mode, setMode] = useState<'signup' | 'signin' | 'reset'>('signup')
+export function Auth({
+  onDemo,
+  recovery = false,
+  onRecovered,
+}: {
+  onDemo: () => void
+  recovery?: boolean
+  onRecovered?: () => void
+}) {
+  const [mode, setMode] = useState<'signup' | 'signin' | 'reset' | 'recovery'>(
+    recovery ? 'recovery' : 'signup',
+  )
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   async function submit(event: React.FormEvent) {
@@ -18,7 +29,15 @@ export function Auth({ onDemo }: { onDemo: () => void }) {
     setLoading(true)
     setMessage('')
     try {
-      if (mode === 'reset') {
+      if (mode === 'recovery') {
+        if (password !== confirmPassword) {
+          setMessage('The passwords do not match. Please try again.')
+          return
+        }
+        const { error } = await supabase.auth.updateUser({ password })
+        if (error) throw error
+        onRecovered?.()
+      } else if (mode === 'reset') {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin,
         })
@@ -84,14 +103,18 @@ export function Auth({ onDemo }: { onDemo: () => void }) {
               ? 'Start feeling good about money.'
               : mode === 'signin'
                 ? 'Welcome back.'
-                : 'Reset your password.'}
+                : mode === 'recovery'
+                  ? 'Choose a new password.'
+                  : 'Reset your password.'}
           </h2>
           <p>
             {mode === 'signup'
               ? 'A few details, then we’ll make a plan that feels like yours.'
               : mode === 'signin'
                 ? 'Your budget is right where you left it.'
-                : 'We’ll email you a link to get back in.'}
+                : mode === 'recovery'
+                  ? 'Enter a new password to get back into Pockit.'
+                  : 'We’ll email you a link to get back in.'}
           </p>
           <form onSubmit={submit}>
             {mode === 'signup' && (
@@ -106,28 +129,44 @@ export function Auth({ onDemo }: { onDemo: () => void }) {
                 />
               </label>
             )}
-            <label className="field">
-              <span>Email address</span>
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-              />
-            </label>
+            {mode !== 'recovery' && (
+              <label className="field">
+                <span>Email address</span>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                />
+              </label>
+            )}
             {mode !== 'reset' && (
               <label className="field">
-                <span>Password</span>
+                <span>{mode === 'recovery' ? 'New password' : 'Password'}</span>
                 <input
                   type="password"
                   required
                   minLength={6}
-                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
+                />
+              </label>
+            )}
+            {mode === 'recovery' && (
+              <label className="field">
+                <span>Confirm new password</span>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Enter it again"
                 />
               </label>
             )}
@@ -139,55 +178,63 @@ export function Auth({ onDemo }: { onDemo: () => void }) {
             <button className="primary-button full" disabled={loading}>
               {loading
                 ? 'One moment…'
-                : mode === 'signup'
-                  ? 'Create my account'
-                  : mode === 'signin'
-                    ? 'Sign in'
-                    : 'Email reset link'}
+                : mode === 'recovery'
+                  ? 'Save new password'
+                  : mode === 'signup'
+                    ? 'Create my account'
+                    : mode === 'signin'
+                      ? 'Sign in'
+                      : 'Email reset link'}
               <Icon name="ArrowRight" size={18} />
             </button>
           </form>
-          <div className="auth-links">
-            {mode === 'signup' ? (
-              <button
-                onClick={() => {
-                  setMode('signin')
-                  setMessage('')
-                }}
-              >
-                Already have an account? <strong>Sign in</strong>
-              </button>
-            ) : (
-              <>
+          {mode !== 'recovery' && (
+            <div className="auth-links">
+              {mode === 'signup' ? (
                 <button
                   onClick={() => {
-                    setMode('signup')
+                    setMode('signin')
                     setMessage('')
                   }}
                 >
-                  Create an account
+                  Already have an account? <strong>Sign in</strong>
                 </button>
-                {mode === 'signin' && (
+              ) : (
+                <>
                   <button
                     onClick={() => {
-                      setMode('reset')
+                      setMode('signup')
                       setMessage('')
                     }}
                   >
-                    Forgot password?
+                    Create an account
                   </button>
-                )}
-              </>
-            )}
-          </div>
-          <div className="auth-divider">or</div>
-          <button className="secondary-button full" onClick={onDemo}>
-            <Icon name="Play" size={17} /> Preview Pockit
-          </button>
-          <small className="demo-note">
-            Preview data stays in this browser. Sign up after connecting Supabase to sync across
-            devices.
-          </small>
+                  {mode === 'signin' && (
+                    <button
+                      onClick={() => {
+                        setMode('reset')
+                        setMessage('')
+                      }}
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          {mode !== 'recovery' && (
+            <>
+              <div className="auth-divider">or</div>
+              <button className="secondary-button full" onClick={onDemo}>
+                <Icon name="Play" size={17} /> Preview Pockit
+              </button>
+              <small className="demo-note">
+                Preview data stays in this browser. Sign up after connecting Supabase to sync across
+                devices.
+              </small>
+            </>
+          )}
         </div>
       </div>
     </div>

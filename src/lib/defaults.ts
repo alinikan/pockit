@@ -62,6 +62,7 @@ export const newCategory = (
 export const makeInitialData = (name = ''): PockitData => ({
   version: 1,
   onboarded: false,
+  onboardingStep: 0,
   profile: {
     name,
     reason: 'See where my money goes',
@@ -136,7 +137,7 @@ export const buildOnboardedData = (input: PockitData): PockitData => {
       category.mode = 'rollover'
     return category
   })
-  return { ...input, onboarded: true, categories }
+  return { ...input, onboarded: true, onboardingStep: 9, categories }
 }
 
 export const makeDemoData = (): PockitData => {
