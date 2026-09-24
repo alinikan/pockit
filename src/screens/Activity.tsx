@@ -51,6 +51,7 @@ export function ActivityScreen({
   const [selectedMatches, setSelectedMatches] = useState<string[]>([])
   const [suspectPage, setSuspectPage] = useState(0)
   const [rememberMerchant, setRememberMerchant] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [undo, setUndo] = useState<{
     before: Transaction | null
     after: Transaction | null
@@ -125,16 +126,13 @@ export function ActivityScreen({
       reviewed: true,
       source: editing.source || 'manual',
     }
-    if (before?.goalId) {
-      const goal = data.goals.find((item) => item.id === before.goalId)
-      if (
-        goal &&
-        (goal.kind === 'debt' ||
-          (goal.kind === 'saving' && value.type === 'expense' && !value.refund)) &&
-        value.amount > goal.balance + before.amount
-      )
-        return
+    try {
+      changeTransaction(data, before, value)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not update the linked goal.')
+      return
     }
+    setSaveError('')
     update((d) => {
       const next = changeTransaction(d, before, value)
       return rememberMerchant && value.categoryId
@@ -569,6 +567,57 @@ export function ActivityScreen({
                 this transaction undoes the linked progress.
               </div>
             )}
+            {data.goals.length > 0 && (
+              <Field
+                label="Related goal (optional)"
+                hint="Link a payment or contribution so Goals updates when you edit this transaction."
+              >
+                <select
+                  value={editing.goalId || ''}
+                  onChange={(event) => {
+                    const goal = data.goals.find((item) => item.id === event.target.value)
+                    setDraft({
+                      goalId: goal?.id,
+                      goalBaselineImpact:
+                        goal && editing.source === 'waypoint'
+                          ? goal.kind === 'debt' || (editing.type === 'expense' && !editing.refund)
+                            ? -editing.amount
+                            : editing.amount
+                          : undefined,
+                      splits: undefined,
+                    })
+                  }}
+                >
+                  <option value="">No goal</option>
+                  {data.goals.map((goal) => (
+                    <option key={goal.id} value={goal.id}>
+                      {goal.name} · {goal.kind === 'debt' ? 'debt' : 'saving'}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {editing.goalId && editing.source === 'waypoint' && (
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={editing.goalBaselineImpact !== undefined}
+                  onChange={(event) => {
+                    const goal = data.goals.find((item) => item.id === editing.goalId)
+                    setDraft({
+                      goalBaselineImpact:
+                        event.target.checked && goal
+                          ? goal.kind === 'debt' || (editing.type === 'expense' && !editing.refund)
+                            ? -editing.amount
+                            : editing.amount
+                          : undefined,
+                    })
+                  }}
+                />{' '}
+                Already included in the imported goal balance. Changes from this amount will update
+                the goal.
+              </label>
+            )}
             <div className="form-grid">
               <Field label="Amount">
                 <input
@@ -638,6 +687,26 @@ export function ActivityScreen({
                 />{' '}
                 This is a refund or return
               </label>
+            )}
+            {data.bills.length > 0 && (
+              <Field
+                label="Related bill (optional)"
+                hint="Link a payment so Calendar and upcoming bills mark the matching month paid."
+              >
+                <select
+                  value={editing.billId || ''}
+                  onChange={(event) =>
+                    setDraft({ billId: event.target.value || undefined, splits: undefined })
+                  }
+                >
+                  <option value="">No bill</option>
+                  {data.bills.map((bill) => (
+                    <option key={bill.id} value={bill.id}>
+                      {bill.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             )}
             <Field label="Category">
               <select
@@ -755,6 +824,41 @@ export function ActivityScreen({
                 Imported transaction awaiting review. Saving confirms its details.
               </div>
             )}
+            {editing.source === 'waypoint' && (
+              <div className="soft-note">
+                Imported from Waypoint. Editing this entry updates spending, the budget,
+                comparisons, account estimates, and any goal or bill you link above.
+              </div>
+            )}
+            {editing.source === 'waypoint' && (
+              <Field
+                label="Tags from Waypoint (optional)"
+                hint="Separate tags with commas. These are kept with the transaction for reference."
+              >
+                <input
+                  value={editing.waypointTagsRaw || ''}
+                  onChange={(event) =>
+                    setDraft({
+                      waypointTagsRaw: event.target.value,
+                      tags: event.target.value
+                        .split(',')
+                        .map((tag) => tag.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                />
+              </Field>
+            )}
+            {editing.type === 'expense' && (
+              <label className="check-line">
+                <input
+                  type="checkbox"
+                  checked={!!editing.excludedFromBudget}
+                  onChange={(event) => setDraft({ excludedFromBudget: event.target.checked })}
+                />{' '}
+                Exclude from category budget totals (still counts as actual spending)
+              </label>
+            )}
             <Field label="Note (optional)">
               <textarea
                 rows={2}
@@ -786,6 +890,11 @@ export function ActivityScreen({
               </label>
             )}
             {scanError && <div className="form-message">{scanError}</div>}
+            {saveError && (
+              <div className="form-message" role="alert">
+                {saveError}
+              </div>
+            )}
             <div className="modal-actions">
               {data.transactions.some((t) => t.id === editing.id) && (
                 <button className="danger-button" onClick={remove}>
@@ -807,20 +916,7 @@ export function ActivityScreen({
                       ) > 0.001)) ||
                   (editing.type === 'transfer' &&
                     !!editing.accountId &&
-                    editing.accountId === editing.toAccountId) ||
-                  (!!editing.goalId &&
-                    data.goals.some(
-                      (goal) =>
-                        goal.id === editing.goalId &&
-                        (goal.kind === 'debt' ||
-                          (goal.kind === 'saving' &&
-                            editing.type === 'expense' &&
-                            !editing.refund)) &&
-                        editing.amount >
-                          goal.balance +
-                            (data.transactions.find((transaction) => transaction.id === editing.id)
-                              ?.amount || 0),
-                    ))
+                    editing.accountId === editing.toAccountId)
                 }
               >
                 Save transaction

@@ -17,16 +17,20 @@ export function changeTransaction(
   const goals = data.goals.map((goal) => {
     const oldImpact = before?.goalId === goal.id ? goalImpact(goal.kind, before) : 0
     const newImpact = after?.goalId === goal.id ? goalImpact(goal.kind, after) : 0
-    if (!oldImpact && !newImpact) return goal
+    if (before?.goalId !== goal.id && after?.goalId !== goal.id) return goal
     const balance = goal.balance - oldImpact + newImpact
     if (balance < -0.001) throw new Error(`The linked movement exceeds ${goal.name}'s balance.`)
     const history = goal.history.filter((entry) => entry.transactionId !== before?.id)
-    if (newImpact && after)
+    if (after?.goalId === goal.id)
       history.unshift({
-        date: after.date,
-        amount: Math.abs(newImpact),
-        note: after.note || (newImpact < 0 ? 'Withdrawal or payment' : 'Contribution'),
-        transactionId: after.id,
+        date: after!.date,
+        amount: after!.amount,
+        note:
+          after!.note ||
+          (goal.kind === 'debt' || (after!.type === 'expense' && !after!.refund)
+            ? 'Withdrawal or payment'
+            : 'Contribution'),
+        transactionId: after!.id,
       })
     return { ...goal, balance: Math.max(0, balance), history }
   })
@@ -53,10 +57,13 @@ export function changeTransaction(
 }
 
 function goalImpact(kind: 'saving' | 'debt', transaction: Transaction) {
-  if (kind === 'debt') return -transaction.amount
-  return transaction.type === 'expense' && !transaction.refund
-    ? -transaction.amount
-    : transaction.refund
-      ? transaction.amount
-      : transaction.amount
+  const movement =
+    kind === 'debt'
+      ? -transaction.amount
+      : transaction.type === 'expense' && !transaction.refund
+        ? -transaction.amount
+        : transaction.refund
+          ? transaction.amount
+          : transaction.amount
+  return movement - (transaction.goalBaselineImpact || 0)
 }

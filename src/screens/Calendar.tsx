@@ -1,7 +1,7 @@
 import { num } from '../lib/numbers'
 import { useState } from 'react'
 import type { Bill, MonthKey, PockitData } from '../types'
-import { billsForMonth, money, transactionsInMonth } from '../lib/finance'
+import { billsForMonth, categoryDueDates, money, transactionsInMonth } from '../lib/finance'
 import { Empty, Field, Icon, Modal, SectionHead } from '../components/UI'
 import { changeTransaction } from '../lib/linked'
 
@@ -21,6 +21,7 @@ export function CalendarScreen({
   const days = new Date(year, number, 0).getDate()
   const txs = transactionsInMonth(data.transactions, month)
   const bills = billsForMonth(data.bills, month)
+  const plannedDates = categoryDueDates(data, month)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const seven = new Date(today)
@@ -38,6 +39,18 @@ export function CalendarScreen({
     })
     .filter((bill) => bill.date >= today && bill.date < seven && !bill.paid && !bill.skipped)
     .sort((a, b) => a.date.getTime() - b.date.getTime())
+  const plannedUpcoming = [0, 1]
+    .flatMap((offset) => {
+      const date = new Date(today.getFullYear(), today.getMonth() + offset, 1)
+      const key =
+        `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` as MonthKey
+      return categoryDueDates(data, key).map((item) => ({
+        ...item,
+        date: new Date(`${item.date}T12:00:00`),
+      }))
+    })
+    .filter((item) => item.date >= today && item.date < seven)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
   const chosen =
     selectedDay ||
     (month === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
@@ -45,6 +58,7 @@ export function CalendarScreen({
       : 1)
   const dayTxs = txs.filter((t) => Number(t.date.slice(-2)) === chosen)
   const dayBills = bills.filter((b) => Number(b.date.slice(-2)) === chosen)
+  const dayPlans = plannedDates.filter((item) => Number(item.date.slice(-2)) === chosen)
   function save() {
     if (
       !editing?.name.trim() ||
@@ -115,7 +129,7 @@ export function CalendarScreen({
       <section className="panel calendar-panel">
         <SectionHead
           title="Your calendar"
-          help="Expense and income dots come from transactions. Bill markers come from bills you add here."
+          help="Expense and income dots come from transactions. Bill markers come from bills you add here. Planned date markers come from Budget payment days and do not mean a bill was paid."
           aside={
             <button
               className="primary-button compact"
@@ -150,6 +164,7 @@ export function CalendarScreen({
             const day = i + 1
             const dayTx = txs.filter((t) => Number(t.date.slice(-2)) === day)
             const dayBill = bills.filter((b) => Number(b.date.slice(-2)) === day)
+            const dayPlan = plannedDates.filter((item) => Number(item.date.slice(-2)) === day)
             return (
               <button
                 key={day}
@@ -161,6 +176,7 @@ export function CalendarScreen({
                   {dayTx.some((t) => t.type === 'income') && <i className="income-dot" />}
                   {dayTx.some((t) => t.type === 'expense') && <i className="expense-dot" />}
                   {dayBill.length > 0 && <i className="bill-dot" />}
+                  {dayPlan.length > 0 && <i className="plan-dot" />}
                 </div>
               </button>
             )
@@ -175,6 +191,9 @@ export function CalendarScreen({
           </span>
           <span>
             <i className="bill-dot" /> Bill
+          </span>
+          <span>
+            <i className="plan-dot" /> Budget date
           </span>
         </div>
       </section>
@@ -225,6 +244,18 @@ export function CalendarScreen({
                 )}
               </div>
             ))}
+            {dayPlans.map((item) => (
+              <div className="agenda-item" key={`plan-${item.category.id}`}>
+                <div className="agenda-icon bill">
+                  <Icon name={item.category.icon} size={19} />
+                </div>
+                <div>
+                  <strong>{item.category.name}</strong>
+                  <small>Budget payment date · confirm or add a bill for reminders</small>
+                </div>
+                <strong>{money(item.amount, data.settings.currency, true)}</strong>
+              </div>
+            ))}
             {dayTxs.map((t) => (
               <div className="agenda-item" key={t.id}>
                 <div className={`agenda-icon ${t.type}`}>
@@ -246,7 +277,7 @@ export function CalendarScreen({
                 <strong>{money(t.amount, data.settings.currency, true)}</strong>
               </div>
             ))}
-            {dayBills.length + dayTxs.length === 0 && (
+            {dayBills.length + dayTxs.length + dayPlans.length === 0 && (
               <Empty
                 icon="CalendarDays"
                 title="A quiet day"
@@ -258,9 +289,9 @@ export function CalendarScreen({
         <section className="panel">
           <SectionHead
             title="Next 7 days"
-            help="Upcoming unpaid bills from today through the next six days."
+            help="Upcoming unpaid bills and budget payment dates from today through the next six days. Budget dates are plans; add a bill to track payment."
           />
-          {upcoming.length ? (
+          {upcoming.length > 0 && (
             <div className="upcoming-list">
               {upcoming.map((b) => (
                 <div className="upcoming-row" key={`${b.id}-${b.month}`}>
@@ -278,12 +309,35 @@ export function CalendarScreen({
                 </div>
               ))}
             </div>
-          ) : (
+          )}
+          {upcoming.length === 0 && plannedUpcoming.length === 0 && (
             <Empty
               icon="CalendarCheck2"
               title="Clear week ahead"
               text="No unpaid bills due in the next seven days."
             />
+          )}
+          {plannedUpcoming.length > 0 && (
+            <div className="upcoming-list" aria-label="Budget dates in the next seven days">
+              {plannedUpcoming.map((item) => (
+                <div
+                  className="upcoming-row"
+                  key={`plan-${item.category.id}-${item.date.toISOString()}`}
+                >
+                  <div className="upcoming-date">
+                    <strong>{item.date.getDate()}</strong>
+                    <small>
+                      {new Intl.DateTimeFormat('en-CA', { weekday: 'short' }).format(item.date)}
+                    </small>
+                  </div>
+                  <div>
+                    <strong>{item.category.name}</strong>
+                    <small>Budget payment date · not a bill</small>
+                  </div>
+                  <strong>{money(item.amount, data.settings.currency, true)}</strong>
+                </div>
+              ))}
+            </div>
           )}
         </section>
       </div>

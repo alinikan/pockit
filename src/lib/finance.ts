@@ -54,7 +54,7 @@ export const categoryBudget = (category: Category, month: MonthKey, monthlyIncom
 export const spendingByCategory = (transactions: Transaction[], month: MonthKey) => {
   const totals: Record<string, number> = {}
   for (const t of transactionsInMonth(transactions, month)) {
-    if (t.type !== 'expense') continue
+    if (t.type !== 'expense' || t.excludedFromBudget) continue
     const direction = t.refund ? -1 : 1
     if (t.splits?.length) {
       for (const split of t.splits)
@@ -65,7 +65,11 @@ export const spendingByCategory = (transactions: Transaction[], month: MonthKey)
   return totals
 }
 export const monthSummary = (data: PockitData, month: MonthKey) => {
-  const plannedIncome = monthlyPay(data.profile.payAmount, data.profile.payFrequency)
+  const plannedIncome =
+    data.profile.plannedMonthlyIncome !== undefined &&
+    month >= (data.profile.plannedIncomeStarts || month)
+      ? data.profile.plannedMonthlyIncome
+      : monthlyPay(data.profile.payAmount, data.profile.payFrequency)
   const txs = transactionsInMonth(data.transactions, month)
   const actualIncome = txs.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
   const spent = txs
@@ -117,6 +121,8 @@ export interface Projection {
 }
 export const projectGoal = (goal: Goal, extra = 0): Projection => {
   const principal = Math.max(0, goal.balance)
+  if (goal.kind === 'debt' && goal.interestUnknown && principal > 0)
+    return { months: null, monthlyInterest: 0, endingBalance: principal }
   const payment = Math.max(0, goal.monthly + extra)
   const rate = Math.max(0, goal.annualInterest) / 1200
   const monthlyInterest = principal * rate
@@ -144,6 +150,8 @@ export const projectGoal = (goal: Goal, extra = 0): Projection => {
   return { months: null, monthlyInterest, endingBalance: balance }
 }
 export const projectionText = (goal: Goal, extra = 0) => {
+  if (goal.kind === 'debt' && goal.interestUnknown && goal.balance > 0)
+    return 'Enter interest rate for an estimate'
   const { months } = projectGoal(goal, extra)
   if (months === null)
     return goal.kind === 'debt' ? 'Payment does not cover interest' : 'Add a monthly contribution'
@@ -176,6 +184,30 @@ export const billsForMonth = (bills: Bill[], month: MonthKey) => {
       date: `${month}-${String(Math.min(bill.day, days)).padStart(2, '0')}`,
       paid: bill.paidMonths.includes(month),
       skipped: bill.skippedMonths?.includes(month) || false,
+    }))
+}
+/** Budget reminders are plans, not confirmed bills or paid transactions. */
+export const categoryDueDates = (data: PockitData, month: MonthKey) => {
+  const [year, number] = month.split('-').map(Number)
+  const days = new Date(year, number, 0).getDate()
+  const income = monthSummary(data, month).income
+  const billCategories = new Set(
+    billsForMonth(data.bills, month)
+      .map((bill) => bill.categoryId)
+      .filter(Boolean),
+  )
+  return data.categories
+    .filter(
+      (category) =>
+        !category.archived &&
+        category.paymentDay &&
+        !billCategories.has(category.id) &&
+        categoryBudget(category, month, income) > 0,
+    )
+    .map((category) => ({
+      category,
+      date: `${month}-${String(Math.min(category.paymentDay!, days)).padStart(2, '0')}`,
+      amount: categoryBudget(category, month, income),
     }))
 }
 /** An estimate to set aside each month until the next quarterly or yearly bill. */
@@ -244,6 +276,14 @@ export const receiptFields = (text: string) => {
 }
 export const simulateDebtPlan = (goals: Goal[], plan: NonNullable<PockitData['debtPlan']>) => {
   const debts = goals.filter((g) => g.kind === 'debt' && g.balance > 0)
+  if (debts.some((goal) => goal.interestUnknown))
+    return {
+      months: null,
+      interest: 0,
+      payoffMonths: {} as Record<string, number>,
+      order: debts,
+      unknownInterest: true,
+    }
   const ordered = [...debts].sort((a, b) =>
     plan.strategy === 'interest'
       ? b.annualInterest - a.annualInterest
@@ -264,7 +304,8 @@ export const simulateDebtPlan = (goals: Goal[], plan: NonNullable<PockitData['de
     ordered.reduce((n, g) => n + Math.max(0, g.monthly), 0) + Math.max(0, plan.extra)
   let interest = 0
   const payoffMonths: Record<string, number> = {}
-  if (!ordered.length) return { months: 0, interest, payoffMonths, order: ordered }
+  if (!ordered.length)
+    return { months: 0, interest, payoffMonths, order: ordered, unknownInterest: false }
   for (let month = 1; month <= 600; month++) {
     for (const debt of ordered)
       if (balances[debt.id] > 0) {
@@ -288,7 +329,7 @@ export const simulateDebtPlan = (goals: Goal[], plan: NonNullable<PockitData['de
         if (balances[debt.id] <= 0) payoffMonths[debt.id] = month
       }
     if (ordered.every((debt) => balances[debt.id] <= 0))
-      return { months: month, interest, payoffMonths, order: ordered }
+      return { months: month, interest, payoffMonths, order: ordered, unknownInterest: false }
   }
-  return { months: null, interest, payoffMonths, order: ordered }
+  return { months: null, interest, payoffMonths, order: ordered, unknownInterest: false }
 }

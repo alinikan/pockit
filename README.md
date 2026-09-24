@@ -18,15 +18,15 @@ These screenshots use Pockit's preview mode and sample data.
 
 Pockit starts with a short setup about pay, housing, spending, savings, and debt. The suggested category amounts scale to the entered pay, and every category and goal can be changed later. If someone leaves during setup, their progress is saved to their account.
 
-| Area         | What it helps you do                                                                                              |
-| ------------ | ----------------------------------------------------------------------------------------------------------------- |
-| **Home**     | See your monthly plan, a next-paycheque estimate, bills, and categories needing attention.                        |
-| **Activity** | Add and split transactions, record refunds, review CSV imports and suspected duplicates, and undo an import.      |
-| **Budget**   | Set allocations, cover an overage, prepare for irregular bills, and choose fresh or rollover categories.          |
-| **Calendar** | See due dates and record a bill payment or skip a reminder without mixing the two.                                |
-| **Goals**    | Follow savings and debts, record contributions or withdrawals, choose a payoff order, and test What-if scenarios. |
-| **Compare**  | Compare months and categories side by side, inspect merchants behind a change, and check incomplete months.       |
-| **More**     | Change appearance, manage manual accounts, passkeys, and reminders, and export or delete account data.            |
+| Area         | What it helps you do                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| **Home**     | See your monthly plan, a next-paycheque estimate, bills, and categories needing attention.                          |
+| **Activity** | Add and split transactions, record refunds, review CSV imports and suspected duplicates, and undo an import.        |
+| **Budget**   | Set allocations, cover an overage, prepare for irregular bills, and choose fresh or rollover categories.            |
+| **Calendar** | See due dates and record a bill payment or skip a reminder without mixing the two.                                  |
+| **Goals**    | Follow savings and debts, record contributions or withdrawals, choose a payoff order, and test What-if scenarios.   |
+| **Compare**  | Compare months and categories side by side, inspect merchants behind a change, and check incomplete months.         |
+| **More**     | Change appearance, manage manual accounts, passkeys, and reminders, import a Waypoint ZIP, and export account data. |
 
 Pockit Insights answers a small set of guided questions using the numbers you enter. It explains when a question is outside that scope. It does not send financial data to a language model or require a paid AI service.
 
@@ -36,6 +36,7 @@ Pockit Insights answers a small set of guided questions using the numbers you en
 - **Clear about estimates:** paycheque, savings, and debt projections show what the current plan implies. They are not a bank balance or a promise of a payoff date.
 - **Safer edits across devices:** saves show their cloud status. Independent edits to different records or settings can be combined after a conflict. Overlapping edits require a choice, with a download available first.
 - **Connected actions:** recording a goal contribution or bill payment can create the matching Activity entry, so progress and spending tell the same story.
+- **Move an existing budget:** import a full Waypoint ZIP with a review step, duplicate checks, and a downloaded Pockit backup. Budget dates remain distinct from confirmed bills. See the [Waypoint import guide](docs/WAYPOINT_IMPORT.md).
 - **CAD first:** the app plans and displays money in Canadian dollars. There is no currency conversion or automatic bank feed.
 - **Help on demand:** optional guides and contextual explanations describe what each view means, with examples.
 - **Private accounts:** email/password sign-in, optional passkeys, and per-user access rules in Supabase. A signed-in device can keep a pending copy while offline and sync it later.
@@ -48,6 +49,6 @@ The repository is organized by responsibility: `src/screens` contains the main v
 
 ## Current scope
 
-Pockit supports manual entry and reviewed CSV imports. **It does not connect directly to a bank yet.** It also does not combine multiple people's finances into one shared budget or convert currencies. The installed app needs a connection for sign-in and cloud sync; a saved device copy can be available offline, but browser storage can be cleared. JSON export provides an additional backup.
+Pockit supports manual entry, reviewed CSV imports, and a Waypoint ZIP import. **It does not connect directly to a bank yet.** It also does not combine multiple people's finances into one shared budget or convert currencies. The installed app needs a connection for sign-in and cloud sync; a saved device copy can be available offline, but browser storage can be cleared. JSON export provides an additional backup.
 
 This is an independent project under active development. For local development, deployment, and service configuration, see the [maintainer guide](docs/MAINTAINER_GUIDE.md).

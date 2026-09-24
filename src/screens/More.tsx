@@ -10,6 +10,7 @@ import { PasskeySettings } from '../components/Passkeys'
 import { PushSettings } from '../components/PushSettings'
 import { AccountsSettings } from '../components/AccountsSettings'
 import { parseBackup } from '../lib/backup'
+import { WaypointImport } from '../components/WaypointImport'
 
 export function MoreScreen({
   data,
@@ -173,7 +174,7 @@ export function MoreScreen({
             </div>
           </div>
           <div className="settings-footnote">
-            Expected monthly income:{' '}
+            Expected monthly income from your pay schedule:{' '}
             {money(
               monthlyPay(data.profile.payAmount, data.profile.payFrequency),
               data.settings.currency,
@@ -181,6 +182,37 @@ export function MoreScreen({
             )}
             . Edit or add categories in Budget when your spending changes.
           </div>
+          {data.profile.plannedMonthlyIncome !== undefined && (
+            <div className="waypoint-income-setting">
+              <Field
+                label="Monthly income plan from Waypoint"
+                hint="This is a budget estimate, separate from your actual pay schedule. It applies from the imported start month onward."
+              >
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={data.profile.plannedMonthlyIncome}
+                  onChange={(event) =>
+                    setProfile({ plannedMonthlyIncome: num(event.target.value) })
+                  }
+                />
+              </Field>
+              <button
+                className="text-button"
+                onClick={() =>
+                  update((current) => {
+                    const profile = { ...current.profile }
+                    delete profile.plannedMonthlyIncome
+                    delete profile.plannedIncomeStarts
+                    return { ...current, profile }
+                  })
+                }
+              >
+                Use my pay schedule instead
+              </button>
+            </div>
+          )}
         </section>
         <section className="panel settings-panel">
           <SectionHead
@@ -270,6 +302,7 @@ export function MoreScreen({
           )}
         </section>
         <AccountsSettings data={data} update={update} />
+        <WaypointImport data={data} update={update} />
         <section className="panel settings-panel">
           <SectionHead title="Preferences" />
           <Toggle

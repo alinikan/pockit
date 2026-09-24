@@ -4009,6 +4009,120 @@ small {
   color: var(--muted);
   font-size: 12px;
 }
+.waypoint-import {
+  scroll-margin-top: 24px;
+}
+.waypoint-review {
+  margin-top: 18px;
+  padding: clamp(16px, 3vw, 24px);
+  border: 1px solid color-mix(in srgb, var(--green) 34%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--green) 5%, var(--surface-2));
+}
+.waypoint-review-heading {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.waypoint-review-heading > svg {
+  color: var(--green);
+  flex: none;
+}
+.waypoint-review-heading strong,
+.waypoint-review-heading small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.waypoint-review-heading small,
+.waypoint-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+.waypoint-review .form-grid {
+  margin: 14px 0;
+}
+.waypoint-counts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 18px 0;
+}
+.waypoint-counts > div {
+  display: grid;
+  gap: 2px;
+  padding: 13px;
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+}
+.waypoint-counts strong {
+  color: var(--green);
+  font-size: 23px;
+  font-variant-numeric: tabular-nums;
+}
+.waypoint-counts span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.waypoint-notes {
+  margin: 14px 0 20px;
+  padding-left: 19px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.waypoint-notes li + li {
+  margin-top: 5px;
+}
+.waypoint-detail {
+  margin: 11px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.waypoint-detail summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+.waypoint-detail ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.waypoint-detail li + li {
+  margin-top: 5px;
+}
+.waypoint-detail small {
+  color: var(--muted);
+}
+.waypoint-income-setting {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.goal-import-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 5px 0 9px;
+}
+.plan-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--peach);
+}
+@media (max-width: 560px) {
+  .waypoint-counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .import-mapping .form-grid {
   margin-bottom: 12px;
 }

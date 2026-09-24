@@ -182,6 +182,13 @@ export function Onboarding({
             }
           </p>
         </div>
+        {(step === 5 || step === 6) && (
+          <p className="soft-note">
+            Moving from Waypoint? You can leave these goal choices and numbers blank. After opening
+            Pockit, go to More → Move from Waypoint to import the ZIP’s goals, balances, and budget
+            together.
+          </p>
+        )}
         {step === 0 && (
           <div className="choice-list">
             {reasons.map(([label, icon, desc]) =>

@@ -28,6 +28,12 @@ const newGoal = (kind: Goal['kind']): Goal => ({
 })
 function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' }) {
   const [selectedPoint, setSelectedPoint] = useState(0)
+  if (goal.kind === 'debt' && goal.interestUnknown && goal.balance > 0)
+    return (
+      <div className="soft-note">
+        Add this debt’s interest rate to see a payoff chart. Waypoint did not provide one.
+      </div>
+    )
   const projection = projectGoal(goal)
   const months = Math.max(1, Math.min(projection.months || 24, 24))
   let balance = goal.balance
@@ -228,6 +234,15 @@ export function GoalsScreen({
               : 'remaining balance'}
           </span>
         </div>
+        {goal.waypointKey && (
+          <p className="goal-import-note">
+            Imported Waypoint balance · add or link later movements to keep progress current.
+          </p>
+        )}
+        {goal.description && <p className="goal-import-note">{goal.description}</p>}
+        {goal.targetDate && (
+          <p className="goal-import-note">Waypoint target date: {goal.targetDate}</p>
+        )}
         {goal.kind === 'saving' && <Progress value={progress} color={goal.color} />}
         <GoalChart goal={goal} currency={data.settings.currency} />
         <div className="goal-card-footer">
@@ -270,13 +285,35 @@ export function GoalsScreen({
           <div className="debt-details">
             <span>
               Monthly interest{' '}
-              <strong>{money(projection.monthlyInterest, data.settings.currency)}</strong>
+              <strong>
+                {goal.interestUnknown
+                  ? 'Unknown'
+                  : money(projection.monthlyInterest, data.settings.currency)}
+              </strong>
             </span>
             <span>
               Monthly payment <strong>{money(goal.monthly, data.settings.currency)}</strong>
             </span>
+            {goal.minimumPayment !== undefined && (
+              <span>
+                Minimum payment <strong>{money(goal.minimumPayment)}</strong>
+              </span>
+            )}
+            {goal.originalDebtAmount !== undefined && (
+              <span>
+                Original debt <strong>{money(goal.originalDebtAmount)}</strong>
+              </span>
+            )}
           </div>
         )}
+        {goal.waypointKey &&
+        (goal.importedManualContributions || goal.importedTransactionContributions) ? (
+          <p className="goal-import-note">
+            Waypoint included {money(goal.importedManualContributions || 0)} manual and{' '}
+            {money(goal.importedTransactionContributions || 0)} transaction contributions in this
+            snapshot. Individual dates were not exported.
+          </p>
+        ) : null}
         {goal.history.length > 0 && (
           <div className="goal-history">
             <span>RECENT ACTIVITY</span>
@@ -400,7 +437,9 @@ export function GoalsScreen({
             <span>
               {plan
                 ? plan.months === null
-                  ? 'Current payments may not pay this off'
+                  ? plan.unknownInterest
+                    ? 'Add missing interest rates for an estimate'
+                    : 'Current payments may not pay this off'
                   : `Plan could finish in ${plan.months} months`
                 : 'Build a plan to see the way forward'}
             </span>
@@ -480,11 +519,39 @@ export function GoalsScreen({
                   min="0"
                   max="100"
                   step="0.01"
-                  value={editing.annualInterest || ''}
-                  onChange={(e) => setEditing({ ...editing, annualInterest: num(e.target.value) })}
+                  value={editing.interestUnknown ? '' : editing.annualInterest}
+                  onChange={(e) =>
+                    setEditing({
+                      ...editing,
+                      annualInterest: num(e.target.value),
+                      interestUnknown: !e.target.value,
+                    })
+                  }
                 />
               </Field>
             </div>
+            {editing.interestUnknown && (
+              <p className="soft-note">
+                Waypoint did not include an interest rate. Enter the lender’s rate, or Pockit will
+                leave payoff estimates unavailable.
+              </p>
+            )}
+            <Field label="Description (optional)">
+              <textarea
+                rows={2}
+                value={editing.description || ''}
+                onChange={(event) => setEditing({ ...editing, description: event.target.value })}
+              />
+            </Field>
+            <Field label="Target date (optional)">
+              <input
+                type="date"
+                value={editing.targetDate || ''}
+                onChange={(event) =>
+                  setEditing({ ...editing, targetDate: event.target.value || undefined })
+                }
+              />
+            </Field>
             <div className="modal-actions">
               {data.goals.some((g) => g.id === editing.id) && (
                 <button className="danger-button" onClick={removeGoal}>
@@ -699,13 +766,19 @@ export function GoalsScreen({
                     <small>ESTIMATED DEBT-FREE</small>
                     <strong>
                       {result.months === null
-                        ? 'Needs a larger payment'
+                        ? result.unknownInterest
+                          ? 'Add interest rates'
+                          : 'Needs a larger payment'
                         : `${result.months} months`}
                     </strong>
                   </div>
                   <div>
                     <small>ESTIMATED INTEREST</small>
-                    <strong>{money(result.interest, data.settings.currency, true)}</strong>
+                    <strong>
+                      {result.unknownInterest
+                        ? 'Unknown'
+                        : money(result.interest, data.settings.currency, true)}
+                    </strong>
                   </div>
                   <div className="plan-order">
                     {result.order.map((g, i) => (
@@ -725,7 +798,7 @@ export function GoalsScreen({
                   update((d) => ({ ...d, debtPlan: planDraft }))
                   setPlanOpen(false)
                 }}
-                disabled={!debts.length}
+                disabled={!debts.length || debts.some((goal) => goal.interestUnknown)}
               >
                 Save plan
               </button>

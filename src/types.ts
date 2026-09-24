@@ -24,6 +24,7 @@ export interface Category {
   funding: FundingMode
   notes: string
   archived?: boolean
+  waypointKey?: string
 }
 
 export interface Transaction {
@@ -37,14 +38,20 @@ export interface Transaction {
   receiptName?: string
   createdAt?: string
   goalId?: string
+  /** Part of a linked movement already present in an imported goal snapshot. */
+  goalBaselineImpact?: number
   billId?: string
   accountId?: string
   toAccountId?: string
   refund?: boolean
   reviewed?: boolean
   cleared?: boolean
-  source?: 'manual' | 'csv' | 'receipt'
+  source?: 'manual' | 'csv' | 'receipt' | 'waypoint'
   sourceId?: string
+  tags?: string[]
+  waypointTagsRaw?: string
+  waypointGroup?: string
+  excludedFromBudget?: boolean
   importBatchId?: string
   splits?: { categoryId: string; amount: number }[]
 }
@@ -59,6 +66,13 @@ export interface Account {
   reconciledAt?: string
   reconciliations?: { date: string; balance: number; adjustment: number }[]
   archived?: boolean
+  waypointKey?: string
+  bank?: string
+  lastFour?: string
+  subtype?: string
+  availableBalance?: number
+  creditLimit?: number
+  connection?: string
 }
 
 export interface Goal {
@@ -69,9 +83,17 @@ export interface Goal {
   target: number
   monthly: number
   annualInterest: number
+  interestUnknown?: boolean
   color: string
   icon: string
   history: { date: string; amount: number; note: string; transactionId?: string }[]
+  waypointKey?: string
+  description?: string
+  targetDate?: string
+  originalDebtAmount?: number
+  minimumPayment?: number
+  importedManualContributions?: number
+  importedTransactionContributions?: number
 }
 
 export interface Bill {
@@ -99,6 +121,8 @@ export interface PockitData {
     reason: string
     payAmount: number
     payFrequency: Frequency
+    plannedMonthlyIncome?: number
+    plannedIncomeStarts?: MonthKey
     housing: string
     transport: string
     extras: string[]

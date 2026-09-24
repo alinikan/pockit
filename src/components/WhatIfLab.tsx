@@ -249,11 +249,14 @@ export function WhatIfLab({
             <Icon name="CreditCard" size={19} />
             <span>All debts paid off</span>
             <strong>
-              {duration(result.debtBefore.months)} → {duration(result.debtAfter.months)}
+              {result.debtBefore.unknownInterest
+                ? 'Add missing interest rates'
+                : `${duration(result.debtBefore.months)} → ${duration(result.debtAfter.months)}`}
             </strong>
             <small>
-              Estimated total interest: {money(result.debtBefore.interest)} →{' '}
-              {money(result.debtAfter.interest)}.
+              {result.debtBefore.unknownInterest
+                ? 'Waypoint did not provide every debt rate, so Pockit cannot calculate this payoff scenario yet.'
+                : `Estimated total interest: ${money(result.debtBefore.interest)} → ${money(result.debtAfter.interest)}.`}
             </small>
           </div>
         )}

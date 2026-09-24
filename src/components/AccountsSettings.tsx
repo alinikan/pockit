@@ -94,9 +94,32 @@ export function AccountsSettings({
           <div>
             <strong>{account.name}</strong>
             <small>
-              {account.kind} · starting balance checked{' '}
+              {account.kind} {account.bank ? `· ${account.bank}` : ''}{' '}
+              {account.lastFour ? `· ••••${account.lastFour}` : ''} ·{' '}
+              {account.waypointKey ? 'Waypoint snapshot' : 'starting balance checked'}{' '}
               {account.reconciledAt?.slice(0, 10) || account.asOf}
             </small>
+            {account.waypointKey && (
+              <small>Manual tracking in Pockit; Waypoint bank sync does not transfer.</small>
+            )}
+            {account.waypointKey &&
+              (account.subtype ||
+                account.connection ||
+                account.availableBalance !== undefined ||
+                account.creditLimit !== undefined) && (
+                <small>
+                  {[
+                    account.subtype,
+                    account.connection ? `Waypoint: ${account.connection}` : '',
+                    account.availableBalance !== undefined
+                      ? `available at export ${money(account.availableBalance)}`
+                      : '',
+                    account.creditLimit !== undefined ? `limit ${money(account.creditLimit)}` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </small>
+              )}
           </div>
           <strong>
             {account.kind === 'credit'

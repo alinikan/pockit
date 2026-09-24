@@ -3,6 +3,7 @@ import {
   billsForMonth,
   budgetHealth,
   categoryBudget,
+  categoryDueDates,
   currentMonth,
   money,
   shiftMonth,
@@ -35,6 +36,9 @@ export function HomeScreen({
     .filter((b) => !b.paid && !b.skipped)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 3)
+  const plannedDates = categoryDueDates(data, month)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 3)
   const max = Math.max(income, spent, 1)
   const previous = shiftMonth(month, -1)
   const prevSpent = data.transactions
@@ -46,6 +50,10 @@ export function HomeScreen({
   const nextBill = [currentMonth(), shiftMonth(currentMonth(), 1)]
     .flatMap((key) => billsForMonth(data.bills, key))
     .filter((bill) => !bill.paid && !bill.skipped && bill.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))[0]
+  const nextPlan = [currentMonth(), shiftMonth(currentMonth(), 1)]
+    .flatMap((key) => categoryDueDates(data, key))
+    .filter((item) => item.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))[0]
   const cashAge = paycheque.asOf
     ? Math.max(
@@ -87,10 +95,16 @@ export function HomeScreen({
         <button className="today-card due" onClick={() => setTab('Calendar')}>
           <Icon name="CalendarClock" size={23} />
           <span>
-            <small>NEXT BILL</small>
-            <strong>{nextBill ? nextBill.name : 'No upcoming bill'}</strong>
+            <small>{nextBill ? 'NEXT BILL' : nextPlan ? 'NEXT BUDGET DATE' : 'NEXT BILL'}</small>
+            <strong>
+              {nextBill ? nextBill.name : nextPlan ? nextPlan.category.name : 'No upcoming bill'}
+            </strong>
             <em>
-              {nextBill ? `${nextBill.date} · ${money(nextBill.amount)}` : 'Add one in Calendar'}
+              {nextBill
+                ? `${nextBill.date} · ${money(nextBill.amount)}`
+                : nextPlan
+                  ? `${nextPlan.date} · ${money(nextPlan.amount)} planned`
+                  : 'Add one in Calendar'}
             </em>
           </span>
           <Icon name="ArrowRight" size={17} />
@@ -386,14 +400,14 @@ export function HomeScreen({
         <section className="panel">
           <SectionHead
             title="Upcoming bills"
-            help="Bills you add to Calendar appear here until you mark them paid."
+            help="Bills you add to Calendar appear here until paid. Budget payment dates are shown separately as plans; they do not mean a bill exists or was paid."
             aside={
               <button className="link-button" onClick={() => setTab('Calendar')}>
                 Calendar <Icon name="ArrowRight" size={15} />
               </button>
             }
           />
-          {bills.length ? (
+          {bills.length > 0 && (
             <div className="bill-list">
               {bills.map((b) => (
                 <div className="bill-row" key={b.id}>
@@ -413,12 +427,30 @@ export function HomeScreen({
                 </div>
               ))}
             </div>
-          ) : (
+          )}
+          {bills.length === 0 && plannedDates.length === 0 && (
             <Empty
               icon="CalendarCheck2"
-              title="All clear"
-              text="No unpaid bills scheduled for this month."
+              title="No confirmed bills"
+              text="Add a bill in Calendar to track an upcoming payment."
             />
+          )}
+          {plannedDates.length > 0 && (
+            <div className="bill-list" aria-label="Budget payment dates">
+              {plannedDates.map((item) => (
+                <div className="bill-row" key={`plan-${item.category.id}`}>
+                  <div className="bill-date">
+                    {Number(item.date.slice(-2))}
+                    <small>PLAN</small>
+                  </div>
+                  <div>
+                    <strong>{item.category.name}</strong>
+                    <small>Budget payment date · not a confirmed bill</small>
+                  </div>
+                  <strong>{money(item.amount, data.settings.currency, true)}</strong>
+                </div>
+              ))}
+            </div>
           )}
         </section>
       </div>

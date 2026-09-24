@@ -8,6 +8,7 @@ import {
 } from './finance'
 
 export const UNCATEGORIZED = '__uncategorized__'
+export const EXCLUDED = '__excluded_from_budget__'
 
 export function transactionsBehind(
   data: PockitData,
@@ -21,11 +22,15 @@ export function transactionsBehind(
       (transaction) =>
         transaction.type === 'expense' &&
         (!throughDay || Number(transaction.date.slice(-2)) <= throughDay) &&
-        (categoryId === UNCATEGORIZED
-          ? !transaction.splits?.length &&
-            (!transaction.categoryId || !known.has(transaction.categoryId))
-          : transaction.splits?.some((split) => split.categoryId === categoryId) ||
-            transaction.categoryId === categoryId),
+        (categoryId === EXCLUDED
+          ? !!transaction.excludedFromBudget
+          : categoryId === UNCATEGORIZED
+            ? !transaction.splits?.length &&
+              !transaction.excludedFromBudget &&
+              (!transaction.categoryId || !known.has(transaction.categoryId))
+            : !transaction.excludedFromBudget &&
+              (transaction.splits?.some((split) => split.categoryId === categoryId) ||
+                transaction.categoryId === categoryId)),
     )
     .sort((a, b) => b.amount - a.amount || b.date.localeCompare(a.date))
 }
@@ -59,6 +64,10 @@ export function monthSnapshot(
     const sign = transaction.refund ? -1 : 1
     spent += transaction.amount * sign
     expenseCount++
+    if (transaction.excludedFromBudget) {
+      categorySpend[EXCLUDED] = (categorySpend[EXCLUDED] || 0) + transaction.amount * sign
+      continue
+    }
     if (transaction.splits?.length) {
       for (const split of transaction.splits) {
         const key = known.has(split.categoryId) ? split.categoryId : UNCATEGORIZED
@@ -161,6 +170,14 @@ export function categoryComparison(
       group: 'Other',
       values: snapshots.map((snapshot) => snapshot.categorySpend[UNCATEGORIZED] || 0),
     },
+    {
+      id: EXCLUDED,
+      name: 'Excluded from budget',
+      icon: 'Circle',
+      color: '#aab6b0',
+      group: 'Other',
+      values: snapshots.map((snapshot) => snapshot.categorySpend[EXCLUDED] || 0),
+    },
   ].filter((row) => includeEmpty || row.values.some((value) => Math.abs(value) > 0.001))
 }
 
@@ -191,6 +208,16 @@ export function budgetComparison(data: PockitData, month: MonthKey) {
     planned: 0,
     spent: snapshot.categorySpend[UNCATEGORIZED] || 0,
     balance: -(snapshot.categorySpend[UNCATEGORIZED] || 0),
+  })
+  rows.push({
+    id: EXCLUDED,
+    name: 'Excluded from budget',
+    icon: 'Circle',
+    color: '#aab6b0',
+    mode: 'fresh',
+    planned: 0,
+    spent: snapshot.categorySpend[EXCLUDED] || 0,
+    balance: 0,
   })
   return rows.filter((row) => row.planned > 0 || Math.abs(row.spent) > 0.001)
 }

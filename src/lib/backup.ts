@@ -42,6 +42,8 @@ export function parseBackup(text: string): PockitData {
     !['dark', 'light'].includes(String(data.settings.theme)) ||
     typeof data.settings.smart !== 'boolean' ||
     !nonnegative(data.profile.payAmount) ||
+    (data.profile.plannedMonthlyIncome !== undefined &&
+      !nonnegative(data.profile.plannedMonthlyIncome)) ||
     !['weekly', 'biweekly', 'twice-monthly', 'monthly'].includes(
       String(data.profile.payFrequency),
     ) ||
