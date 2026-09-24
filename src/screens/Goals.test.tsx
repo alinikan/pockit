@@ -77,6 +77,9 @@ describe('goal input', () => {
   })
   it('lets a person inspect a projected balance by dragging the chart control', () => {
     setup()
+    const chart = screen.getByRole('img', { name: /Emergency fund projected balance/i })
+    expect(chart.querySelector('linearGradient')).toBeTruthy()
+    expect(chart.querySelector('polygon')).toBeTruthy()
     const slider = screen.getByRole('slider', {
       name: /Inspect Emergency fund projection/i,
     }) as HTMLInputElement

@@ -2,7 +2,9 @@ import { num } from '../lib/numbers'
 import { useEffect, useState } from 'react'
 import type { Frequency, Goal, PockitData } from '../types'
 import { buildOnboardedData } from '../lib/defaults'
-import { money, monthlyPay, projectGoal } from '../lib/finance'
+import { currentMonth, money, monthSummary, projectGoal } from '../lib/finance'
+import { paydaysInMonth } from '../lib/paySchedule'
+import { validISODate } from '../lib/numbers'
 import { Brand, Icon, Progress } from './UI'
 
 const reasons = [
@@ -232,9 +234,45 @@ export function Onboarding({
               </select>
             </label>
             <div className="soft-note">
-              <Icon name="Info" size={18} /> We’ll use this to estimate your monthly income. You can
-              edit it anytime.
+              <Icon name="Info" size={18} /> Add a real payday to show exactly which months have an
+              extra cheque.
             </div>
+            {data.profile.payFrequency === 'twice-monthly' ? (
+              <div className="form-grid">
+                {[0, 1].map((index) => (
+                  <label className="field" key={index}>
+                    <span>{index === 0 ? 'First' : 'Second'} payday each month</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={data.profile.paydayDays?.[index] ?? (index === 0 ? 1 : 15)}
+                      onChange={(event) => {
+                        const days: [number, number] = [...(data.profile.paydayDays || [1, 15])]
+                        days[index] = Math.min(31, Math.max(1, Math.floor(num(event.target.value))))
+                        setProfile({ paydayDays: days })
+                      }}
+                    />
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <label className="field">
+                <span>One actual payday</span>
+                <input
+                  type="date"
+                  value={data.profile.paydayAnchor || ''}
+                  onChange={(event) =>
+                    setProfile({
+                      paydayAnchor: validISODate(event.target.value) ? event.target.value : '',
+                    })
+                  }
+                />
+                <small>
+                  Any payday works, even one in the past. You can set this later in Calendar.
+                </small>
+              </label>
+            )}
           </div>
         )}
         {step === 2 && (
@@ -430,25 +468,25 @@ export function Onboarding({
         )}
         {step === 8 && (
           <div className="finish-card">
-            <div>
+            <div className="finish-icon">
               <Icon name="Check" size={38} />
             </div>
             <strong>Good things start with a clear picture.</strong>
             <p>
-              Here is your starting plan in Canadian dollars. Suggestions fit within about 90% of
-              your estimated monthly take-home pay. Edit any amount in Budget after opening Pockit.
+              A simple starting plan in Canadian dollars. You can change every amount in Budget.
             </p>
             {(() => {
               const preview = buildOnboardedData({ ...data, goals: selectedGoals })
-              const income = monthlyPay(data.profile.payAmount, data.profile.payFrequency)
-              const allocated = preview.categories.reduce(
-                (sum, category) => sum + category.baseAmount,
-                0,
-              )
+              const income = monthSummary(preview, currentMonth()).income
+              const allocated = monthSummary(preview, currentMonth()).allocated
               return (
                 <div className="onboarding-plan-preview" aria-label="Starting monthly plan">
                   <div>
-                    <span>Expected monthly pay</span>
+                    <span>
+                      {paydaysInMonth(data.profile, currentMonth()).length
+                        ? 'Pay this month'
+                        : 'Average monthly pay'}
+                    </span>
                     <strong>{money(income)}</strong>
                   </div>
                   <div>
@@ -460,8 +498,7 @@ export function Onboarding({
                     <strong>{money(income - allocated)}</strong>
                   </div>
                   <small>
-                    These are planning amounts, not recorded spending or money already moved. Check
-                    rent and other fixed bills against what you actually pay.
+                    A plan, not recorded spending. Check fixed bills against what you pay.
                   </small>
                 </div>
               )

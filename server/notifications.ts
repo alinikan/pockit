@@ -24,7 +24,19 @@ export async function sendQueuedNotification(id: string): Promise<'sent' | 'busy
     const recipient = item.kind === 'signup' ? requiredEnv('POCKIT_ADMIN_EMAIL') : item.email
     const message =
       item.kind === 'signup' ? signupEmail(item.email, item.event_at) : deletionEmail()
-    await sendEmail(recipient, message)
+    if (!(
+      item.kind === 'signup' && item.email.trim().toLowerCase() === recipient.trim().toLowerCase()
+    ))
+      await sendEmail(recipient, message)
+    if (item.kind === 'signup') {
+      const { error: receiptError } = await admin
+        .from('pockit_notification_receipts')
+        .upsert(
+          { kind: 'signup', user_id: item.user_id },
+          { onConflict: 'kind,user_id', ignoreDuplicates: true },
+        )
+      if (receiptError) throw receiptError
+    }
     const { error: removeError } = await admin.from('pockit_notifications').delete().eq('id', id)
     if (removeError) throw removeError
     return 'sent'

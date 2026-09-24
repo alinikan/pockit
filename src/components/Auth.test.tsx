@@ -3,17 +3,38 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Auth } from './Auth'
 
-const { updateUser, signInWithPasskey } = vi.hoisted(() => ({
+const { updateUser, signInWithPasskey, signUp, resetPasswordForEmail } = vi.hoisted(() => ({
   updateUser: vi.fn(),
   signInWithPasskey: vi.fn(),
+  signUp: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
 }))
-vi.mock('../lib/storage', () => ({ supabase: { auth: { updateUser, signInWithPasskey } } }))
+vi.mock('../lib/storage', () => ({
+  supabase: { auth: { updateUser, signInWithPasskey, signUp, resetPasswordForEmail } },
+}))
 
 afterEach(() => {
   cleanup()
   updateUser.mockReset()
   signInWithPasskey.mockReset()
+  signUp.mockReset()
+  resetPasswordForEmail.mockReset()
   vi.unstubAllGlobals()
+})
+
+describe('email notices', () => {
+  it('shows confirmation as success rather than an error', async () => {
+    signUp.mockResolvedValue({ data: { session: null }, error: null })
+    render(<Auth onDemo={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Alex' } })
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'alex@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
+    fireEvent.click(screen.getByRole('button', { name: /create my account/i }))
+    expect((await screen.findByRole('status')).className).toContain('success')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 })
 
 describe('passkey sign-in', () => {
@@ -37,7 +58,7 @@ describe('password recovery', () => {
       target: { value: 'differentpassword' },
     })
     fireEvent.click(screen.getByRole('button', { name: /save new password/i }))
-    expect(screen.getByRole('status').textContent).toMatch(/do not match/i)
+    expect(screen.getByRole('alert').textContent).toMatch(/do not match/i)
     expect(updateUser).not.toHaveBeenCalled()
   })
 

@@ -1,4 +1,5 @@
 import type { Bill, Category, Frequency, Goal, MonthKey, PockitData, Transaction } from '../types'
+import { scheduledIncome } from './paySchedule'
 
 export const monthKey = (date: Date): MonthKey =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` as MonthKey
@@ -68,11 +69,12 @@ export const spendingByCategory = (transactions: Transaction[], month: MonthKey)
   return totals
 }
 export const monthSummary = (data: PockitData, month: MonthKey) => {
-  const plannedIncome =
+  const undatedIncome =
     data.profile.plannedMonthlyIncome !== undefined &&
     month >= (data.profile.plannedIncomeStarts || month)
       ? data.profile.plannedMonthlyIncome
       : monthlyPay(data.profile.payAmount, data.profile.payFrequency)
+  const plannedIncome = scheduledIncome(data.profile, month) ?? undatedIncome
   const txs = transactionsInMonth(data.transactions, month)
   const actualIncome = txs.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
   const spent = txs

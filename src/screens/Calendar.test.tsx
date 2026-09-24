@@ -9,6 +9,23 @@ import { CalendarScreen } from './Calendar'
 afterEach(cleanup)
 
 describe('calendar', () => {
+  it('shows three scheduled biweekly paydays and updates the month total from the calendar setting', () => {
+    let data: PockitData = makeDemoData()
+    data.profile.payFrequency = 'biweekly'
+    data.profile.payAmount = 1000
+    data.profile.paydayAnchor = '2026-01-02'
+    const update = (recipe: (value: PockitData) => PockitData) => {
+      data = recipe(data)
+    }
+    const view = render(<CalendarScreen data={data} month="2026-01" update={update} />)
+    expect(screen.getByText('3 expected cheques')).toBeTruthy()
+    expect(screen.getByText('2 · 16 · 30')).toBeTruthy()
+    expect(monthSummary(data, '2026-01').income).toBe(3000)
+    fireEvent.change(screen.getByLabelText('One real payday'), { target: { value: '2026-01-09' } })
+    view.rerender(<CalendarScreen data={data} month="2026-01" update={update} />)
+    expect(screen.getByText('9 · 23')).toBeTruthy()
+    expect(monthSummary(data, '2026-01').income).toBe(2000)
+  })
   it('skips a reminder without recording a payment', () => {
     let data: PockitData = makeDemoData()
     const month = currentMonth()

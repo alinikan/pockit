@@ -1,7 +1,8 @@
 import { num } from '../lib/numbers'
 import { useState } from 'react'
 import type { Frequency, PockitData } from '../types'
-import { monthlyPay, money, todayISO } from '../lib/finance'
+import { currentMonth, monthSummary, money, todayISO } from '../lib/finance'
+import { paydaysInMonth } from '../lib/paySchedule'
 import { validISODate } from '../lib/numbers'
 import { downloadJSON, supabase } from '../lib/storage'
 import { unsubscribeBrowserPush } from '../lib/push'
@@ -174,19 +175,20 @@ export function MoreScreen({
             </div>
           </div>
           <div className="settings-footnote">
-            Expected monthly income from your pay schedule:{' '}
-            {money(
-              monthlyPay(data.profile.payAmount, data.profile.payFrequency),
-              data.settings.currency,
-              true,
-            )}
-            . Edit or add categories in Budget when your spending changes.
+            {paydaysInMonth(data.profile, currentMonth()).length
+              ? 'Expected pay this month'
+              : data.profile.plannedMonthlyIncome !== undefined
+                ? 'Monthly income plan from Waypoint'
+                : 'Average monthly pay'}
+            : {money(monthSummary(data, currentMonth()).income, data.settings.currency, true)}. A
+            dated weekly or biweekly schedule counts the actual cheques each month. See Calendar to
+            check the dates.
           </div>
           {data.profile.plannedMonthlyIncome !== undefined && (
             <div className="waypoint-income-setting">
               <Field
-                label="Monthly income plan from Waypoint"
-                hint="This is a budget estimate, separate from your actual pay schedule. It applies from the imported start month onward."
+                label="Monthly income estimate from Waypoint"
+                hint="Used until you add a real payday. A dated schedule takes priority so extra-paycheque months are accurate."
               >
                 <input
                   type="number"

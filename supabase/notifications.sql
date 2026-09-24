@@ -12,6 +12,18 @@ create table if not exists public.pockit_notifications (
   unique (kind, user_id)
 );
 
+-- A minimal receipt lets the app safely retry queuing an owner's signup alert
+-- when the database webhook is unavailable, without emailing again on each login.
+create table if not exists public.pockit_notification_receipts (
+  kind text not null check (kind = 'signup'),
+  user_id uuid not null,
+  delivered_at timestamptz not null default now(),
+  primary key (kind, user_id)
+);
+alter table public.pockit_notification_receipts enable row level security;
+revoke all on public.pockit_notification_receipts from public, anon, authenticated;
+grant select, insert on public.pockit_notification_receipts to service_role;
+
 alter table public.pockit_notifications enable row level security;
 revoke all on public.pockit_notifications from public, anon, authenticated;
 grant select, insert, update, delete on public.pockit_notifications to service_role;
@@ -26,6 +38,9 @@ begin
     if old.email_confirmed_at is not null then
       return new;
     end if;
+  end if;
+  if exists (select 1 from public.pockit_notification_receipts where kind = 'signup' and user_id = new.id) then
+    return new;
   end if;
   insert into public.pockit_notifications (kind, user_id, email, event_at)
   values ('signup', new.id, new.email, new.email_confirmed_at)

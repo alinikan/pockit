@@ -21,6 +21,7 @@ export function Auth({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [messageTone, setMessageTone] = useState<'success' | 'error'>('error')
   const canUsePasskeys = passkeysSupported()
   async function signInWithPasskey() {
     if (!supabase || loading) return
@@ -30,6 +31,7 @@ export function Auth({
       const { error } = await supabase.auth.signInWithPasskey()
       if (error) throw error
     } catch (error) {
+      setMessageTone('error')
       setMessage(
         error instanceof Error
           ? error.message
@@ -47,6 +49,7 @@ export function Auth({
       )
     setLoading(true)
     setMessage('')
+    setMessageTone('error')
     try {
       if (mode === 'recovery') {
         if (password !== confirmPassword) {
@@ -61,6 +64,7 @@ export function Auth({
           redirectTo: window.location.origin,
         })
         if (error) throw error
+        setMessageTone('success')
         setMessage('Check your email for a password reset link.')
       } else if (mode === 'signup') {
         const { error, data } = await supabase.auth.signUp({
@@ -69,7 +73,10 @@ export function Auth({
           options: { data: { name }, emailRedirectTo: window.location.origin },
         })
         if (error) throw error
-        if (!data.session) setMessage('Check your email to confirm your account, then sign in.')
+        if (!data.session) {
+          setMessageTone('success')
+          setMessage('Check your email to confirm your account, then sign in.')
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
@@ -190,7 +197,10 @@ export function Auth({
               </label>
             )}
             {message && (
-              <div className="form-message" role="status">
+              <div
+                className={`form-message ${messageTone}`}
+                role={messageTone === 'error' ? 'alert' : 'status'}
+              >
                 {message}
               </div>
             )}

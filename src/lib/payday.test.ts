@@ -11,6 +11,12 @@ describe('paycheque timing', () => {
     data.profile.payFrequency = 'biweekly'
     expect(nextPayday(data, '2026-09-23')).toBe('2026-10-02')
   })
+  it('uses a known future payday to infer earlier dates on the same schedule', () => {
+    const data = makeDemoData()
+    data.profile.payFrequency = 'biweekly'
+    data.profile.paydayAnchor = '2026-10-02'
+    expect(nextPayday(data, '2026-09-16')).toBe('2026-09-18')
+  })
   it('handles twice-monthly and month-end paydays', () => {
     const data = makeDemoData()
     data.profile.payFrequency = 'twice-monthly'

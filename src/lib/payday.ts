@@ -2,45 +2,28 @@ import type { Bill, PockitData } from '../types'
 import { billsForMonth, monthKey } from './finance'
 import { accountBalance } from './ledger'
 import { validISODate } from './numbers'
+import { paydaysInMonth } from './paySchedule'
 
-const iso = (date: Date) => date.toISOString().slice(0, 10)
 const utcDate = (value: string) => new Date(`${value}T12:00:00Z`)
-const dayInMonth = (year: number, month: number, day: number) =>
-  new Date(
-    Date.UTC(year, month, Math.min(day, new Date(Date.UTC(year, month + 1, 0)).getUTCDate()), 12),
-  )
 
 export function nextPayday(data: PockitData, today: string): string | null {
   if (!validISODate(today)) return null
   const profile = data.profile
-  const now = utcDate(today)
-  if (profile.payFrequency === 'twice-monthly') {
-    const days = profile.paydayDays || [1, 15]
-    const valid = [...new Set(days.filter((day) => Number.isInteger(day) && day >= 1 && day <= 31))]
-    if (!valid.length) return null
-    const candidates: string[] = []
-    for (let offset = 0; offset <= 2; offset++) {
-      const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1, 12))
-      for (const day of valid)
-        candidates.push(iso(dayInMonth(month.getUTCFullYear(), month.getUTCMonth(), day)))
-    }
-    return candidates.filter((date) => date > today).sort()[0] || null
-  }
-  if (!validISODate(profile.paydayAnchor || '')) return null
-  const anchor = utcDate(profile.paydayAnchor!)
-  if (profile.payFrequency === 'monthly') {
-    for (let offset = 0; offset <= 12; offset++) {
-      const month = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1, 12))
-      const date = iso(dayInMonth(month.getUTCFullYear(), month.getUTCMonth(), anchor.getUTCDate()))
-      if (date > today) return date
-    }
+  if (profile.payFrequency !== 'twice-monthly' && !validISODate(profile.paydayAnchor || ''))
     return null
+  const now = utcDate(today)
+  for (let offset = 0; offset <= 2; offset++) {
+    const candidateMonth = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 1, 12),
+    )
+    const dates = paydaysInMonth(
+      profile,
+      `${candidateMonth.getUTCFullYear()}-${String(candidateMonth.getUTCMonth() + 1).padStart(2, '0')}` as `${number}-${number}`,
+    )
+    const next = dates.find((date) => date > today)
+    if (next) return next
   }
-  const interval = profile.payFrequency === 'weekly' ? 7 : 14
-  const elapsed = Math.floor((now.valueOf() - anchor.valueOf()) / 86400000)
-  const steps = Math.max(0, Math.floor(elapsed / interval) + 1)
-  anchor.setUTCDate(anchor.getUTCDate() + steps * interval)
-  return iso(anchor)
+  return null
 }
 
 export interface PaychequeForecast {

@@ -141,6 +141,11 @@ export default function App() {
 
   useEffect(() => {
     if (!session || demo) return
+    if (import.meta.env.PROD)
+      void fetch('/api/ensure-signup-alert', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).catch(() => {})
     let cancelled = false
     ready.current = false
     setLoading(true)
@@ -194,6 +199,12 @@ export default function App() {
   useEffect(() => {
     if (!data || !ready.current) return
     document.documentElement.dataset.theme = data.settings.theme
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', data.settings.theme === 'light' ? '#f5f7f1' : '#0c1515')
+    document
+      .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+      ?.setAttribute('content', data.settings.theme === 'light' ? 'default' : 'black-translucent')
     if (conflict) return
     if (suppressNextSave.current) {
       suppressNextSave.current = false

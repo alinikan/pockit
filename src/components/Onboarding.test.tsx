@@ -7,6 +7,17 @@ import { Onboarding } from './Onboarding'
 afterEach(cleanup)
 
 describe('onboarding', () => {
+  it('keeps the completed plan separate from the check icon', () => {
+    const data = makeInitialData()
+    data.onboardingStep = 8
+    data.profile.payAmount = 2000
+    render(<Onboarding initial={data} onDone={vi.fn()} />)
+    expect(screen.getByText('You’re all set.')).toBeTruthy()
+    const preview = screen.getByLabelText('Starting monthly plan')
+    expect(preview.className).toBe('onboarding-plan-preview')
+    expect(preview.parentElement?.querySelector('.finish-icon')).toBeTruthy()
+    expect(preview.textContent).toMatch(/Suggested category plan/)
+  })
   it('saves the current step and goal details, then resumes them on sign-in', async () => {
     const saves: ReturnType<typeof makeInitialData>[] = []
     const onSave = vi.fn(async (draft: ReturnType<typeof makeInitialData>) => {

@@ -1,6 +1,6 @@
 import { num } from '../lib/numbers'
 import { WhatIfLab } from '../components/WhatIfLab'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { Goal, MonthKey, PockitData } from '../types'
 import {
   money,
@@ -28,6 +28,7 @@ const newGoal = (kind: Goal['kind']): Goal => ({
 })
 function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' }) {
   const [selectedPoint, setSelectedPoint] = useState(0)
+  const fillId = useId().replace(/:/g, '')
   if (goal.kind === 'debt' && goal.interestUnknown && goal.balance > 0)
     return (
       <div className="soft-note">
@@ -46,33 +47,55 @@ function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' }) {
     values.push(balance)
   }
   const ceiling = Math.max(goal.target, goal.balance, ...values, 1)
-  const points = values.map((v, i) => `${(i / months) * 100},${50 - (v / ceiling) * 42}`).join(' ')
+  const xy = (v: number, i: number) => `${12 + (i / months) * 296},${118 - (v / ceiling) * 90}`
+  const points = values.map(xy).join(' ')
+  const area = `12,118 ${points} 308,118`
   const point = Math.min(selectedPoint, months)
+  const [selectedX, selectedY] = xy(values[point], point).split(',').map(Number)
   return (
     <div className="goal-chart">
       <svg
-        viewBox="0 0 100 55"
+        viewBox="0 0 320 140"
         preserveAspectRatio="none"
         role="img"
         aria-label={`${goal.name} projected balance from today to ${months} months`}
       >
-        <line
-          x1="0"
-          y1="50"
-          x2="100"
-          y2="50"
-          stroke="currentColor"
-          opacity=".12"
-          strokeWidth=".5"
-        />
+        <defs>
+          <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={goal.color} stopOpacity=".34" />
+            <stop offset="100%" stopColor={goal.color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {[28, 73, 118].map((y) => (
+          <line
+            key={y}
+            x1="12"
+            y1={y}
+            x2="308"
+            y2={y}
+            stroke="currentColor"
+            opacity=".15"
+            strokeWidth="1"
+            strokeDasharray={y === 118 ? undefined : '3 5'}
+          />
+        ))}
+        <polygon points={area} fill={`url(#${fillId})`} />
         <polyline
           points={points}
           fill="none"
           stroke={goal.color}
-          strokeWidth="2"
+          strokeWidth="3"
           vectorEffect="non-scaling-stroke"
           strokeLinecap="round"
           strokeLinejoin="round"
+        />
+        <circle
+          cx={selectedX}
+          cy={selectedY}
+          r="5.5"
+          fill={goal.color}
+          stroke="var(--surface)"
+          strokeWidth="3"
         />
       </svg>
       <div>

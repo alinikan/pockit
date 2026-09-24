@@ -1,7 +1,15 @@
 import { num } from '../lib/numbers'
 import { useState } from 'react'
-import type { Bill, MonthKey, PockitData } from '../types'
-import { billsForMonth, categoryDueDates, money, transactionsInMonth } from '../lib/finance'
+import type { Bill, Frequency, MonthKey, PockitData } from '../types'
+import {
+  billsForMonth,
+  categoryDueDates,
+  money,
+  monthSummary,
+  transactionsInMonth,
+} from '../lib/finance'
+import { paydaysInMonth } from '../lib/paySchedule'
+import { validISODate } from '../lib/numbers'
 import { Empty, Field, Icon, Modal, SectionHead } from '../components/UI'
 import { changeTransaction } from '../lib/linked'
 
@@ -22,6 +30,8 @@ export function CalendarScreen({
   const txs = transactionsInMonth(data.transactions, month)
   const bills = billsForMonth(data.bills, month)
   const plannedDates = categoryDueDates(data, month)
+  const paydays = paydaysInMonth(data.profile, month)
+  const paySummary = monthSummary(data, month)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const seven = new Date(today)
@@ -59,6 +69,9 @@ export function CalendarScreen({
   const dayTxs = txs.filter((t) => Number(t.date.slice(-2)) === chosen)
   const dayBills = bills.filter((b) => Number(b.date.slice(-2)) === chosen)
   const dayPlans = plannedDates.filter((item) => Number(item.date.slice(-2)) === chosen)
+  const dayPayCount = paydays.filter((date) => Number(date.slice(-2)) === chosen).length
+  const setPayProfile = (patch: Partial<PockitData['profile']>) =>
+    update((current) => ({ ...current, profile: { ...current.profile, ...patch } }))
   function save() {
     if (
       !editing?.name.trim() ||
@@ -129,7 +142,7 @@ export function CalendarScreen({
       <section className="panel calendar-panel">
         <SectionHead
           title="Your calendar"
-          help="Expense and income dots come from transactions. Bill markers come from bills you add here. Planned date markers come from Budget payment days and do not mean a bill was paid."
+          help="Payday markers are estimates from your schedule. Income dots are pay you actually recorded. Bill and budget markers are plans, not proof of payment."
           aside={
             <button
               className="primary-button compact"
@@ -165,6 +178,7 @@ export function CalendarScreen({
             const dayTx = txs.filter((t) => Number(t.date.slice(-2)) === day)
             const dayBill = bills.filter((b) => Number(b.date.slice(-2)) === day)
             const dayPlan = plannedDates.filter((item) => Number(item.date.slice(-2)) === day)
+            const payday = paydays.some((date) => Number(date.slice(-2)) === day)
             return (
               <button
                 key={day}
@@ -174,6 +188,7 @@ export function CalendarScreen({
                 <span>{day}</span>
                 <div className="calendar-dots">
                   {dayTx.some((t) => t.type === 'income') && <i className="income-dot" />}
+                  {payday && <i className="payday-dot" />}
                   {dayTx.some((t) => t.type === 'expense') && <i className="expense-dot" />}
                   {dayBill.length > 0 && <i className="bill-dot" />}
                   {dayPlan.length > 0 && <i className="plan-dot" />}
@@ -183,6 +198,9 @@ export function CalendarScreen({
           })}
         </div>
         <div className="calendar-key">
+          <span>
+            <i className="payday-dot" /> Expected pay
+          </span>
           <span>
             <i className="income-dot" /> Income
           </span>
@@ -198,11 +216,113 @@ export function CalendarScreen({
         </div>
       </section>
       <div className="calendar-side">
+        <section className="panel payday-panel">
+          <SectionHead
+            title="Your paydays"
+            help="Pick one real payday. Pockit counts forward and backward from it, so a biweekly schedule shows two cheques in most months and three in some. Expected pay is a plan; record each actual deposit in Activity."
+          />
+          <div className="payday-summary">
+            <span>
+              <Icon name="Wallet" size={20} />{' '}
+              {paydays.length
+                ? `${paydays.length} expected ${paydays.length === 1 ? 'cheque' : 'cheques'}`
+                : 'Add a payday'}
+            </span>
+            <strong>{money(paySummary.income, data.settings.currency)}</strong>
+            <small>
+              {paydays.length
+                ? paydays.map((date) => Number(date.slice(-2))).join(' · ')
+                : data.profile.plannedMonthlyIncome !== undefined
+                  ? 'Showing the Waypoint monthly plan until you set a date.'
+                  : 'Showing your monthly average until you set a date.'}
+            </small>
+          </div>
+          <div className="form-grid">
+            <Field label="Each paycheque">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={data.profile.payAmount || ''}
+                onChange={(event) =>
+                  setPayProfile({ payAmount: Math.max(0, Number(event.target.value) || 0) })
+                }
+              />
+            </Field>
+            <Field label="How often">
+              <select
+                value={data.profile.payFrequency}
+                onChange={(event) =>
+                  setPayProfile({ payFrequency: event.target.value as Frequency })
+                }
+              >
+                <option value="weekly">Every week</option>
+                <option value="biweekly">Every two weeks</option>
+                <option value="twice-monthly">Twice a month</option>
+                <option value="monthly">Every month</option>
+              </select>
+            </Field>
+            {data.profile.payFrequency === 'twice-monthly' ? (
+              <>
+                {[0, 1].map((index) => (
+                  <Field key={index} label={`${index === 0 ? 'First' : 'Second'} day of the month`}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={data.profile.paydayDays?.[index] ?? (index === 0 ? 1 : 15)}
+                      onChange={(event) => {
+                        const days: [number, number] = [...(data.profile.paydayDays || [1, 15])]
+                        days[index] = Math.min(
+                          31,
+                          Math.max(1, Math.floor(Number(event.target.value) || 1)),
+                        )
+                        setPayProfile({ paydayDays: days })
+                      }}
+                    />
+                  </Field>
+                ))}
+              </>
+            ) : (
+              <Field label="One real payday">
+                <input
+                  type="date"
+                  value={data.profile.paydayAnchor || ''}
+                  onChange={(event) =>
+                    setPayProfile({
+                      paydayAnchor: validISODate(event.target.value) ? event.target.value : '',
+                    })
+                  }
+                />
+              </Field>
+            )}
+          </div>
+          {data.profile.plannedMonthlyIncome !== undefined && paydays.length > 0 && (
+            <p className="payday-note">
+              Your dated schedule now sets the monthly total. The old Waypoint monthly estimate
+              stays saved as a fallback if you remove the date.
+            </p>
+          )}
+        </section>
         <section className="panel">
           <SectionHead
             title={`${new Intl.DateTimeFormat('en-CA', { month: 'long' }).format(new Date(year, number - 1, 1))} ${chosen}`}
           />
           <div className="day-agenda">
+            {dayPayCount > 0 && (
+              <div className="agenda-item payday-agenda">
+                <div className="agenda-icon income">
+                  <Icon name="Wallet" size={19} />
+                </div>
+                <div>
+                  <strong>Expected pay{dayPayCount > 1 ? ` × ${dayPayCount}` : ''}</strong>
+                  <small>Scheduled · add the real deposit in Activity</small>
+                </div>
+                <strong>
+                  {money(data.profile.payAmount * dayPayCount, data.settings.currency, true)}
+                </strong>
+              </div>
+            )}
             {dayBills.map((b) => (
               <div className="agenda-item" key={b.id}>
                 <div className="agenda-icon bill">
@@ -277,7 +397,7 @@ export function CalendarScreen({
                 <strong>{money(t.amount, data.settings.currency, true)}</strong>
               </div>
             ))}
-            {dayBills.length + dayTxs.length + dayPlans.length === 0 && (
+            {dayBills.length + dayTxs.length + dayPlans.length + dayPayCount === 0 && (
               <Empty
                 icon="CalendarDays"
                 title="A quiet day"
