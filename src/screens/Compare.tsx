@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { MonthKey, PockitData } from '../types'
-import { currentMonth, money, monthLabel, shiftMonth } from '../lib/finance'
+import { beforeWaypointPlan, currentMonth, money, monthLabel, shiftMonth } from '../lib/finance'
 import {
   budgetComparison,
   categoryComparison,
@@ -88,6 +88,10 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
   const trendMax = Math.max(1, ...trend.map((snapshot) => snapshot.spent))
   const plan =
     view === 'plan' ? budgetComparison(data, last.month).sort((a, b) => b.spent - a.spent) : []
+  const isHistoricalUnplanned = (key: MonthKey) =>
+    beforeWaypointPlan(data, key) &&
+    !data.categories.some((category) => !category.archived && category.starts <= key)
+  const historicalUnplanned = isHistoricalUnplanned(last.month)
   const planned = plan.reduce((sum, row) => sum + row.planned, 0)
   const fullPlanSpent = monthSnapshot(data, last.month).spent
   const selectedRow = rows.find((row) => row.id === selectedCategory)
@@ -266,8 +270,19 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                     <strong>{money(snapshot.recordedIncome, currency)}</strong>
                   </div>
                   <div className="compare-detail-row">
-                    <span>Monthly plan after spending*</span>
-                    <strong>{money(snapshot.expectedIncome - snapshot.spent, currency)}</strong>
+                    <span>
+                      {isHistoricalUnplanned(snapshot.month)
+                        ? 'Recorded net cash flow*'
+                        : 'Monthly plan after spending*'}
+                    </span>
+                    <strong>
+                      {money(
+                        (isHistoricalUnplanned(snapshot.month)
+                          ? snapshot.recordedIncome
+                          : snapshot.expectedIncome) - snapshot.spent,
+                        currency,
+                      )}
+                    </strong>
                   </div>
                   {index > 0 && (
                     <div className="compare-card-delta">
@@ -279,7 +294,8 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               ))}
             </div>
             <p className="compare-footnote">
-              * Planned income comes from your pay setup. This figure is not an account balance.
+              * Planned income comes from your pay setup. Months before the Waypoint budget starts
+              use only recorded income and spending. These figures are not account balances.
             </p>
           </section>
           <section className="compare-callout">
@@ -637,25 +653,38 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
           <div className="compare-section-top">
             <div>
               <h3>Plan vs actual</h3>
-              <p>For {monthLabel(last.month)}. See which allocations need a look.</p>
+              <p>
+                For {monthLabel(last.month)}.{' '}
+                {historicalUnplanned
+                  ? 'Actual spending is available, but no Waypoint budget plan was exported for this month.'
+                  : 'See which allocations need a look.'}
+              </p>
             </div>
           </div>
-          <div className="compare-plan-summary">
-            <div>
-              <span>ALLOCATED</span>
-              <strong>{money(planned, currency)}</strong>
+          {!historicalUnplanned && (
+            <div className="compare-plan-summary">
+              <div>
+                <span>ALLOCATED</span>
+                <strong>{money(planned, currency)}</strong>
+              </div>
+              <div>
+                <span>SPENT</span>
+                <strong>{money(fullPlanSpent, currency)}</strong>
+              </div>
+              <div>
+                <span>THIS MONTH GAP</span>
+                <strong className={fullPlanSpent > planned ? 'compare-negative' : ''}>
+                  {money(planned - fullPlanSpent, currency)}
+                </strong>
+              </div>
             </div>
-            <div>
-              <span>SPENT</span>
-              <strong>{money(fullPlanSpent, currency)}</strong>
-            </div>
-            <div>
-              <span>THIS MONTH GAP</span>
-              <strong className={fullPlanSpent > planned ? 'compare-negative' : ''}>
-                {money(planned - fullPlanSpent, currency)}
-              </strong>
-            </div>
-          </div>
+          )}
+          {historicalUnplanned && (
+            <p className="soft-note" role="status">
+              This ZIP contains transaction history for this month, but no matching monthly budget
+              allocations. The amounts below are actual spending only.
+            </p>
+          )}
           <div className="compare-plan-list">
             {plan.map((row) => (
               <div className="compare-plan-row" key={row.id}>
@@ -665,27 +694,38 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                     <span>{row.name}</span>
                   </span>
                   <strong>
-                    {money(row.spent, currency)} <small>/ {money(row.planned, currency)}</small>
+                    {money(row.spent, currency)}{' '}
+                    {!historicalUnplanned && (
+                      <small>
+                        / {row.planUnavailable ? 'no plan' : money(row.planned, currency)}
+                      </small>
+                    )}
                   </strong>
                 </div>
-                <div className="compare-plan-track">
-                  <div
-                    style={{
-                      width: `${Math.min(100, row.planned ? (row.spent / row.planned) * 100 : row.spent ? 100 : 0)}%`,
-                      background: row.balance < 0 ? 'var(--red)' : row.color,
-                    }}
-                  />
-                </div>
-                <small className={row.balance < 0 ? 'compare-negative' : ''}>
-                  {row.mode === 'rollover'
-                    ? row.balance < 0
-                      ? `${money(Math.abs(row.balance), currency)} over available rollover balance`
-                      : `${money(row.balance, currency)} available with rollover`
-                    : row.planned === 0 && row.spent > 0
-                      ? 'Spent without a monthly allocation'
-                      : row.balance < 0
-                        ? `${money(Math.abs(row.balance), currency)} over allocation`
-                        : `${money(row.balance, currency)} left in allocation`}
+                {!historicalUnplanned && (
+                  <div className="compare-plan-track">
+                    <div
+                      style={{
+                        width: `${row.planUnavailable ? 0 : Math.min(100, row.planned ? (row.spent / row.planned) * 100 : row.spent ? 100 : 0)}%`,
+                        background: row.balance < 0 ? 'var(--red)' : row.color,
+                      }}
+                    />
+                  </div>
+                )}
+                <small
+                  className={!row.planUnavailable && row.balance < 0 ? 'compare-negative' : ''}
+                >
+                  {historicalUnplanned || row.planUnavailable
+                    ? 'No historical allocation in the Waypoint ZIP'
+                    : row.mode === 'rollover'
+                      ? row.balance < 0
+                        ? `${money(Math.abs(row.balance), currency)} over available rollover balance`
+                        : `${money(row.balance, currency)} available with rollover`
+                      : row.planned === 0 && row.spent > 0
+                        ? 'Spent without a monthly allocation'
+                        : row.balance < 0
+                          ? `${money(Math.abs(row.balance), currency)} over allocation`
+                          : `${money(row.balance, currency)} left in allocation`}
                 </small>
               </div>
             ))}
@@ -695,11 +735,13 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               </p>
             )}
           </div>
-          <p className="compare-footnote">
-            Allocations are plans, not transactions. The overall gap compares this month's
-            allocations with spending; rollover row balances include earlier months. Uncategorized
-            spending has no allocation. Current or future months may be incomplete.
-          </p>
+          {!historicalUnplanned && (
+            <p className="compare-footnote">
+              Allocations are plans, not transactions. The overall gap compares this month's
+              allocations with spending; rollover row balances include earlier months. Uncategorized
+              spending has no allocation. Current or future months may be incomplete.
+            </p>
+          )}
         </section>
       )}
     </div>

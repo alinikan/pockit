@@ -51,6 +51,7 @@ export interface Transaction {
   tags?: string[]
   waypointTagsRaw?: string
   waypointGroup?: string
+  waypointTypeRaw?: string
   excludedFromBudget?: boolean
   importBatchId?: string
   splits?: { categoryId: string; amount: number }[]
@@ -123,6 +124,8 @@ export interface PockitData {
     payFrequency: Frequency
     plannedMonthlyIncome?: number
     plannedIncomeStarts?: MonthKey
+    /** First month assigned to the current Waypoint budget snapshot. */
+    waypointPlanStarts?: MonthKey
     housing: string
     transport: string
     extras: string[]

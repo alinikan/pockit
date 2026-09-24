@@ -171,7 +171,7 @@ describe('month comparisons', () => {
     expect(findings.some((finding) => finding.title === 'Uncategorized moved up the most')).toBe(
       true,
     )
-    expect(findings.some((finding) => finding.title.includes('need attention'))).toBe(true)
+    expect(findings.some((finding) => /needs? attention/.test(finding.title))).toBe(true)
     expect(
       findings.find((finding) => finding.title === 'Uncategorized moved up the most')?.text,
     ).toContain('$40.00')

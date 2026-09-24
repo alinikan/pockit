@@ -1,5 +1,6 @@
 import type { MonthKey, PockitData } from '../types'
 import {
+  beforeWaypointPlan,
   categoryBudget,
   money,
   monthSummary,
@@ -187,6 +188,7 @@ export function budgetComparison(data: PockitData, month: MonthKey) {
   const rows = data.categories.map((category) => {
     const planned = categoryBudget(category, month, income)
     const spent = snapshot.categorySpend[category.id] || 0
+    const planUnavailable = month < category.starts
     return {
       id: category.id,
       name: category.name,
@@ -195,8 +197,12 @@ export function budgetComparison(data: PockitData, month: MonthKey) {
       mode: category.mode,
       planned,
       spent,
-      balance:
-        category.mode === 'rollover' ? rolloverBalance(category, data, month) : planned - spent,
+      planUnavailable,
+      balance: planUnavailable
+        ? 0
+        : category.mode === 'rollover'
+          ? rolloverBalance(category, data, month)
+          : planned - spent,
     }
   })
   rows.push({
@@ -207,6 +213,7 @@ export function budgetComparison(data: PockitData, month: MonthKey) {
     mode: 'fresh',
     planned: 0,
     spent: snapshot.categorySpend[UNCATEGORIZED] || 0,
+    planUnavailable: false,
     balance: -(snapshot.categorySpend[UNCATEGORIZED] || 0),
   })
   rows.push({
@@ -217,6 +224,7 @@ export function budgetComparison(data: PockitData, month: MonthKey) {
     mode: 'fresh',
     planned: 0,
     spent: snapshot.categorySpend[EXCLUDED] || 0,
+    planUnavailable: false,
     balance: 0,
   })
   return rows.filter((row) => row.planned > 0 || Math.abs(row.spent) > 0.001)
@@ -243,7 +251,12 @@ export function comparisonFindings(data: PockitData, before: MonthSnapshot, afte
       title: `${down.name} moved down the most`,
       text: `${money(Math.abs(down.change), currency)} less than the baseline month. Check whether a bill has not been entered yet.`,
     })
-  const over = budgetComparison(data, after.month).filter((row) => row.balance < 0)
+  const historicalUnplanned =
+    beforeWaypointPlan(data, after.month) &&
+    !data.categories.some((category) => !category.archived && category.starts <= after.month)
+  const over = historicalUnplanned
+    ? []
+    : budgetComparison(data, after.month).filter((row) => row.balance < 0)
   if (over.length)
     findings.push({
       kind: 'attention',

@@ -35,6 +35,9 @@ export const monthlyPay = (amount: number, frequency: Frequency) =>
   amount * { weekly: 52 / 12, biweekly: 26 / 12, 'twice-monthly': 2, monthly: 1 }[frequency]
 export const transactionsInMonth = (transactions: Transaction[], month: MonthKey) =>
   transactions.filter((t) => t.date.slice(0, 7) === month)
+/** Waypoint's five-file ZIP holds a current budget snapshot, not each past monthly plan. */
+export const beforeWaypointPlan = (data: PockitData, month: MonthKey) =>
+  !!data.profile.waypointPlanStarts && month < data.profile.waypointPlanStarts
 export const categoryPeriodAmount = (category: Category, month: MonthKey) => {
   const latest = Object.keys(category.changes || {})
     .filter((key) => key <= month)
@@ -164,7 +167,10 @@ export const budgetHealth = (data: PockitData, month: MonthKey) => {
   const summary = monthSummary(data, month)
   const spend = spendingByCategory(data.transactions, month)
   const trouble = data.categories.filter(
-    (c) => !c.archived && (spend[c.id] || 0) > categoryBudget(c, month, summary.income),
+    (c) =>
+      !c.archived &&
+      month >= c.starts &&
+      (spend[c.id] || 0) > categoryBudget(c, month, summary.income),
   )
   return { ...summary, trouble, spend }
 }

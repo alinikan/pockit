@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { Category, Frequency, MonthKey, PockitData } from '../types'
 import { newCategory } from '../lib/defaults'
 import {
+  beforeWaypointPlan,
   categoryBudget,
   billMonthlyReserve,
   categoryPeriodAmount,
@@ -45,6 +46,9 @@ export function BudgetScreen({
   const [coverMessage, setCoverMessage] = useState('')
   const [moveUndo, setMoveUndo] = useState<{ before: Category[]; after: Category[] } | null>(null)
   const summary = monthSummary(data, month)
+  const historicalUnplanned =
+    beforeWaypointPlan(data, month) &&
+    !data.categories.some((category) => !category.archived && category.starts <= month)
   const spend = spendingByCategory(data.transactions, month)
   const active = data.categories.filter((c) => !c.archived)
   const overages = active
@@ -55,7 +59,7 @@ export function BudgetScreen({
           ? rolloverBalance(category, data, month)
           : categoryBudget(category, month, summary.income) - (spend[category.id] || 0),
     }))
-    .filter((entry) => entry.available < -0.001)
+    .filter((entry) => month >= entry.category.starts && entry.available < -0.001)
   const irregular = data.bills
     .map((bill) => ({ bill, reserve: billMonthlyReserve(bill, month) }))
     .filter((entry) => entry.reserve !== null)
@@ -161,45 +165,60 @@ export function BudgetScreen({
   }
   return (
     <div className="screen-stack">
-      <div className="budget-overview">
-        <div className="budget-info">
-          <div className="eyebrow">MONTHLY PLAN</div>
-          <h2>
-            {money(summary.income, data.settings.currency, true)} <span>income</span>
-          </h2>
-          <div className="budget-info-stat">
-            <span>Allocated</span>
-            <strong>
-              {money(allocated, data.settings.currency, true)} of{' '}
-              {money(summary.income, data.settings.currency, true)}
-            </strong>
+      {historicalUnplanned && (
+        <p className="soft-note" role="status">
+          Waypoint did not include budget allocations for this earlier month. Its transactions are
+          available in Activity and Compare. Add a plan here only if you know the amounts you used
+          then.
+        </p>
+      )}
+      {!historicalUnplanned && summary.income === 0 && (
+        <p className="soft-note" role="status">
+          No monthly income is planned. If the Waypoint export says $0 but you receive pay, set the
+          expected amount in More → Your profile before using allocation percentages.
+        </p>
+      )}
+      {!historicalUnplanned && (
+        <div className="budget-overview">
+          <div className="budget-info">
+            <div className="eyebrow">MONTHLY PLAN</div>
+            <h2>
+              {money(summary.income, data.settings.currency, true)} <span>income</span>
+            </h2>
+            <div className="budget-info-stat">
+              <span>Allocated</span>
+              <strong>
+                {money(allocated, data.settings.currency, true)} of{' '}
+                {money(summary.income, data.settings.currency, true)}
+              </strong>
+            </div>
+            <Progress
+              value={summary.income ? (allocated / summary.income) * 100 : 0}
+              color={allocated > summary.income ? 'var(--red)' : 'var(--lime)'}
+            />
+            <p>
+              {allocated > summary.income
+                ? `${money(allocated - summary.income, data.settings.currency, true)} over your income`
+                : `${money(summary.income - allocated, data.settings.currency, true)} left to allocate`}{' '}
+              ·{' '}
+              {Math.max(
+                0,
+                Math.round(((summary.income - allocated) / Math.max(summary.income, 1)) * 100),
+              )}
+              % unallocated
+            </p>
           </div>
-          <Progress
-            value={summary.income ? (allocated / summary.income) * 100 : 0}
-            color={allocated > summary.income ? 'var(--red)' : 'var(--lime)'}
-          />
-          <p>
-            {allocated > summary.income
-              ? `${money(allocated - summary.income, data.settings.currency, true)} over your income`
-              : `${money(summary.income - allocated, data.settings.currency, true)} left to allocate`}{' '}
-            ·{' '}
-            {Math.max(
-              0,
-              Math.round(((summary.income - allocated) / Math.max(summary.income, 1)) * 100),
-            )}
-            % unallocated
-          </p>
-        </div>
-        <div className="donut-wrap">
-          <div className="donut" style={{ background: donut }}>
-            <div>
-              <small>TOTAL BUDGETED</small>
-              <strong>{money(allocated, data.settings.currency, true)}</strong>
-              <span>{money(summary.income - allocated, data.settings.currency, true)} left</span>
+          <div className="donut-wrap">
+            <div className="donut" style={{ background: donut }}>
+              <div>
+                <small>TOTAL BUDGETED</small>
+                <strong>{money(allocated, data.settings.currency, true)}</strong>
+                <span>{money(summary.income - allocated, data.settings.currency, true)} left</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
       <div className="budget-legend">
         {chartColors.map((c) => (
           <button
@@ -347,6 +366,7 @@ export function BudgetScreen({
             active.map((c) => {
               const planned = categoryBudget(c, month, summary.income)
               const used = spend[c.id] || 0
+              const planUnavailable = month < c.starts
               const left = c.mode === 'rollover' ? rolloverBalance(c, data, month) : planned - used
               return (
                 <button className="allocation-row" key={c.id} onClick={() => openCategory(c)}>
@@ -366,15 +386,25 @@ export function BudgetScreen({
                     </div>
                     <div className="allocation-progress">
                       <Progress
-                        value={planned ? (used / planned) * 100 : used ? 100 : 0}
-                        color={used > planned && c.mode === 'fresh' ? 'var(--red)' : c.color}
+                        value={
+                          planUnavailable ? 0 : planned ? (used / planned) * 100 : used ? 100 : 0
+                        }
+                        color={
+                          !planUnavailable && used > planned && c.mode === 'fresh'
+                            ? 'var(--red)'
+                            : c.color
+                        }
                       />
                     </div>
                   </div>
                   <div className="allocation-values">
-                    <strong>{money(planned, data.settings.currency, true)}</strong>
-                    <small className={left < 0 ? 'negative' : ''}>
-                      {money(left, data.settings.currency, true)} left
+                    <strong>
+                      {planUnavailable ? 'No plan' : money(planned, data.settings.currency, true)}
+                    </strong>
+                    <small className={!planUnavailable && left < 0 ? 'negative' : ''}>
+                      {planUnavailable
+                        ? `${money(used, data.settings.currency, true)} spent`
+                        : `${money(left, data.settings.currency, true)} left`}
                     </small>
                   </div>
                   <Icon name="ChevronRight" size={17} className="row-arrow" />

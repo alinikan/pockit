@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { MonthKey, PockitData } from '../types'
-import { currentMonth, money, todayISO } from '../lib/finance'
+import { currentMonth, money, monthLabel, todayISO } from '../lib/finance'
 import { downloadJSON } from '../lib/storage'
 import {
   importWaypoint,
@@ -58,6 +58,9 @@ export function WaypointImport({
     (row) => /credit|card|loan/i.test(row.Type) && Number(row.Balance.replace(/[$,]/g, '')) > 0,
   )
   const missingAccountDate = archive?.accounts.some((row) => !row['Last Updated'])
+  const transactionMonths = [
+    ...new Set((archive?.transactions || []).map((row) => row.Date.slice(0, 7))),
+  ].sort()
   return (
     <section className="panel settings-panel waypoint-import" id="waypoint-import">
       <SectionHead
@@ -223,6 +226,16 @@ export function WaypointImport({
                 {preview.result.counts.duplicates} duplicate or possible duplicate transactions
                 skipped
               </p>
+              {transactionMonths.length > 0 && (
+                <p className="soft-note" role="status">
+                  Transaction history in this ZIP: {monthLabel(transactionMonths[0] as MonthKey)}
+                  {transactionMonths.length > 1
+                    ? ` through ${monthLabel(transactionMonths.at(-1)! as MonthKey)}`
+                    : ''}{' '}
+                  · {transactionMonths.length} month{transactionMonths.length === 1 ? '' : 's'}.
+                  Only months present in the ZIP can be imported.
+                </p>
+              )}
               {archive.budgets.find((row) => row.Category === 'Monthly Income') && (
                 <p className="waypoint-meta">
                   Waypoint monthly income plan:{' '}

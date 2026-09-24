@@ -238,7 +238,8 @@ function txType(value: string): { type: TransactionType; refund: boolean } {
     return { type: 'expense', refund: false }
   if (['income', 'credit', 'deposit'].includes(normalized)) return { type: 'income', refund: false }
   if (normalized === 'transfer') return { type: 'transfer', refund: false }
-  if (normalized === 'refund') return { type: 'expense', refund: true }
+  if (normalized === 'refund' || normalized === 'reimbursement')
+    return { type: 'expense', refund: true }
   throw new Error(`Unsupported Waypoint transaction type “${value || '(blank)'}”.`)
 }
 function excluded(value: string, row: number) {
@@ -320,6 +321,7 @@ export function importWaypoint(
     accounts: [...(current.accounts || [])],
     transactions: [...current.transactions],
   }
+  if (archive.budgets.length) data.profile.waypointPlanStarts = options.startMonth
   const initialCategoryIds = new Set(current.categories.map((category) => category.id))
   const claimedCategoryIds = new Set<string>()
   const categoryDetails = new Map<string, Row>()
@@ -499,6 +501,13 @@ export function importWaypoint(
     notes.push(
       'Monthly Income is a budget estimate, not a paycheque frequency. Your pay schedule stays unchanged.',
     )
+    if (
+      monthlyIncome === 0 &&
+      archive.transactions.some((row) => ['income', 'credit', 'deposit'].includes(key(row.Type)))
+    )
+      notes.push(
+        'Waypoint exported a $0 monthly income plan, but this ZIP contains recorded income. Set your expected monthly income in More → Your profile before relying on allocation percentages.',
+      )
   }
   if (statedAllocated !== undefined) {
     const total = round(
@@ -527,6 +536,10 @@ export function importWaypoint(
   if (archive.budgets.length && !archive.transactions.length)
     notes.push(
       'This export has no transactions. Spending, comparisons, and transaction history will stay empty until you add or import activity.',
+    )
+  if (archive.transactions.length === 100)
+    notes.push(
+      'This ZIP contains exactly 100 transactions. That may be complete, but if Waypoint shows older activity, check whether the export includes it before switching apps. Pockit cannot recover rows absent from the ZIP.',
     )
   if (!archive.accounts.length)
     notes.push(
@@ -719,6 +732,14 @@ export function importWaypoint(
     const amount = number(row.Amount, 'transactions.csv', index + 2)
     if (!amount) throw new Error(`transactions.csv, row ${index + 2}: amount must be nonzero.`)
     const { type, refund } = txType(row.Type)
+    if (refund && amount < 0)
+      throw new Error(
+        `transactions.csv, row ${index + 2}: a refund or reimbursement must have a positive amount.`,
+      )
+    if (type === 'expense' && !refund && amount > 0)
+      throw new Error(`transactions.csv, row ${index + 2}: an expense must have a negative amount.`)
+    if (type === 'income' && amount < 0)
+      throw new Error(`transactions.csv, row ${index + 2}: income must have a positive amount.`)
     const categoryChoices = row.Category
       ? data.categories.filter(
           (item) =>
@@ -768,6 +789,7 @@ export function importWaypoint(
         : undefined,
       waypointTagsRaw: row.Tags || undefined,
       waypointGroup: row.Group || undefined,
+      waypointTypeRaw: row.Type || undefined,
       excludedFromBudget: excluded(row['Excluded from Budget'], index + 2),
       source: 'waypoint',
       reviewed: true,

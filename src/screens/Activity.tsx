@@ -474,17 +474,18 @@ export function ActivityScreen({
                   <div className="transaction-name">
                     <strong>{t.payee}</strong>
                     <small>
-                      {t.splits?.length
-                        ? 'Split expense'
-                        : c?.name ||
-                          (t.refund ? 'Refund' : t.type[0].toUpperCase() + t.type.slice(1))}{' '}
+                      {t.refund
+                        ? `${t.waypointTypeRaw?.toLowerCase() === 'reimbursement' ? 'Reimbursement' : 'Refund'}${c ? ` · ${c.name}` : ''}`
+                        : t.splits?.length
+                          ? 'Split expense'
+                          : c?.name || t.type[0].toUpperCase() + t.type.slice(1)}{' '}
                       ·{' '}
                       {new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric' }).format(
                         new Date(`${t.date}T12:00:00`),
                       )}
                     </small>
                   </div>
-                  <span className={t.type === 'income' ? 'positive' : ''}>
+                  <span className={t.type === 'income' || t.refund ? 'positive' : ''}>
                     {t.type === 'income' || t.refund ? '+' : t.type === 'expense' ? '−' : ''}
                     {money(t.amount, data.settings.currency)}
                   </span>

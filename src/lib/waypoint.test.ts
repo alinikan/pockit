@@ -3,13 +3,15 @@ import { strToU8, zipSync } from 'fflate'
 import { makeInitialData, newCategory } from './defaults'
 import { importWaypoint, parseWaypointZip, type WaypointOptions } from './waypoint'
 import {
+  beforeWaypointPlan,
+  budgetHealth,
   categoryDueDates,
   monthSummary,
   projectGoal,
   simulateDebtPlan,
   spendingByCategory,
 } from './finance'
-import { budgetComparison, EXCLUDED, monthSnapshot } from './compare'
+import { budgetComparison, comparisonFindings, EXCLUDED, monthSnapshot } from './compare'
 import { accountBalance } from './ledger'
 import { changeTransaction } from './linked'
 
@@ -98,6 +100,87 @@ describe('Waypoint full ZIP import', () => {
     expect(
       budgetComparison(result.data, '2026-09').find((row) => row.name === 'Groceries'),
     ).toMatchObject({ planned: 390, spent: 55 })
+    expect(result.data.profile.waypointPlanStarts).toBe('2026-09')
+    expect(beforeWaypointPlan(result.data, '2026-08')).toBe(true)
+    expect(beforeWaypointPlan(result.data, '2026-09')).toBe(false)
+    expect(budgetHealth(result.data, '2026-08').trouble).toHaveLength(0)
+    expect(
+      budgetComparison(result.data, '2026-08').find((row) => row.name === 'Groceries'),
+    ).toMatchObject({ planUnavailable: true, balance: 0 })
+    expect(
+      comparisonFindings(
+        result.data,
+        monthSnapshot(result.data, '2026-07'),
+        monthSnapshot(result.data, '2026-08'),
+      ).some((finding) => finding.title.includes('need attention')),
+    ).toBe(false)
+  })
+
+  it('treats Waypoint reimbursements as positive refunds against spending', () => {
+    const full = archive({
+      'budgets.csv': `${headers['budgets.csv']}\n,Monthly Income,0,,\n,Groceries,390,monthly,`,
+      'transactions.csv': `${headers['transactions.csv']}\n2026-08-11,Market,-80,Groceries,,expense,,,No,,,\n2026-08-12,Refund,25,Groceries,,reimbursement,,,No,,,\n2026-09-11,Market,-50,Groceries,,expense,,,No,,,\n2026-09-12,Refund,10,Groceries,,reimbursement,,,No,,,\n2026-09-15,Pay,500,,,income,,,No,,,`,
+    })
+    const result = importWaypoint(full, makeInitialData(), options)
+    expect(result.counts.transactions).toBe(5)
+    expect(result.data.transactions.filter((item) => item.refund)).toHaveLength(2)
+    expect(result.data.transactions.find((item) => item.payee === 'Refund')).toMatchObject({
+      type: 'expense',
+      refund: true,
+      waypointTypeRaw: 'reimbursement',
+    })
+    expect(monthSummary(result.data, '2026-08').spent).toBe(55)
+    expect(monthSummary(result.data, '2026-09')).toMatchObject({
+      spent: 40,
+      actualIncome: 500,
+    })
+    expect(monthSnapshot(result.data, '2026-08').spent).toBe(55)
+    expect(result.notes.some((note) => note.includes('$0 monthly income plan'))).toBe(true)
+    const repeated = importWaypoint(full, result.data, options)
+    expect(repeated.counts.transactions).toBe(0)
+    expect(repeated.counts.duplicates).toBe(5)
+    expect(() =>
+      importWaypoint(
+        archive({
+          'transactions.csv': `${headers['transactions.csv']}\n2026-09-12,Bad refund,-10,Groceries,,reimbursement,,,No,,,`,
+        }),
+        makeInitialData(),
+        options,
+      ),
+    ).toThrow(/must have a positive amount/)
+    expect(() =>
+      importWaypoint(
+        archive({
+          'transactions.csv': `${headers['transactions.csv']}\n2026-09-12,Bad expense,10,Groceries,,expense,,,No,,,`,
+        }),
+        makeInitialData(),
+        options,
+      ),
+    ).toThrow(/expense must have a negative amount/)
+    expect(() =>
+      importWaypoint(
+        archive({
+          'transactions.csv': `${headers['transactions.csv']}\n2026-09-12,Bad income,-10,,,income,,,No,,,`,
+        }),
+        makeInitialData(),
+        options,
+      ),
+    ).toThrow(/income must have a positive amount/)
+  })
+
+  it('flags an exactly-100-row export for a completeness check without dropping rows', () => {
+    const entries = Array.from(
+      { length: 100 },
+      (_, index) =>
+        `2026-08-${String((index % 28) + 1).padStart(2, '0')},Market ${index},-1,Groceries,,expense,,,No,,,`,
+    )
+    const full = archive({
+      'transactions.csv': `${headers['transactions.csv']}\n${entries.join('\n')}`,
+    })
+    const result = importWaypoint(full, makeInitialData(), options)
+    expect(result.counts.transactions).toBe(100)
+    expect(result.notes.some((note) => note.includes('exactly 100 transactions'))).toBe(true)
+    expect(monthSummary(result.data, '2026-08').spent).toBe(100)
   })
 
   it('does not invent a zero interest rate for an exported debt with a blank rate', () => {

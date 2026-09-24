@@ -1,6 +1,7 @@
 import type { MonthKey, PockitData } from '../types'
 import {
   billsForMonth,
+  beforeWaypointPlan,
   budgetHealth,
   categoryBudget,
   categoryDueDates,
@@ -28,6 +29,11 @@ export function HomeScreen({
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
   const { income, actualIncome, spent, remaining, trouble } = budgetHealth(data, month)
+  const historicalUnplanned =
+    beforeWaypointPlan(data, month) &&
+    !data.categories.some((category) => !category.archived && category.starts <= month)
+  const chartIncome = historicalUnplanned ? actualIncome : actualIncome || income
+  const useActualCashFlow = actualIncome > 0 && (historicalUnplanned || !income)
   const spend = spendingByCategory(data.transactions, month)
   const sorted = [...data.categories]
     .filter((c) => !c.archived && (categoryBudget(c, month, income) > 0 || spend[c.id]))
@@ -39,7 +45,7 @@ export function HomeScreen({
   const plannedDates = categoryDueDates(data, month)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 3)
-  const max = Math.max(income, spent, 1)
+  const max = Math.max(chartIncome, spent, 1)
   const previous = shiftMonth(month, -1)
   const prevSpent = data.transactions
     .filter((t) => t.date.startsWith(previous) && t.type === 'expense')
@@ -70,6 +76,13 @@ export function HomeScreen({
     (new Date(today).valueOf() - new Date(data.settings.lastPulseAt).valueOf()) / 86400000 >= 7
   return (
     <div className="screen-stack">
+      {historicalUnplanned && (
+        <p className="soft-note" role="status">
+          This month’s transactions are available, but the Waypoint ZIP had no historical budget
+          plan for it. Spending and recorded income are actuals; budget comparisons start in{' '}
+          {data.profile.waypointPlanStarts}.
+        </p>
+      )}
       <section className="pockit-today" aria-label="Pockit Today">
         <div className="today-title">
           <span className="eyebrow">POCKIT TODAY</span>
@@ -169,13 +182,29 @@ export function HomeScreen({
             <span>YOUR MONEY AT A GLANCE</span>
             <Icon name="ArrowUpRight" size={19} />
           </div>
-          <div className="hero-big-label">Monthly plan after recorded spending</div>
-          <div className="hero-number">{money(remaining, data.settings.currency, true)}</div>
+          <div className="hero-big-label">
+            {useActualCashFlow
+              ? 'Recorded income less spending'
+              : historicalUnplanned
+                ? 'Recorded spending'
+                : 'Monthly plan after recorded spending'}
+          </div>
+          <div className="hero-number">
+            {money(
+              useActualCashFlow ? actualIncome - spent : historicalUnplanned ? spent : remaining,
+              data.settings.currency,
+              true,
+            )}
+          </div>
           <div className="hero-bottom">
             <span>
-              {remaining >= 0
-                ? 'Planned income minus spending entered for this month.'
-                : 'Recorded spending has passed your planned income.'}
+              {useActualCashFlow
+                ? 'Based on income and expenses recorded for this month; no income plan is set.'
+                : historicalUnplanned
+                  ? 'Only spending recorded in the ZIP; no historical budget plan was exported.'
+                  : remaining >= 0
+                    ? 'Planned income minus spending entered for this month.'
+                    : 'Recorded spending has passed your planned income.'}
             </span>
             <button onClick={openCoach}>
               Get insight <Icon name="ArrowRight" size={15} />
@@ -188,8 +217,10 @@ export function HomeScreen({
               <Icon name="ArrowDownLeft" />
             </div>
             <div>
-              <span>Planned income</span>
-              <strong>{money(income, data.settings.currency, true)}</strong>
+              <span>{historicalUnplanned ? 'Historical income plan' : 'Planned income'}</span>
+              <strong>
+                {historicalUnplanned ? 'Not exported' : money(income, data.settings.currency, true)}
+              </strong>
             </div>
             <small>Received so far: {money(actualIncome, data.settings.currency, true)}</small>
           </div>
@@ -339,13 +370,15 @@ export function HomeScreen({
                     <div>
                       <strong>{c.name}</strong>
                       <span>
-                        {money(used, data.settings.currency, true)} /{' '}
-                        {money(budget, data.settings.currency, true)}
+                        {money(used, data.settings.currency, true)}
+                        {month < c.starts
+                          ? ' · no plan for this month'
+                          : ` / ${money(budget, data.settings.currency, true)}`}
                       </span>
                     </div>
                     <Progress
-                      value={budget ? (used / budget) * 100 : used ? 100 : 0}
-                      color={used > budget ? 'var(--red)' : c.color}
+                      value={month < c.starts ? 0 : budget ? (used / budget) * 100 : used ? 100 : 0}
+                      color={month >= c.starts && used > budget ? 'var(--red)' : c.color}
                     />
                   </div>
                 </div>
@@ -393,7 +426,11 @@ export function HomeScreen({
               <div>
                 <Icon name="Check" size={20} />
               </div>
-              <span>Looking good. No categories over budget.</span>
+              <span>
+                {historicalUnplanned
+                  ? 'No budget comparison is available for this earlier month.'
+                  : 'Looking good. No categories over budget.'}
+              </span>
             </div>
           )}
         </section>
@@ -472,9 +509,9 @@ export function HomeScreen({
             <div>
               <span>Income</span>
               <div className="compare-track">
-                <div className="income-fill" style={{ width: `${(income / max) * 100}%` }} />
+                <div className="income-fill" style={{ width: `${(chartIncome / max) * 100}%` }} />
               </div>
-              <strong>{money(income, data.settings.currency, true)}</strong>
+              <strong>{money(chartIncome, data.settings.currency, true)}</strong>
             </div>
             <div>
               <span>Expenses</span>

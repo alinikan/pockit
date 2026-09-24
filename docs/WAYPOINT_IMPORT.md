@@ -7,7 +7,7 @@ Pockit accepts Waypoint's five-file ZIP export in **More → Move from Waypoint*
 1. In Waypoint, export your data as a ZIP. Keep the original ZIP somewhere safe.
 2. Open Pockit, sign in, finish Pockit's short initial setup if needed, and open **More**. You can skip the optional goal choices and numbers during setup; the ZIP will supply those. Pockit still asks about your pay schedule because Waypoint only exports a monthly income plan, not a pay frequency.
 3. Under **Move from Waypoint**, choose the ZIP. Pockit expects `transactions.csv`, `budgets.csv`, `categories.csv`, `goals.csv`, and `accounts.csv` inside it. Do not extract or edit them first.
-4. Review the row counts. Confirm that the export amounts are **CAD**. Waypoint's sample ZIP does not include a currency column, so Pockit cannot verify this automatically.
+4. Review the row counts and the transaction month range. Only dated transactions present in the ZIP can appear in Pockit. Confirm that the export amounts are **CAD**. Waypoint's ZIP does not include a currency column, so Pockit cannot verify this automatically.
 5. Choose the month from which Waypoint's **current** budget allocations should apply. Waypoint's export does not contain an allocation history for every past month.
 6. Choose how matching Pockit categories, goals, and accounts are handled. **Use Waypoint values** applies the exported values; **Keep existing Pockit values** imports only missing records. Existing Pockit IDs stay in place so linked activity keeps working.
 7. If credit accounts are in the ZIP and their balances are positive, check how Waypoint presents them and choose whether a positive number means **money owed** or a **credit balance**. If an account has no “Last Updated” value, supply the date of its balance snapshot.
@@ -18,21 +18,25 @@ If you need to reverse the import, open **More → Restore a backup** and choose
 
 ## What Pockit maps
 
-| Waypoint CSV       | Pockit result                                                                                                                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `budgets.csv`      | Category amounts, recurrence, payment day, and monthly income **plan**. The paycheque amount and frequency are separate settings and are not guessed from the monthly total.                                          |
-| `categories.csv`   | Names, groups, icons, and colours. Icons without a Pockit equivalent display a fallback symbol.                                                                                                                       |
-| `goals.csv`        | Savings and debt balances, targets, planned monthly contributions, interest, minimum payments, target dates, and descriptions. Exported contribution totals are kept as snapshot details, not invented dated history. |
-| `accounts.csv`     | Account identity, bank name, last four digits, type, balance snapshot, available balance, credit limit, and connection label. This does **not** create a live bank connection in Pockit.                              |
-| `transactions.csv` | Date, description, signed amount and type, category, group, account, tags, note, and “Excluded from Budget.” Excluded expenses remain in actual spending and Compare; they do not use a category allocation.          |
+| Waypoint CSV       | Pockit result                                                                                                                                                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `budgets.csv`      | Category amounts, recurrence, payment day, and monthly income **plan**. The paycheque amount and frequency are separate settings and are not guessed from the monthly total.                                                                                                                         |
+| `categories.csv`   | Names, groups, icons, and colours. Icons without a Pockit equivalent display a fallback symbol.                                                                                                                                                                                                      |
+| `goals.csv`        | Savings and debt balances, targets, planned monthly contributions, interest, minimum payments, target dates, and descriptions. Exported contribution totals are kept as snapshot details, not invented dated history.                                                                                |
+| `accounts.csv`     | Account identity, bank name, last four digits, type, balance snapshot, available balance, credit limit, and connection label. This does **not** create a live bank connection in Pockit.                                                                                                             |
+| `transactions.csv` | Date, description, signed amount and type, category, group, account, tags, note, and “Excluded from Budget.” Waypoint `reimbursement` rows become refunds that reduce spending in their dated month. Excluded expenses remain in actual spending and Compare; they do not use a category allocation. |
 
 The importer identifies categories by group and name. It preserves repeated identical transaction rows within one export, while recognizing those same rows on a later import. Transactions that resemble manually entered Pockit entries are skipped by default; the preview shows how many. You can include those possible duplicates when you know they are distinct transactions.
 
 Editing an imported transaction updates the shared activity data used by Home, Budget, Calendar, and Compare. You can link a transaction to a goal or bill in Activity. For a historical Waypoint transaction already included in an imported goal balance, leave **Already included in the imported goal balance** checked; that adds dated history without counting the amount twice. Later changes to its amount update the goal by the difference.
 
+Earlier months with transactions but no exported budget plan show actual spending and recorded income. Pockit labels the missing plan in Home, Budget, and Compare instead of calling those transactions over budget. The current Waypoint budget starts in the month you choose. If the export's monthly income plan is `$0` while income transactions exist, set an expected monthly income in **More → Your profile** before relying on allocation percentages.
+
 ## Limits to review
 
 - A new or nearly empty Waypoint export may have **zero transactions and zero accounts**. Pockit does not create spending history, bank balances, or a live connection that the export did not contain.
+- A populated export may still cover only some months. Check the displayed transaction range; Pockit cannot recover older transactions absent from the ZIP.
+- If a ZIP happens to contain exactly 100 transactions, Pockit asks you to compare its displayed date range with Waypoint's activity. This is a completeness check, not proof of an export limit.
 - Waypoint's CSV has no stable transaction or goal IDs. Pockit can recognize identical rows and matching names, but an edited transaction or renamed goal in a later Waypoint export may need manual review. Keep the original ZIP and Pockit backup.
 - A category payment day becomes a **budget date** in Calendar and Home, not a confirmed bill or payment. Add a bill in Calendar if you want payment tracking and bill reminders.
 - Waypoint's goal snapshot does not identify which transaction rows created the balance. Link historical activity yourself if you want a dated goal history.
