@@ -10,13 +10,19 @@ export const palettes: {
 }[] = [
   {
     id: 'pockit',
+    name: 'Pockit Iris',
+    description: 'Deep ink with a clear periwinkle glow.',
+    swatches: ['#101323', '#1b2136', '#b9b4ff'],
+  },
+  {
+    id: 'garden',
     name: 'Pockit Garden',
-    description: 'Calm green with a warm, clear accent.',
+    description: 'The original leafy green look.',
     swatches: ['#0c1515', '#172524', '#c8f184'],
   },
   {
     id: 'waypoint',
-    name: 'Waypoint style',
+    name: 'Coral Slate',
     description: 'Deep slate, coral highlights and crisp surfaces.',
     swatches: ['#111827', '#202d3d', '#ffaf9b'],
   },
@@ -36,6 +42,18 @@ export const palettes: {
 
 export const themeBackground = (palette: Palette, mode: 'dark' | 'light') => {
   if (mode === 'light')
-    return { pockit: '#f5f7f1', waypoint: '#f7f8fb', ocean: '#f3f8fc', plum: '#faf6fc' }[palette]
-  return { pockit: '#0c1515', waypoint: '#111827', ocean: '#0d1928', plum: '#1b1425' }[palette]
+    return {
+      pockit: '#f6f6fc',
+      garden: '#f5f7f1',
+      waypoint: '#f7f8fb',
+      ocean: '#f3f8fc',
+      plum: '#faf6fc',
+    }[palette]
+  return {
+    pockit: '#101323',
+    garden: '#0c1515',
+    waypoint: '#111827',
+    ocean: '#0d1928',
+    plum: '#1b1425',
+  }[palette]
 }

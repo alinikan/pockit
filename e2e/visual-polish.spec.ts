@@ -51,7 +51,7 @@ test('phone header controls and goal charts are legible and inside their cards',
   expect(svgBox!.x).toBeGreaterThanOrEqual(chartBox!.x)
   expect(svgBox!.x + svgBox!.width).toBeLessThanOrEqual(chartBox!.x + chartBox!.width + 1)
   await page.getByRole('button', { name: /Switch to (light|dark) mode/ }).click()
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f5f7f1')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f6f6fc')
   await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute(
     'content',
     'default',

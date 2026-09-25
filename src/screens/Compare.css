@@ -297,6 +297,26 @@
   background: var(--surface-2);
   border: 1px solid var(--line);
 }
+.compare-callout.attention {
+  background: color-mix(in srgb, var(--red) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--red) 46%, var(--line));
+}
+.compare-callout.good {
+  background: color-mix(in srgb, var(--green) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--green) 46%, var(--line));
+}
+.compare-callout.attention h3,
+.compare-callout.attention .compare-callout-icon {
+  color: var(--red);
+}
+.compare-callout.good h3,
+.compare-callout.good .compare-callout-icon {
+  color: var(--green);
+}
+.compare-callout.attention .compare-callout-icon,
+.compare-callout.good .compare-callout-icon {
+  background: var(--surface);
+}
 .compare-callout-icon {
   flex: none;
   width: 44px;
@@ -334,6 +354,14 @@
   padding: 15px;
   border-radius: 13px;
   background: var(--surface-2);
+}
+.compare-finding.attention {
+  background: color-mix(in srgb, var(--red) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--red) 35%, var(--line));
+}
+.compare-finding.good {
+  background: color-mix(in srgb, var(--green) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--green) 35%, var(--line));
 }
 .compare-finding svg {
   flex: none;

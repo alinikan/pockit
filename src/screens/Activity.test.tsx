@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { PockitData } from '../types'
 import { currentMonth } from '../lib/finance'
@@ -9,6 +9,32 @@ import { ActivityScreen } from './Activity'
 afterEach(cleanup)
 
 describe('activity', () => {
+  it('opens quick add only for a fresh request and consumes that request', () => {
+    const data = makeDemoData()
+    const consumed = vi.fn()
+    const first = render(
+      <ActivityScreen
+        data={data}
+        month={currentMonth()}
+        update={() => {}}
+        quickAdd={1}
+        onQuickAddConsumed={consumed}
+      />,
+    )
+    expect(screen.getByRole('dialog', { name: 'New transaction' })).toBeTruthy()
+    expect(consumed).toHaveBeenCalledOnce()
+    first.unmount()
+    render(
+      <ActivityScreen
+        data={data}
+        month={currentMonth()}
+        update={() => {}}
+        quickAdd={0}
+        onQuickAddConsumed={consumed}
+      />,
+    )
+    expect(screen.queryByRole('dialog', { name: 'New transaction' })).toBeNull()
+  })
   it('suggests a category and saves a transaction', () => {
     let data: PockitData = makeDemoData()
     const update = (recipe: (value: PockitData) => PockitData) => {

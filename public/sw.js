@@ -1,4 +1,4 @@
-const CACHE = 'pockit-shell-v2'
+const CACHE = 'pockit-shell-v3'
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.addAll(['/', '/icon.svg', '/manifest.webmanifest'])),
@@ -21,7 +21,13 @@ self.addEventListener('fetch', (event) => {
   const shell = url.pathname === '/'
   const asset =
     url.pathname.startsWith('/assets/') ||
-    ['/icon.svg', '/icon-192.png', '/manifest.webmanifest'].includes(url.pathname)
+    [
+      '/icon.svg',
+      '/icon-192.png',
+      '/icon-512.png',
+      '/apple-touch-icon.png',
+      '/manifest.webmanifest',
+    ].includes(url.pathname)
   if (!shell && !asset) return
   event.respondWith(
     fetch(event.request)

@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ArrowDown,
   ArrowDownLeft,
@@ -246,6 +247,14 @@ export function SectionHead({
   help?: string
 }) {
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [open])
   return (
     <div className="section-head">
       <div className="section-title">
@@ -260,21 +269,31 @@ export function SectionHead({
             >
               <Icon name="Info" size={15} />
             </button>
-            {open && (
-              <span className="help-popover" role="note">
-                <Icon name="Sparkles" size={18} />
-                <span>
-                  <strong>{title}, explained</strong>
-                  {help}
-                </span>
-                <button
-                  aria-label={`Close explanation for ${title}`}
-                  onClick={() => setOpen(false)}
-                >
-                  <Icon name="X" size={15} />
-                </button>
-              </span>
-            )}
+            {open &&
+              createPortal(
+                <div className="help-overlay" onClick={() => setOpen(false)}>
+                  <div
+                    className="help-popover"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`${title}, explained`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <Icon name="Sparkles" size={20} />
+                    <div>
+                      <strong>{title}, explained</strong>
+                      <p>{help}</p>
+                    </div>
+                    <button
+                      aria-label={`Close explanation for ${title}`}
+                      onClick={() => setOpen(false)}
+                    >
+                      <Icon name="X" size={19} />
+                    </button>
+                  </div>
+                </div>,
+                document.body,
+              )}
           </span>
         )}
       </div>

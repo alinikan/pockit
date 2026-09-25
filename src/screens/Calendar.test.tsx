@@ -9,6 +9,58 @@ import { CalendarScreen } from './Calendar'
 afterEach(cleanup)
 
 describe('calendar', () => {
+  it('moves between months from the calendar header', () => {
+    let month: `${number}-${number}` = '2026-09'
+    const data = makeDemoData()
+    const view = () => (
+      <CalendarScreen
+        data={data}
+        month={month}
+        setMonth={(next) => {
+          month = next
+        }}
+        update={() => {}}
+      />
+    )
+    const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Previous calendar month' }))
+    rerender(view())
+    expect(screen.getByText('August 2026')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Next calendar month' }))
+    rerender(view())
+    expect(screen.getByText('September 2026')).toBeTruthy()
+  })
+
+  it('records a projected repeat once, then counts only the real transaction', () => {
+    let data = makeDemoData()
+    data = {
+      ...data,
+      transactions: [
+        {
+          id: 'seed',
+          date: '2026-09-04',
+          payee: 'Weekly class',
+          amount: 25,
+          type: 'expense',
+          recurrence: 'weekly',
+        },
+      ],
+    }
+    const update = (recipe: (value: PockitData) => PockitData) => {
+      data = recipe(data)
+    }
+    const { rerender } = render(<CalendarScreen data={data} month="2026-10" update={update} />)
+    expect(monthSummary(data, '2026-10').spent).toBe(0)
+    fireEvent.click(screen.getByRole('button', { name: /^2$/ }))
+    expect(screen.getByText(/Planned weekly repeat/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Record transaction' }))
+    rerender(<CalendarScreen data={data} month="2026-10" update={update} />)
+    expect(data.transactions.find((entry) => entry.recurrenceId === 'seed')?.date).toBe(
+      '2026-10-02',
+    )
+    expect(monthSummary(data, '2026-10').spent).toBe(25)
+    expect(screen.queryByRole('button', { name: 'Record transaction' })).toBeNull()
+  })
   it('shows three scheduled biweekly paydays and updates the month total from the calendar setting', () => {
     let data: PockitData = makeDemoData()
     data.profile.payFrequency = 'biweekly'

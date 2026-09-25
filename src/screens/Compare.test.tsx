@@ -198,8 +198,19 @@ describe('Compare screen', () => {
     expect(screen.getByText('Add expenses in both months to compare.')).toBeTruthy()
     expect(screen.getByText(/Current or future months may be incomplete/)).toBeTruthy()
     expect(screen.queryByText(/Spending fell by/)).toBeNull()
+    expect(document.querySelector('.compare-callout.neutral')).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: /Categories/ }))
     expect(screen.getByText('No spending in this group for these months.')).toBeTruthy()
+  })
+
+  it('marks a real spending increase as attention and an incomplete month as neutral', () => {
+    render(<CompareScreen data={comparisonData()} month="2026-01" />)
+    expect(screen.getByText(/Spending rose by/)).toBeTruthy()
+    expect(document.querySelector('.compare-callout.attention')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('MONTH 2'), { target: { value: '2026-02' } })
+    expect(screen.getByText('Add expenses in both months to compare.')).toBeTruthy()
+    expect(document.querySelector('.compare-callout.neutral')).toBeTruthy()
+    expect(screen.getByText('Need entries in both months')).toBeTruthy()
   })
 
   it('shows user-entered category text as text, without creating HTML elements', () => {

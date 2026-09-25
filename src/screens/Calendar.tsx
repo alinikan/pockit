@@ -7,21 +7,26 @@ import {
   categoryBudget,
   categoryDueDates,
   money,
+  monthLabel,
   monthSummary,
+  shiftMonth,
   transactionsInMonth,
 } from '../lib/finance'
 import { paydaysInMonth } from '../lib/paySchedule'
 import { validISODate } from '../lib/numbers'
 import { Empty, Field, Icon, Modal, SectionHead } from '../components/UI'
 import { changeTransaction } from '../lib/linked'
+import { expectedTransactions, type ExpectedTransaction } from '../lib/recurringTransactions'
 
 export function CalendarScreen({
   data,
   month,
+  setMonth,
   update,
 }: {
   data: PockitData
   month: MonthKey
+  setMonth?: (month: MonthKey) => void
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
@@ -30,6 +35,7 @@ export function CalendarScreen({
   const firstWeekday = new Date(year, number - 1, 1).getDay()
   const days = new Date(year, number, 0).getDate()
   const txs = transactionsInMonth(data.transactions, month)
+  const repeats = expectedTransactions(data, month)
   const bills = billsForMonth(data.bills, month)
   const plannedDates = categoryDueDates(data, month)
   const paydays = paydaysInMonth(data.profile, month)
@@ -70,6 +76,7 @@ export function CalendarScreen({
       ? today.getDate()
       : 1)
   const dayTxs = txs.filter((t) => Number(t.date.slice(-2)) === chosen)
+  const dayRepeats = repeats.filter((item) => Number(item.date.slice(-2)) === chosen)
   const dayBills = bills.filter((b) => Number(b.date.slice(-2)) === chosen)
   const dayPlans = plannedDates.filter((item) => Number(item.date.slice(-2)) === chosen)
   const dayPayCount = paydays.filter((date) => Number(date.slice(-2)) === chosen).length
@@ -143,6 +150,32 @@ export function CalendarScreen({
       }),
     )
   }
+  function recordRepeat(item: ExpectedTransaction) {
+    update((current) => {
+      if (
+        current.transactions.some(
+          (entry) => entry.recurrenceId === item.source.id && entry.date === item.date,
+        )
+      )
+        return current
+      return changeTransaction(current, null, {
+        id: crypto.randomUUID(),
+        date: item.date,
+        payee: item.source.payee,
+        amount: item.source.amount,
+        type: item.source.type,
+        categoryId: item.source.categoryId,
+        accountId: item.source.accountId,
+        toAccountId: item.source.toAccountId,
+        refund: item.source.refund,
+        note: item.source.note,
+        recurrenceId: item.source.id,
+        createdAt: new Date().toISOString(),
+        reviewed: true,
+        source: 'manual',
+      })
+    })
+  }
   return (
     <div className="calendar-layout">
       {unscheduled.length > 0 && (
@@ -192,22 +225,60 @@ export function CalendarScreen({
           title="Your calendar"
           help="Payday markers are estimates from your schedule. Income dots are pay you actually recorded. Bill and budget markers are plans, not proof of payment."
           aside={
-            <button
-              className="primary-button compact"
-              onClick={() =>
-                setEditing({
-                  id: crypto.randomUUID(),
-                  name: '',
-                  amount: 0,
-                  day: chosen,
-                  paidMonths: [],
-                  frequency: 'monthly',
-                  starts: month,
-                })
-              }
-            >
-              <Icon name="Plus" size={16} /> Add bill
-            </button>
+            <div className="calendar-header-actions">
+              {setMonth && (
+                <div className="calendar-month-nav" aria-label="Calendar month">
+                  <button
+                    aria-label="Previous calendar month"
+                    onClick={() => {
+                      setSelectedDay(null)
+                      setMonth(shiftMonth(month, -1))
+                    }}
+                  >
+                    <Icon name="ChevronLeft" size={18} />
+                  </button>
+                  <strong>{monthLabel(month)}</strong>
+                  <button
+                    aria-label="Next calendar month"
+                    onClick={() => {
+                      setSelectedDay(null)
+                      setMonth(shiftMonth(month, 1))
+                    }}
+                  >
+                    <Icon name="ChevronRight" size={18} />
+                  </button>
+                </div>
+              )}
+              {setMonth && (
+                <button
+                  className="secondary-button compact"
+                  onClick={() => {
+                    setSelectedDay(null)
+                    setMonth(
+                      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}` as MonthKey,
+                    )
+                  }}
+                >
+                  Today
+                </button>
+              )}
+              <button
+                className="primary-button compact"
+                onClick={() =>
+                  setEditing({
+                    id: crypto.randomUUID(),
+                    name: '',
+                    amount: 0,
+                    day: chosen,
+                    paidMonths: [],
+                    frequency: 'monthly',
+                    starts: month,
+                  })
+                }
+              >
+                <Icon name="Plus" size={16} /> Add bill
+              </button>
+            </div>
           }
         />
         <div className="calendar-grid">
@@ -224,6 +295,7 @@ export function CalendarScreen({
           {Array.from({ length: days }, (_, i) => {
             const day = i + 1
             const dayTx = txs.filter((t) => Number(t.date.slice(-2)) === day)
+            const dayRepeat = repeats.filter((item) => Number(item.date.slice(-2)) === day)
             const dayBill = bills.filter((b) => Number(b.date.slice(-2)) === day)
             const dayPlan = plannedDates.filter((item) => Number(item.date.slice(-2)) === day)
             const payday = paydays.some((date) => Number(date.slice(-2)) === day)
@@ -238,6 +310,7 @@ export function CalendarScreen({
                   {dayTx.some((t) => t.type === 'income') && <i className="income-dot" />}
                   {payday && <i className="payday-dot" />}
                   {dayTx.some((t) => t.type === 'expense') && <i className="expense-dot" />}
+                  {dayRepeat.length > 0 && <i className="repeat-dot" />}
                   {dayBill.length > 0 && <i className="bill-dot" />}
                   {dayPlan.length > 0 && <i className="plan-dot" />}
                 </div>
@@ -254,6 +327,9 @@ export function CalendarScreen({
           </span>
           <span>
             <i className="expense-dot" /> Spending
+          </span>
+          <span>
+            <i className="repeat-dot" /> Planned repeat
           </span>
           <span>
             <i className="bill-dot" /> Bill
@@ -445,7 +521,25 @@ export function CalendarScreen({
                 <strong>{money(t.amount, data.settings.currency, true)}</strong>
               </div>
             ))}
-            {dayBills.length + dayTxs.length + dayPlans.length + dayPayCount === 0 && (
+            {dayRepeats.map((item) => (
+              <div className="agenda-item" key={`repeat-${item.source.id}-${item.date}`}>
+                <div className="agenda-icon repeat">
+                  <Icon name="Repeat2" size={19} />
+                </div>
+                <div>
+                  <strong>{item.source.payee}</strong>
+                  <small>
+                    Planned {item.source.recurrence} repeat · not counted until recorded
+                  </small>
+                </div>
+                <strong>{money(item.source.amount, data.settings.currency, true)}</strong>
+                <button className="mark-button" onClick={() => recordRepeat(item)}>
+                  Record transaction
+                </button>
+              </div>
+            ))}
+            {dayBills.length + dayTxs.length + dayPlans.length + dayPayCount + dayRepeats.length ===
+              0 && (
               <Empty
                 icon="CalendarDays"
                 title="A quiet day"

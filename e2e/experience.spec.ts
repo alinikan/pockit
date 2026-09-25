@@ -130,9 +130,12 @@ test('iPhone Air, iPhone 17 Pro, newer phone, MacBook, and Windows-sized layouts
         expect(box!.width).toBeGreaterThanOrEqual(44)
         expect(box!.height).toBeGreaterThanOrEqual(44)
       }
+      await page.getByRole('button', { name: 'Home', exact: true }).click()
       const fab = await page.getByRole('button', { name: 'Quick add transaction' }).boundingBox()
       const nav = await page.locator('.bottom-nav').boundingBox()
       expect(fab!.y + fab!.height).toBeLessThan(nav!.y)
+      await page.getByRole('button', { name: 'More', exact: true }).click()
+      await expect(page.getByRole('button', { name: 'Quick add transaction' })).toHaveCount(0)
     }
   }
 })
@@ -246,7 +249,7 @@ test('colour choices, light mode, and carryover explanation fit a small iPhone s
   await page.setViewportSize({ width: 390, height: 844 })
   await preview(page)
   await page.getByRole('button', { name: 'More', exact: true }).click()
-  await page.getByRole('radio', { name: /Waypoint style/ }).click()
+  await page.getByRole('radio', { name: /Coral Slate/ }).click()
   await expect(page.locator('html')).toHaveAttribute('data-palette', 'waypoint')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#111827')
   await page.getByRole('button', { name: /Switch to (light|dark) mode/ }).click()

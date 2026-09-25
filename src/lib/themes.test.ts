@@ -49,6 +49,11 @@ describe('colour themes', () => {
           contrast(tokens['--lime'], tokens['--surface']),
           `${palette.id} ${mode} accent text`,
         ).toBeGreaterThanOrEqual(4.5)
+        for (const tone of ['--red', '--green'])
+          expect(
+            contrast(tokens[tone], tokens['--surface']),
+            `${palette.id} ${mode} ${tone} text`,
+          ).toBeGreaterThanOrEqual(4.5)
         expect(
           contrast(tokens['--on-accent'], tokens['--lime']),
           `${palette.id} ${mode} button text`,

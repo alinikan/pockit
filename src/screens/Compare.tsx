@@ -59,6 +59,14 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
   const first = snapshots[0]
   const last = snapshots.at(-1)!
   const delta = difference(first.spent, last.spent)
+  const completePair = first.expenseCount > 0 && last.expenseCount > 0
+  const changeTone = !completePair
+    ? 'neutral'
+    : delta.amount > 0
+      ? 'attention'
+      : delta.amount < 0
+        ? 'good'
+        : 'neutral'
   const partial = months.some((key) => key >= currentMonth())
   const rows = categoryComparison(data, snapshots, showEmpty)
   const strongest = [...rows].sort(
@@ -220,10 +228,12 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               checked={sameDays}
               onChange={(event) => setSameDays(event.target.checked)}
             />{' '}
-            Compare through the same day of each month{' '}
-            <small>
-              For a month still in progress, compare day 1 through day {new Date().getDate()}.
-            </small>
+            <span>
+              Compare through the same day of each month
+              <small>
+                For a month still in progress, compare day 1 through day {new Date().getDate()}.
+              </small>
+            </span>
           </label>
         )}
         {notice && (
@@ -294,7 +304,11 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                   {index > 0 && (
                     <div className="compare-card-delta">
                       <span>Spending vs baseline</span>
-                      <Change before={first.spent} after={snapshot.spent} currency={currency} />
+                      {first.expenseCount && snapshot.expenseCount ? (
+                        <Change before={first.spent} after={snapshot.spent} currency={currency} />
+                      ) : (
+                        <span className="compare-change flat">Need entries in both months</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -305,9 +319,18 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               use only recorded income and spending. These figures are not account balances.
             </p>
           </section>
-          <section className="compare-callout">
+          <section className={`compare-callout ${changeTone}`}>
             <div className="compare-callout-icon">
-              <Icon name={delta.amount > 0 ? 'TrendingUp' : 'TrendingDown'} size={23} />
+              <Icon
+                name={
+                  !completePair || delta.amount === 0
+                    ? 'Minus'
+                    : delta.amount > 0
+                      ? 'TrendingUp'
+                      : 'TrendingDown'
+                }
+                size={23}
+              />
             </div>
             <div>
               <span>FIRST TO LAST MONTH</span>
@@ -329,7 +352,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
             <div className="compare-section-top">
               <div>
                 <h3>What stands out</h3>
-                <p>Clues from your entries, with no AI or bank connection.</p>
+                <p>Clues from your entries.</p>
               </div>
             </div>
             <div className="compare-finding-grid">

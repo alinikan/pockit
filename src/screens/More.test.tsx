@@ -7,7 +7,7 @@ import { MoreScreen } from './More'
 afterEach(cleanup)
 
 describe('appearance settings', () => {
-  it('offers four named colour choices and keeps the chosen light or dark mode', () => {
+  it('offers five named colour choices and keeps the chosen light or dark mode', () => {
     let data = makeDemoData()
     const update = (recipe: (value: typeof data) => typeof data) => {
       data = recipe(data)
@@ -16,18 +16,25 @@ describe('appearance settings', () => {
       <MoreScreen data={data} update={update} logout={vi.fn()} onDeleted={vi.fn()} demo />,
     )
     const themes = screen.getByRole('radiogroup', { name: 'Colour theme' })
-    expect(within(themes).getAllByRole('radio')).toHaveLength(4)
-    fireEvent.click(within(themes).getByRole('radio', { name: /Waypoint style/ }))
+    expect(within(themes).getAllByRole('radio')).toHaveLength(5)
+    expect(within(themes).getByRole('radio', { name: /Pockit Garden/ })).toBeTruthy()
+    fireEvent.click(within(themes).getByRole('radio', { name: /Coral Slate/ }))
     expect(data.settings).toMatchObject({ palette: 'waypoint', theme: 'dark' })
     view.rerender(
       <MoreScreen data={data} update={update} logout={vi.fn()} onDeleted={vi.fn()} demo />,
     )
     expect(
       within(screen.getByRole('radiogroup', { name: 'Colour theme' }))
-        .getByRole('radio', { name: /Waypoint style/ })
+        .getByRole('radio', { name: /Coral Slate/ })
         .getAttribute('aria-checked'),
     ).toBe('true')
-    expect(screen.getByText(/keeps you signed in when you close and reopen it/i)).toBeTruthy()
+    expect(screen.queryByText(/keeps you signed in when you close and reopen it/i)).toBeNull()
+    expect(screen.queryByText(/website also works without installing it/i)).toBeNull()
+    const glossary = screen.getByText('A few handy terms').closest('details')!
+    expect(glossary.open).toBe(false)
+    fireEvent.click(screen.getByText('A few handy terms'))
+    expect(glossary.open).toBe(true)
+    expect(glossary.querySelectorAll('.glossary-terms > div').length).toBeGreaterThan(10)
   })
 })
 describe('merchant rules', () => {

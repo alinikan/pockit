@@ -1,6 +1,12 @@
 import { num, validISODate } from '../lib/numbers'
 import { useEffect, useMemo, useState } from 'react'
-import type { MonthKey, PockitData, Transaction, TransactionType } from '../types'
+import type {
+  MonthKey,
+  PockitData,
+  Transaction,
+  TransactionRepeat,
+  TransactionType,
+} from '../types'
 import {
   categorizePayee,
   monthKey,
@@ -34,11 +40,13 @@ export function ActivityScreen({
   month,
   update,
   quickAdd = 0,
+  onQuickAddConsumed,
 }: {
   data: PockitData
   month: MonthKey
   update: (recipe: (value: PockitData) => PockitData) => void
   quickAdd?: number
+  onQuickAddConsumed?: () => void
 }) {
   const [search, setSearch] = useState('')
   const [type, setType] = useState<'all' | TransactionType>('all')
@@ -65,12 +73,14 @@ export function ActivityScreen({
     message: string
   } | null>(null)
   useEffect(() => {
-    if (quickAdd > 0)
+    if (quickAdd > 0) {
       setEditing({
         ...blank(),
         date: dateInMonth(month),
         accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
       })
+      onQuickAddConsumed?.()
+    }
   }, [quickAdd])
   useEffect(() => {
     setTagText(editing?.waypointTagsRaw || (editing?.tags || []).join(', '))
@@ -124,6 +134,11 @@ export function ActivityScreen({
   const setDraft = (patch: Partial<Transaction>) => setEditing((d) => (d ? { ...d, ...patch } : d))
   function save() {
     if (!editing?.payee.trim() || editing.amount <= 0 || !validISODate(editing.date)) return
+    if (
+      editing.recurrenceEnd &&
+      (!validISODate(editing.recurrenceEnd) || editing.recurrenceEnd < editing.date)
+    )
+      return
     if (
       editing.splits?.length &&
       Math.abs(editing.splits.reduce((sum, split) => sum + split.amount, 0) - editing.amount) >
@@ -681,6 +696,44 @@ export function ActivityScreen({
               </button>
               <small>Or choose any date above.</small>
             </div>
+            {!editing.goalId && !editing.billId && (
+              <>
+                <Field
+                  label="Repeat on Calendar"
+                  hint="Future repeats appear as planned activity. They do not count as spending or income until you record them."
+                >
+                  <select
+                    value={editing.recurrence || ''}
+                    onChange={(event) =>
+                      setDraft({
+                        recurrence: (event.target.value || undefined) as
+                          TransactionRepeat | undefined,
+                        recurrenceEnd: event.target.value ? editing.recurrenceEnd : undefined,
+                      })
+                    }
+                  >
+                    <option value="">Does not repeat</option>
+                    <option value="weekly">Every week</option>
+                    <option value="biweekly">Every two weeks</option>
+                    <option value="monthly">Every month</option>
+                    <option value="quarterly">Every three months</option>
+                    <option value="yearly">Every year</option>
+                  </select>
+                </Field>
+                {editing.recurrence && (
+                  <Field label="Stop repeating after (optional)">
+                    <input
+                      type="date"
+                      value={editing.recurrenceEnd || ''}
+                      min={editing.date}
+                      onChange={(event) =>
+                        setDraft({ recurrenceEnd: event.target.value || undefined })
+                      }
+                    />
+                  </Field>
+                )}
+              </>
+            )}
             {data.accounts?.length ? (
               <div className="form-grid">
                 <Field label={editing.type === 'transfer' ? 'From account' : 'Account'}>
@@ -946,6 +999,9 @@ export function ActivityScreen({
                   !editing.payee.trim() ||
                   editing.amount <= 0 ||
                   !validISODate(editing.date) ||
+                  (!!editing.recurrenceEnd &&
+                    (!validISODate(editing.recurrenceEnd) ||
+                      editing.recurrenceEnd < editing.date)) ||
                   (!!editing.splits?.length &&
                     (editing.splits.some((split) => !split.categoryId || split.amount <= 0) ||
                       Math.abs(

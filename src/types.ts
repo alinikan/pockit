@@ -5,6 +5,7 @@ export type CategoryMode = 'fresh' | 'rollover'
 export type ContributionTarget = 'fixed' | 'percent' | 'none'
 export type FundingMode = 'auto' | 'manual'
 export type Frequency = 'weekly' | 'biweekly' | 'twice-monthly' | 'monthly'
+export type TransactionRepeat = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
 
 export interface CategoryPolicy {
   frequency: Frequency
@@ -74,6 +75,11 @@ export interface Transaction {
   waypointTypeRaw?: string
   excludedFromBudget?: boolean
   importBatchId?: string
+  /** Shows future dates on Calendar; future amounts are not spent until recorded. */
+  recurrence?: TransactionRepeat
+  recurrenceEnd?: string
+  /** An actual entry recorded from a projected recurrence. */
+  recurrenceId?: string
   splits?: { categoryId: string; amount: number }[]
 }
 
@@ -160,7 +166,7 @@ export interface PockitData {
   }
   settings: {
     theme: 'dark' | 'light'
-    palette?: 'pockit' | 'waypoint' | 'ocean' | 'plum'
+    palette?: 'pockit' | 'garden' | 'waypoint' | 'ocean' | 'plum'
     smart: boolean
     currency: 'CAD'
     guide?: boolean

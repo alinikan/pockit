@@ -20,6 +20,38 @@ import {
   type MobileTab,
 } from '../lib/mobileNavigation'
 
+const moneyTerms = [
+  [
+    'Take-home pay',
+    'The money that reaches you after tax and deductions. Use this for your pay schedule.',
+  ],
+  [
+    'Income',
+    'Money received, such as a paycheque. A transfer between your accounts is not new income.',
+  ],
+  ['Expense', 'Money spent on a purchase or bill. Pockit counts it on the date you record it.'],
+  [
+    'Allocated',
+    'Money assigned to a category. It is a plan, not a payment that has already happened.',
+  ],
+  [
+    'Remaining',
+    'Your plan or category amount minus recorded spending. It is not your bank balance.',
+  ],
+  ['Category limit', 'The amount you intend to spend in one category during a month.'],
+  ['Rollover', 'Unspent category money carries forward, like a jar you keep filling.'],
+  ['Contribution', 'Money added to a savings goal or paid toward a debt.'],
+  ['Transfer', 'Money moved between places you own. It does not count as income or spending.'],
+  ['Recurring', 'Something expected to happen again on a schedule, such as a monthly bill.'],
+  ['Debt principal', 'The amount still owed before future interest is added.'],
+  ['Interest', 'The cost of borrowing, or money earned on savings, shown as a rate over time.'],
+  [
+    'Projection',
+    'An estimate from today’s numbers. New spending, rates, or payments can change it.',
+  ],
+  ['Cleared', 'A transaction you have confirmed against an account record.'],
+] as const
+
 export function MoreScreen({
   data,
   update,
@@ -614,16 +646,6 @@ export function MoreScreen({
               </p>
             </div>
           </div>
-          <p className="soft-note">
-            Once you sign in from the Home Screen icon, Pockit keeps you signed in when you close
-            and reopen it. You may need to sign in again if you sign out, clear website data, or
-            your session is revoked. Safari and the Home Screen app may ask for separate first
-            sign-ins.
-          </p>
-          <div className="soft-note">
-            The website also works without installing it. Bill notifications on iPhone require the
-            Home Screen version and your permission.
-          </div>
         </section>
         <PushSettings demo={demo} />
         <section className="panel settings-panel">
@@ -813,27 +835,23 @@ export function MoreScreen({
             <Icon name="LockKeyhole" size={18} /> Your money is yours to see.
           </div>
         </div>
-        <div className="panel glossary">
-          <SectionHead title="A few handy terms" />
-          <div>
-            <strong>Allocated</strong>
-            <p>Money you’ve assigned to categories. Think of it as a plan, not a payment.</p>
+        <details className="panel glossary">
+          <summary>
+            <span>
+              <Icon name="CircleHelp" size={19} /> A few handy terms
+            </span>
+            <Icon name="ChevronDown" size={18} />
+          </summary>
+          <p className="glossary-intro">Plain words for the numbers you see in Pockit.</p>
+          <div className="glossary-terms">
+            {moneyTerms.map(([term, meaning]) => (
+              <div key={term}>
+                <strong>{term}</strong>
+                <p>{meaning}</p>
+              </div>
+            ))}
           </div>
-          <div>
-            <strong>Rollover</strong>
-            <p>Unused category money carries into the next month, like a jar you keep filling.</p>
-          </div>
-          <div>
-            <strong>Transfer</strong>
-            <p>Moving money between places. It does not add to income or spending.</p>
-          </div>
-          <div>
-            <strong>Projection</strong>
-            <p>
-              An estimate based on today’s numbers. New spending, rates, or payments can change it.
-            </p>
-          </div>
-        </div>
+        </details>
         <button className="signout-button" onClick={logout}>
           <Icon name="LogOut" size={18} /> {demo ? 'Exit preview' : 'Sign out on this device'}
         </button>

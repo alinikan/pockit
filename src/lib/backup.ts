@@ -59,7 +59,7 @@ export function parseBackup(text: string): PockitData {
   if (
     !['dark', 'light'].includes(String(data.settings.theme)) ||
     (data.settings.palette !== undefined &&
-      !['pockit', 'waypoint', 'ocean', 'plum'].includes(String(data.settings.palette))) ||
+      !['pockit', 'garden', 'waypoint', 'ocean', 'plum'].includes(String(data.settings.palette))) ||
     (data.profile.housingPayment !== undefined && !nonnegative(data.profile.housingPayment)) ||
     (data.profile.carPayment !== undefined && !nonnegative(data.profile.carPayment)) ||
     typeof data.settings.smart !== 'boolean' ||
@@ -82,6 +82,13 @@ export function parseBackup(text: string): PockitData {
         !nonnegative(transaction.amount) ||
         transaction.amount === 0 ||
         !['income', 'expense', 'transfer'].includes(String(transaction.type)) ||
+        (transaction.recurrence !== undefined &&
+          !['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'].includes(
+            String(transaction.recurrence),
+          )) ||
+        (transaction.recurrenceEnd !== undefined &&
+          (!validISODate(String(transaction.recurrenceEnd)) ||
+            String(transaction.recurrenceEnd) < String(transaction.date))) ||
         (transaction.splits !== undefined &&
           (transaction.type !== 'expense' ||
             !Array.isArray(transaction.splits) ||

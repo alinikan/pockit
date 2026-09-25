@@ -35,7 +35,7 @@ import { CalendarScreen } from './screens/Calendar'
 import { GoalsScreen } from './screens/Goals'
 import { CompareScreen } from './screens/Compare'
 import { MoreScreen } from './screens/More'
-import { Coach } from './screens/Coach'
+import { Coach, openingMessage, type InsightMessage } from './screens/Coach'
 import { Guide } from './components/Guide'
 import { QuickActions, type QuickAction } from './components/QuickActions'
 import { themeBackground } from './lib/themes'
@@ -71,6 +71,7 @@ export default function App() {
   const [quickAdd, setQuickAdd] = useState(0)
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [coachOpen, setCoachOpen] = useState(false)
+  const [insightMessages, setInsightMessages] = useState<InsightMessage[]>([openingMessage])
   const [guideOpen, setGuideOpen] = useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState<
@@ -181,6 +182,7 @@ export default function App() {
         setData(null)
         ready.current = false
         setConflict(null)
+        setInsightMessages([openingMessage])
       }
     })
     return () => listener.subscription.unsubscribe()
@@ -409,6 +411,7 @@ export default function App() {
     setData(null)
     ready.current = false
     setTab('Home')
+    setInsightMessages([openingMessage])
   }
   async function logout() {
     if (demo) exitDemo()
@@ -781,7 +784,7 @@ export default function App() {
                             : 'See what’s ahead.'}
               </h1>
             </div>
-            {tab !== 'More' && tab !== 'Goals' && tab !== 'Compare' && (
+            {tab !== 'More' && tab !== 'Goals' && tab !== 'Compare' && tab !== 'Calendar' && (
               <MonthPicker month={month} setMonth={setMonth} />
             )}
           </div>
@@ -795,10 +798,18 @@ export default function App() {
             />
           )}
           {tab === 'Activity' && (
-            <ActivityScreen data={data} month={month} update={update} quickAdd={quickAdd} />
+            <ActivityScreen
+              data={data}
+              month={month}
+              update={update}
+              quickAdd={quickAdd}
+              onQuickAddConsumed={() => setQuickAdd(0)}
+            />
           )}
           {tab === 'Budget' && <BudgetScreen data={data} month={month} update={update} />}
-          {tab === 'Calendar' && <CalendarScreen data={data} month={month} update={update} />}
+          {tab === 'Calendar' && (
+            <CalendarScreen data={data} month={month} setMonth={setMonth} update={update} />
+          )}
           {tab === 'Goals' && <GoalsScreen data={data} month={month} update={update} />}
           <div hidden={tab !== 'Compare'}>
             <CompareScreen data={data} month={month} />
@@ -833,19 +844,29 @@ export default function App() {
           </button>
         ))}
       </nav>
-      <button
-        className="quick-add-fab"
-        aria-label="Quick add transaction"
-        title="Quick add transaction"
-        onClick={() => {
-          setMonth(currentMonth())
-          setTab('Activity')
-          setQuickAdd((value) => value + 1)
-        }}
-      >
-        <Icon name="Plus" size={24} />
-      </button>
-      {coachOpen && <Coach data={data} month={month} onClose={() => setCoachOpen(false)} />}
+      {tab === 'Home' && (
+        <button
+          className="quick-add-fab"
+          aria-label="Quick add transaction"
+          title="Quick add transaction"
+          onClick={() => {
+            setMonth(currentMonth())
+            setTab('Activity')
+            setQuickAdd((value) => value + 1)
+          }}
+        >
+          <Icon name="Plus" size={24} />
+        </button>
+      )}
+      {coachOpen && (
+        <Coach
+          data={data}
+          month={month}
+          onClose={() => setCoachOpen(false)}
+          messages={insightMessages}
+          setMessages={setInsightMessages}
+        />
+      )}
       {guideOpen && <Guide topic={tab} onClose={() => setGuideOpen(false)} />}
       {quickActionsOpen && (
         <QuickActions actions={quickActions} onClose={() => setQuickActionsOpen(false)} />
