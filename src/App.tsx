@@ -839,7 +839,7 @@ export default function App() {
       <nav className="bottom-nav">
         {normalizedMobileTabs(data.settings.mobileTabs).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            <Icon name={tabs.find(([label]) => label === name)?.[1] || 'Circle'} size={21} />
+            <Icon name={tabs.find(([label]) => label === name)?.[1] || 'Circle'} size={25} />
             <span>{name}</span>
           </button>
         ))}

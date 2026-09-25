@@ -303,9 +303,6 @@ small {
   line-height: 1;
   padding-bottom: 5px;
 }
-.brand-mark span {
-  color: var(--on-accent);
-}
 .brand-word span {
   color: var(--lime);
 }
@@ -3037,10 +3034,13 @@ small {
 }
 .coach-panel {
   height: 100%;
+  max-height: 100%;
+  min-height: 0;
   width: min(100%, 430px);
   background: var(--surface);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   box-shadow: var(--shadow);
   border-left: 1px solid var(--line);
 }
@@ -3085,7 +3085,10 @@ small {
 }
 .coach-messages {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -3154,6 +3157,7 @@ small {
   border-bottom-right-radius: 3px;
 }
 .coach-bottom {
+  flex: none;
   border-top: 1px solid var(--line);
   padding: 15px;
   display: grid;
@@ -3200,6 +3204,10 @@ small {
 .coach-bottom > small {
   font-size: 9px;
   line-height: 1.45;
+}
+.coach-backdrop.typing .coach-suggestions,
+.coach-backdrop.typing .coach-bottom > small {
+  display: none;
 }
 @media (max-width: 1180px) {
   .dashboard-grid {
@@ -3251,24 +3259,29 @@ small {
     background: color-mix(in srgb, var(--sidebar) 95%, transparent);
     backdrop-filter: blur(18px);
     border-top: 1px solid var(--line);
-    padding: 6px max(4px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom))
+    padding: 8px max(4px, env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom))
       max(4px, env(safe-area-inset-left));
     justify-content: space-around;
   }
   .bottom-nav button {
     min-width: 44px;
-    min-height: 44px;
+    min-height: 68px;
     flex: 1;
     display: flex;
     align-items: center;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     background: none;
     border: 0;
     color: var(--muted);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
-    padding: 4px 5px;
+    padding: 6px 3px;
+  }
+  .bottom-nav button svg {
+    flex: none;
+    width: 26px;
+    height: 26px;
   }
   .bottom-nav button.active {
     color: var(--lime);
@@ -3452,15 +3465,6 @@ small {
   .segmented button {
     padding: 8px 7px;
     font-size: 10px;
-  }
-  .activity-toolbar .primary-button {
-    font-size: 0;
-    min-width: 45px;
-    padding: 0;
-  }
-  .activity-toolbar .primary-button svg {
-    width: 20px;
-    height: 20px;
   }
   .allocation-row {
     gap: 8px;
@@ -3873,9 +3877,34 @@ small {
   line-height: 1.5;
 }
 @media (max-width: 760px) {
+  .activity-toolbar {
+    flex-direction: column;
+  }
+  .search-box {
+    width: 100%;
+  }
+  .activity-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .activity-actions button {
+    min-width: 0;
+    min-height: 68px;
+    padding: 8px;
+    font-size: 12px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .activity-actions button svg {
+    flex: none;
+    width: 22px;
+    height: 22px;
+  }
   .quick-add-fab {
     right: max(17px, env(safe-area-inset-right));
-    bottom: calc(80px + env(safe-area-inset-bottom));
+    bottom: calc(93px + env(safe-area-inset-bottom));
   }
   .sync-chip {
     margin: 8px 17px 0;
@@ -3892,15 +3921,6 @@ small {
   }
 }
 @media (max-width: 440px) {
-  .activity-actions .secondary-button {
-    font-size: 0;
-    min-width: 45px;
-    padding: 0;
-  }
-  .activity-actions .secondary-button svg {
-    width: 20px;
-    height: 20px;
-  }
   .whatif-controls {
     grid-template-columns: 1fr;
   }
@@ -4677,6 +4697,45 @@ small {
 .payday-panel .form-grid {
   margin-top: 4px;
 }
+.inline-help {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 0 13px;
+}
+.inline-help summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+}
+.inline-help summary::-webkit-details-marker {
+  display: none;
+}
+.inline-help summary > svg:first-child {
+  color: var(--lime);
+  flex: none;
+}
+.inline-help summary > svg:last-child {
+  margin-left: auto;
+  color: var(--muted);
+  flex: none;
+  transition: transform 0.2s;
+}
+.inline-help[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.inline-help p {
+  margin: 0 0 13px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
 .calendar-key {
   flex-wrap: wrap;
   font-size: 12px;
@@ -4707,10 +4766,6 @@ small {
   select,
   textarea {
     font-size: 16px !important;
-  }
-  .coach-panel {
-    height: 100dvh;
-    max-height: 100dvh;
   }
   .coach-bottom {
     padding-bottom: max(15px, env(safe-area-inset-bottom));
@@ -4997,7 +5052,7 @@ small {
     min-width: 0;
   }
   .bottom-nav button {
-    font-size: 10px;
+    font-size: 11px;
   }
   .topbar-right .coach-top {
     display: none;

@@ -56,7 +56,7 @@ test('calendar month controls and insight messages stay usable on a phone', asyn
   await expect(page.locator('.calendar-month-nav strong')).not.toHaveText(label!)
   await page.getByRole('button', { name: 'Next calendar month' }).click()
   await expect(page.locator('.calendar-month-nav strong')).toHaveText(label!)
-  await page.getByRole('button', { name: 'Ask Pockit' }).click()
+  await page.getByRole('banner').getByRole('button', { name: 'Ask Pockit' }).click()
   const insights = page.getByRole('dialog', { name: 'Pockit Insights' })
   const input = insights.getByRole('textbox', { name: 'Ask Pockit Insights' })
   expect(
@@ -82,4 +82,69 @@ test('Compare explanation sits below its choice without sideways scrolling', asy
   expect(explanation!.x).toBeGreaterThanOrEqual(text!.x)
   expect(explanation!.x + explanation!.width).toBeLessThanOrEqual(403)
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(403)
+})
+
+test('phone logo, larger tabs, and labelled Activity actions are aligned', async ({ page }) => {
+  await expect(page.locator('.topbar .brand-mark')).toHaveText('p')
+  const nav = page.locator('.bottom-nav')
+  const homeIcon = nav.getByRole('button', { name: 'Home' }).locator('svg')
+  expect((await homeIcon.boundingBox())!.height).toBeGreaterThanOrEqual(25)
+  expect(
+    (await nav.getByRole('button', { name: 'Home' }).boundingBox())!.height,
+  ).toBeGreaterThanOrEqual(58)
+  await nav.getByRole('button', { name: 'Activity' }).click()
+  const actions = page.locator('.activity-actions')
+  for (const name of ['Add transaction', 'Import transactions from a CSV file']) {
+    const button = actions.getByRole('button', { name })
+    await expect(button.locator('span')).toBeVisible()
+    const box = (await button.boundingBox())!
+    const icon = (await button.locator('svg').boundingBox())!
+    expect(Math.abs(icon.x + icon.width / 2 - (box.x + box.width / 2))).toBeLessThan(2)
+  }
+})
+
+test('payday help stays optional and explains the starting amount with an example', async ({
+  page,
+}) => {
+  await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
+  const help = page.locator('.inline-help')
+  await expect(help).not.toHaveAttribute('open')
+  await help.locator('summary').click()
+  await expect(help).toHaveAttribute('open')
+  await expect(help).toContainText('$600')
+  await expect(help).toContainText('$100')
+})
+
+test('Insights composer follows a shortened phone viewport while its messages scroll', async ({
+  page,
+}) => {
+  await page.evaluate(() => window.scrollTo(0, 700))
+  await page.getByRole('banner').getByRole('button', { name: 'Ask Pockit' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Pockit Insights' })
+  const input = dialog.getByRole('textbox', { name: 'Ask Pockit Insights' })
+  await input.focus()
+  await input.fill('How am I doing this month?')
+  await page.evaluate(() => {
+    const viewport = window.visualViewport!
+    Object.defineProperty(viewport, 'height', { configurable: true, value: 420 })
+    viewport.dispatchEvent(new Event('resize'))
+  })
+  await expect(page.locator('.coach-backdrop')).toHaveClass(/typing/)
+  await expect(page.locator('.coach-backdrop')).toHaveCSS('height', '420px')
+  const overlay = (await page.locator('.coach-backdrop').boundingBox())!
+  const form = (await dialog.locator('form').boundingBox())!
+  expect(form.y + form.height).toBeLessThanOrEqual(overlay.y + overlay.height)
+  await expect(input).toHaveValue('How am I doing this month?')
+  await dialog.getByRole('button', { name: 'Send' }).click()
+  const messages = dialog.locator('.coach-messages')
+  expect(await messages.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+    true,
+  )
+  await messages.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+  expect(await messages.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  expect(await page.evaluate(() => document.body.style.position)).toBe('fixed')
+  await dialog.getByRole('button', { name: 'Close coach' }).click()
+  expect(await page.evaluate(() => document.body.style.position)).toBe('')
 })

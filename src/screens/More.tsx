@@ -268,7 +268,7 @@ export function MoreScreen({
         <section className="panel settings-panel">
           <SectionHead
             title="Your paycheque rhythm"
-            help="Set your next pay date and the amount available in your spending account. Pockit uses these to estimate what is left after upcoming bills. It does not connect to your bank."
+            help="Your payday tells Pockit when to expect pay. Money available now is a separate starting amount for the Until your next paycheque estimate. For example, if you can spend $600 today and have a $100 bill before payday, Pockit estimates $500 until payday. This is not your monthly budget or a live bank balance."
           />
           <div className="form-grid">
             {data.profile.payFrequency === 'twice-monthly' ? (
@@ -321,7 +321,7 @@ export function MoreScreen({
               (account) =>
                 !account.archived && (account.kind === 'chequing' || account.kind === 'cash'),
             ) && (
-              <Field label="Money available now">
+              <Field label="Money available now (optional)">
                 <input
                   type="number"
                   min="0"
@@ -340,14 +340,26 @@ export function MoreScreen({
               </Field>
             )}
           </div>
-          <div className="soft-note">
-            {data.accounts?.some(
-              (account) =>
-                !account.archived && (account.kind === 'chequing' || account.kind === 'cash'),
-            )
-              ? 'Your first active chequing or cash account now starts the payday estimate. Check its balance below whenever your real balance differs.'
-              : 'Enter the amount available today, after transactions already in your account. Later recorded income and spending update this estimate. Refresh it when your real balance differs.'}
-          </div>
+          <details className="inline-help">
+            <summary>
+              <Icon name="CircleHelp" size={17} />
+              {data.accounts?.some(
+                (account) =>
+                  !account.archived && (account.kind === 'chequing' || account.kind === 'cash'),
+              )
+                ? 'How is the payday estimate calculated?'
+                : 'What does “Money available now” mean?'}
+              <Icon name="ChevronDown" size={16} />
+            </summary>
+            <p>
+              {data.accounts?.some(
+                (account) =>
+                  !account.archived && (account.kind === 'chequing' || account.kind === 'cash'),
+              )
+                ? 'Pockit starts from your first active chequing or cash account, then uses recorded transactions and unpaid bills before your next payday. Check the account balance in Accounts whenever it differs from reality. This is an estimate, not a bank connection.'
+                : 'Enter what you can spend today from your spending money, after purchases already made. For example, enter $600 if that is what is available now; if a $100 bill is due before payday, Pockit estimates $500 left. Later recorded income and spending adjust the estimate. Update this amount when it no longer matches reality. Leave it empty if you do not know it.'}
+            </p>
+          </details>
           {data.profile.cashAsOf && (
             <small>Starting amount entered on {data.profile.cashAsOf}.</small>
           )}
@@ -355,7 +367,10 @@ export function MoreScreen({
         <AccountsSettings data={data} update={update} />
         <WaypointImport data={data} update={update} />
         <section className="panel settings-panel">
-          <SectionHead title="Preferences" />
+          <SectionHead
+            title="Preferences"
+            help="Choose what Pockit suggests and how it looks on this device. For example, turn off Smart Features if you want to assign every transaction category yourself. Your recorded amounts stay the same."
+          />
           <Toggle
             label="Smart Features"
             description="Suggest categories, read receipts on your device, and spot recurring charges."
@@ -649,7 +664,10 @@ export function MoreScreen({
         </section>
         <PushSettings demo={demo} />
         <section className="panel settings-panel">
-          <SectionHead title="Your data" />
+          <SectionHead
+            title="Your data"
+            help="Download a private copy of your budget before making a big change. For example, save a backup before importing another app's data. Restore replaces the current budget only after you review the file."
+          />
           <div className="settings-action">
             <div>
               <strong>Download a backup</strong>
@@ -735,7 +753,10 @@ export function MoreScreen({
         </section>
         {!demo && (
           <section className="panel settings-panel">
-            <SectionHead title="Account security" />
+            <SectionHead
+              title="Account security"
+              help="Change your sign-in password here. For example, choose a new password if someone else may know your old one. A passkey can also help you sign in with your device."
+            />
             <Field
               label="New password"
               hint="At least 6 characters. Your current session stays signed in."

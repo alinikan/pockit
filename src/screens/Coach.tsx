@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { MonthKey, PockitData } from '../types'
 import {
   budgetHealth,
@@ -194,7 +194,43 @@ export function Coach({
   setMessages: Dispatch<SetStateAction<InsightMessage[]>>
 }) {
   const [input, setInput] = useState('')
-  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(null)
+  const [typing, setTyping] = useState(false)
+  const messagesRef = useRef<HTMLDivElement>(null)
+  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(() => {
+    const visual = window.visualViewport
+    return visual && window.innerWidth <= 760
+      ? { height: visual.height, top: visual.offsetTop }
+      : null
+  })
+  useEffect(() => {
+    const html = document.documentElement
+    const body = document.body
+    const oldHtmlOverflow = html.style.overflow
+    const oldBody = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+    const scrollY = window.scrollY
+    const lockBody = window.innerWidth <= 760
+    html.style.overflow = 'hidden'
+    if (lockBody) {
+      body.style.position = 'fixed'
+      body.style.top = `-${scrollY}px`
+      body.style.left = '0'
+      body.style.right = '0'
+      body.style.width = '100%'
+      body.style.overflow = 'hidden'
+    }
+    return () => {
+      html.style.overflow = oldHtmlOverflow
+      Object.assign(body.style, oldBody)
+      if (lockBody && scrollY) window.scrollTo(0, scrollY)
+    }
+  }, [])
   useEffect(() => {
     const visual = window.visualViewport
     if (!visual) return
@@ -212,6 +248,10 @@ export function Coach({
       window.removeEventListener('resize', updateViewport)
     }
   }, [])
+  useEffect(() => {
+    if (typing && messagesRef.current)
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight
+  }, [typing, viewport?.height, messages.length])
   function ask(value: string) {
     const text = value.trim()
     if (!text) return
@@ -224,7 +264,7 @@ export function Coach({
   }
   return (
     <div
-      className="coach-backdrop"
+      className={`coach-backdrop${typing ? ' typing' : ''}`}
       style={viewport ? { height: viewport.height, top: viewport.top, bottom: 'auto' } : undefined}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
@@ -250,7 +290,7 @@ export function Coach({
             <Icon name="X" />
           </button>
         </div>
-        <div className="coach-messages">
+        <div className="coach-messages" ref={messagesRef}>
           <div className="coach-live" aria-label="Live insights from your entries">
             <strong>RIGHT NOW · {month}</strong>
             {insightCards(data, month).map((card) => (
@@ -286,6 +326,8 @@ export function Coach({
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onFocus={() => setTyping(true)}
+              onBlur={() => setTyping(false)}
               placeholder="Ask about your money…"
               aria-label="Ask Pockit Insights"
             />

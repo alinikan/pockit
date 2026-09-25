@@ -166,7 +166,7 @@ test('quick add, recent merchant, undo, and CSV review work on a phone', async (
     .getByRole('dialog', { name: 'New transaction' })
     .getByRole('button', { name: 'Close' })
     .click()
-  await page.getByRole('button', { name: 'Import CSV' }).click()
+  await page.getByRole('button', { name: 'Import transactions from a CSV file' }).click()
   const date = await page.evaluate(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`

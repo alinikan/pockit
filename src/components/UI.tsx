@@ -207,9 +207,7 @@ export function Icon({
 export function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className="brand">
-      <div className="brand-mark">
-        p<span>.</span>
-      </div>
+      <div className="brand-mark">p</div>
       {!compact && (
         <span className="brand-word">
           pockit<span>.</span>

@@ -668,17 +668,6 @@
   .compare-overview-grid {
     grid-template-columns: repeat(2, minmax(180px, 1fr)) !important;
   }
-  .bottom-nav {
-    justify-content: space-between;
-  }
-  .bottom-nav button {
-    flex: 1;
-    padding: 4px 1px;
-  }
-  .bottom-nav button svg {
-    width: 19px;
-    height: 19px;
-  }
 }
 @media (max-width: 440px) {
   .compare-intro-mark {
@@ -734,9 +723,6 @@
     font-size: 8px;
   }
   .compare-trend-item span {
-    font-size: 8px;
-  }
-  .bottom-nav button {
     font-size: 8px;
   }
 }

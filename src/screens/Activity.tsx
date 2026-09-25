@@ -264,11 +264,16 @@ export function ActivityScreen({
           />
         </div>
         <div className="activity-actions">
-          <button className="secondary-button" onClick={() => setImportOpen(true)}>
-            <Icon name="FileUp" size={17} /> Import CSV
+          <button
+            className="secondary-button"
+            aria-label="Import transactions from a CSV file"
+            onClick={() => setImportOpen(true)}
+          >
+            <Icon name="FileUp" size={17} /> <span>Import file</span>
           </button>
           <button
             className="primary-button"
+            aria-label="Add transaction"
             onClick={() =>
               setEditing({
                 ...blank(),
@@ -277,7 +282,7 @@ export function ActivityScreen({
               })
             }
           >
-            <Icon name="Plus" size={18} /> Add transaction
+            <Icon name="Plus" size={18} /> <span>Add transaction</span>
           </button>
         </div>
       </div>

@@ -197,6 +197,15 @@ const guides: Record<
   ],
   More: [
     {
+      icon: 'Wallet',
+      title: 'Payday timing and money available',
+      message:
+        'A payday date helps estimate when new pay arrives. Money available now is your starting spending amount today, separate from your monthly budget. If you add a chequing account, its balance becomes the starting point instead.',
+      example:
+        'If you have $600 available and $100 in bills before your next paycheque, the estimate is $500. Check it against your real balance.',
+      tone: 'lime',
+    },
+    {
       icon: 'Landmark',
       title: 'Manual accounts',
       message:
