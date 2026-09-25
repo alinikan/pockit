@@ -6,6 +6,15 @@ export type ContributionTarget = 'fixed' | 'percent' | 'none'
 export type FundingMode = 'auto' | 'manual'
 export type Frequency = 'weekly' | 'biweekly' | 'twice-monthly' | 'monthly'
 
+export interface CategoryPolicy {
+  frequency: Frequency
+  paymentDay?: number
+  mode: CategoryMode
+  targetType: ContributionTarget
+  targetValue: number
+  funding: FundingMode
+}
+
 export interface Category {
   id: string
   name: string
@@ -22,8 +31,19 @@ export interface Category {
   targetType: ContributionTarget
   targetValue: number
   funding: FundingMode
+  /** Rules that begin in a chosen month, preserving earlier plan calculations. */
+  policyChanges?: Record<string, CategoryPolicy>
+  /** Rules that apply to a single month only. */
+  policyOverrides?: Record<string, CategoryPolicy>
   notes: string
+  /** True until the user checks the example amount against their real spending. */
+  suggested?: boolean
+  needsAmount?: boolean
+  /** Starter plan follows the total monthly amount of this kind of goal until edited separately. */
+  linkedGoalKind?: GoalKind
   archived?: boolean
+  /** Last month this category is planned, while its earlier history remains visible. */
+  ends?: MonthKey
   waypointKey?: string
 }
 
@@ -127,7 +147,10 @@ export interface PockitData {
     /** First month assigned to the current Waypoint budget snapshot. */
     waypointPlanStarts?: MonthKey
     housing: string
+    /** Actual monthly rent or mortgage entered during setup; undefined means use an example. */
+    housingPayment?: number
     transport: string
+    carPayment?: number
     extras: string[]
     paydayAnchor?: string
     paydayDays?: [number, number]
@@ -137,12 +160,16 @@ export interface PockitData {
   }
   settings: {
     theme: 'dark' | 'light'
+    palette?: 'pockit' | 'waypoint' | 'ocean' | 'plum'
     smart: boolean
     currency: 'CAD'
     guide?: boolean
     hideAmounts?: boolean
     merchantRules?: { payee: string; categoryId: string }[]
     lastPulseAt?: string
+    homeOrder?: string[]
+    hiddenHomeSections?: string[]
+    mobileTabs?: string[]
   }
   accounts?: Account[]
   categories: Category[]

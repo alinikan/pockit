@@ -7,6 +7,24 @@ const validMonth = (value: unknown) =>
   typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)
 const nonnegative = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0
+const validPolicyMap = (value: unknown) =>
+  value === undefined ||
+  (record(value) &&
+    Object.entries(value).every(
+      ([month, policy]) =>
+        validMonth(month) &&
+        record(policy) &&
+        ['weekly', 'biweekly', 'twice-monthly', 'monthly'].includes(String(policy.frequency)) &&
+        ['fresh', 'rollover'].includes(String(policy.mode)) &&
+        ['fixed', 'percent', 'none'].includes(String(policy.targetType)) &&
+        nonnegative(policy.targetValue) &&
+        ['auto', 'manual'].includes(String(policy.funding)) &&
+        (policy.paymentDay === undefined ||
+          (typeof policy.paymentDay === 'number' &&
+            Number.isInteger(policy.paymentDay) &&
+            policy.paymentDay >= 1 &&
+            policy.paymentDay <= 31)),
+    ))
 const uniqueIds = (items: unknown[]) => {
   const ids = items.map((item) => (record(item) ? item.id : undefined))
   return ids.every((id) => typeof id === 'string' && id.trim()) && new Set(ids).size === ids.length
@@ -40,6 +58,10 @@ export function parseBackup(text: string): PockitData {
     )
   if (
     !['dark', 'light'].includes(String(data.settings.theme)) ||
+    (data.settings.palette !== undefined &&
+      !['pockit', 'waypoint', 'ocean', 'plum'].includes(String(data.settings.palette))) ||
+    (data.profile.housingPayment !== undefined && !nonnegative(data.profile.housingPayment)) ||
+    (data.profile.carPayment !== undefined && !nonnegative(data.profile.carPayment)) ||
     typeof data.settings.smart !== 'boolean' ||
     !nonnegative(data.profile.payAmount) ||
     (data.profile.plannedMonthlyIncome !== undefined &&
@@ -87,10 +109,27 @@ export function parseBackup(text: string): PockitData {
         typeof category.name !== 'string' ||
         !nonnegative(category.baseAmount) ||
         !validMonth(category.starts) ||
+        (category.ends !== undefined &&
+          (!validMonth(category.ends) || category.ends < category.starts)) ||
         !['fresh', 'rollover'].includes(String(category.mode)) ||
+        !['fixed', 'percent', 'none'].includes(String(category.targetType)) ||
+        !nonnegative(category.targetValue) ||
+        !['auto', 'manual'].includes(String(category.funding)) ||
         !['weekly', 'biweekly', 'twice-monthly', 'monthly'].includes(String(category.frequency)) ||
         !record(category.changes) ||
-        !record(category.overrides),
+        !record(category.overrides) ||
+        !validPolicyMap(category.policyChanges) ||
+        !validPolicyMap(category.policyOverrides) ||
+        Object.entries(category.changes).some(
+          ([key, amount]) => !validMonth(key) || !nonnegative(amount),
+        ) ||
+        Object.entries(category.overrides).some(
+          ([key, amount]) => !validMonth(key) || !nonnegative(amount),
+        ) ||
+        (category.suggested !== undefined && typeof category.suggested !== 'boolean') ||
+        (category.needsAmount !== undefined && typeof category.needsAmount !== 'boolean') ||
+        (category.linkedGoalKind !== undefined &&
+          !['saving', 'debt'].includes(String(category.linkedGoalKind))),
     )
   )
     throw new Error('This backup contains an invalid category.')

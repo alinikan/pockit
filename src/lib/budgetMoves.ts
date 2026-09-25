@@ -1,5 +1,11 @@
 import type { MonthKey, PockitData } from '../types'
-import { categoryBudget, monthSummary, rolloverBalance, spendingByCategory } from './finance'
+import {
+  categoryBudget,
+  categoryPolicy,
+  monthSummary,
+  rolloverBalance,
+  spendingByCategory,
+} from './finance'
 
 export function coverOverspend(
   data: PockitData,
@@ -15,7 +21,7 @@ export function coverOverspend(
   const summary = monthSummary(data, month)
   const spending = spendingByCategory(data.transactions, month)
   const targetAvailable =
-    target.mode === 'rollover'
+    categoryPolicy(target, month).mode === 'rollover'
       ? rolloverBalance(target, data, month)
       : categoryBudget(target, month, summary.income) - (spending[targetId] || 0)
   if (rounded > -targetAvailable + 0.001)
@@ -28,7 +34,7 @@ export function coverOverspend(
     source = data.categories.find((category) => category.id === sourceId && !category.archived)
     if (!source) throw new Error('Choose a valid source category.')
     const available =
-      source.mode === 'rollover'
+      categoryPolicy(source, month).mode === 'rollover'
         ? rolloverBalance(source, data, month)
         : categoryBudget(source, month, summary.income) - (spending[sourceId] || 0)
     if (available + 0.001 < rounded)

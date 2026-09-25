@@ -173,7 +173,7 @@ export function Onboarding({
               [
                 'Choose the thing you most want help with. You can change your setup later.',
                 'Enter the amount you actually receive after tax.',
-                'This helps us suggest the right monthly categories.',
+                'Tell us what you really pay for housing. If you are unsure, we will use a clearly marked example.',
                 'We’ll add the kinds of transport costs that fit your life.',
                 'Pick as many as you like. You can always add more later.',
                 'Choose any goals that are on your mind.',
@@ -283,8 +283,40 @@ export function Onboarding({
               ['No rent or mortgage', 'HeartHandshake'],
             ].map(([label, icon]) =>
               card(label, icon, data.profile.housing === label, () =>
-                setProfile({ housing: label }),
+                setProfile({ housing: label, housingPayment: undefined }),
               ),
+            )}
+            {(data.profile.housing === 'I rent' || data.profile.housing === 'I own a home') && (
+              <div className="onboarding-panel">
+                <label className="field">
+                  <span>
+                    Your monthly {data.profile.housing === 'I rent' ? 'rent' : 'mortgage payment'}{' '}
+                    (if you know it)
+                  </span>
+                  <div className="money-input">
+                    <span>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={data.profile.housingPayment ?? ''}
+                      onChange={(event) =>
+                        setProfile({
+                          housingPayment:
+                            event.target.value === '' ? undefined : num(event.target.value),
+                        })
+                      }
+                      placeholder="Enter your real payment"
+                    />
+                  </div>
+                </label>
+                <small>
+                  {data.profile.housing === 'I rent'
+                    ? 'If left blank, we use a $2,154 Vancouver one-bedroom asking-rent example. Your actual rent may be very different, especially with roommates.'
+                    : 'If left blank, mortgage starts at $0 until you enter your real payment. We cannot guess from your income.'}
+                </small>
+              </div>
             )}
           </div>
         )}
@@ -297,8 +329,36 @@ export function Onboarding({
               ['Walk or bike', 'Bike'],
             ].map(([label, icon]) =>
               card(label, icon, data.profile.transport === label, () =>
-                setProfile({ transport: label }),
+                setProfile({ transport: label, carPayment: undefined }),
               ),
+            )}
+            {data.profile.transport === 'Car' && (
+              <div className="onboarding-panel">
+                <label className="field">
+                  <span>Monthly car loan or lease payment (if you have one)</span>
+                  <div className="money-input">
+                    <span>$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={data.profile.carPayment ?? ''}
+                      onChange={(event) =>
+                        setProfile({
+                          carPayment:
+                            event.target.value === '' ? undefined : num(event.target.value),
+                        })
+                      }
+                      placeholder="Leave blank if you do not have one"
+                    />
+                  </div>
+                </label>
+                <small>
+                  We will not add a car payment unless you enter one. Gas, insurance, and
+                  maintenance start as examples you can change.
+                </small>
+              </div>
             )}
           </div>
         )}
@@ -473,8 +533,16 @@ export function Onboarding({
             </div>
             <strong>Good things start with a clear picture.</strong>
             <p>
-              A simple starting plan in Canadian dollars. You can change every amount in Budget.
+              A first draft in Canadian dollars. Please replace the examples with your real bills
+              and spending limits in Budget.
             </p>
+            {data.profile.housing === 'I own a home' &&
+              data.profile.housingPayment === undefined && (
+                <p className="soft-note">
+                  Your draft does not include a mortgage payment yet. Add your actual amount in
+                  Budget before relying on the total.
+                </p>
+              )}
             {(() => {
               const preview = buildOnboardedData({ ...data, goals: selectedGoals })
               const income = monthSummary(preview, currentMonth()).income
@@ -490,15 +558,38 @@ export function Onboarding({
                     <strong>{money(income)}</strong>
                   </div>
                   <div>
-                    <span>Suggested category plan</span>
+                    <span>Starting monthly plan</span>
                     <strong>{money(allocated)}</strong>
                   </div>
                   <div>
-                    <span>Still open for choices</span>
-                    <strong>{money(income - allocated)}</strong>
+                    <span>
+                      {income - allocated < 0 ? 'Plan exceeds expected pay' : 'Not yet planned'}
+                    </span>
+                    <strong className={income - allocated < 0 ? 'negative' : ''}>
+                      {money(Math.abs(income - allocated))}
+                    </strong>
                   </div>
                   <small>
-                    A plan, not recorded spending. Check fixed bills against what you pay.
+                    {income - allocated < 0
+                      ? 'These examples exceed your expected pay. Pockit has kept the costs visible so you can review your real numbers and decide what to change.'
+                      : 'This is a plan, not money already spent. Check every example against what you actually pay.'}
+                  </small>
+                  <small>
+                    Vancouver 2026 examples: one-bedroom asking rent from RentMe (August), one-zone
+                    transit pass from TransLink (July). Other amounts are planning examples, not
+                    local averages.{' '}
+                    <a
+                      href="https://www.rentme.ca/market-update/vancouver-august-2026"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Rent source
+                    </a>{' '}
+                    ·{' '}
+                    <a href="https://www.translink.ca/monthlypass" target="_blank" rel="noreferrer">
+                      Transit source
+                    </a>
+                    .
                   </small>
                 </div>
               )

@@ -3,15 +3,17 @@ import type { PockitData } from '../types'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+/** Browser and installed iPhone web-app sessions survive ordinary closes and reopenings. */
+export const browserAuthOptions = {
+  persistSession: true,
+  autoRefreshToken: true,
+  detectSessionInUrl: true,
+  experimental: { passkey: true },
+} as const
 export const supabase: SupabaseClient | null =
   url && key && !url.includes('YOUR_PROJECT_REF')
     ? createClient(url, key, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-          experimental: { passkey: true },
-        },
+        auth: browserAuthOptions,
       })
     : null
 

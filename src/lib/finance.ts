@@ -1,4 +1,13 @@
-import type { Bill, Category, Frequency, Goal, MonthKey, PockitData, Transaction } from '../types'
+import type {
+  Bill,
+  Category,
+  CategoryPolicy,
+  Frequency,
+  Goal,
+  MonthKey,
+  PockitData,
+  Transaction,
+} from '../types'
 import { scheduledIncome } from './paySchedule'
 
 export const monthKey = (date: Date): MonthKey =>
@@ -17,6 +26,13 @@ export const monthLabel = (key: MonthKey) => {
   return new Intl.DateTimeFormat('en-CA', { month: 'long', year: 'numeric' }).format(
     new Date(year, month - 1, 1),
   )
+}
+export const shortDate = (iso: string) => {
+  const [year, month, day] = iso.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  return Number.isNaN(date.valueOf())
+    ? iso
+    : new Intl.DateTimeFormat('en-CA', { month: 'short', day: 'numeric' }).format(date)
 }
 let hideDisplayAmounts = false
 /** Display-only masking for the single Pockit app root. This is not encryption or a session lock. */
@@ -46,15 +62,36 @@ export const categoryPeriodAmount = (category: Category, month: MonthKey) => {
     .at(-1)
   return latest ? category.changes[latest] : category.baseAmount
 }
+export const categoryPolicy = (category: Category, month: MonthKey): CategoryPolicy => {
+  const override = category.policyOverrides?.[month]
+  if (override) return override
+  const latest = Object.keys(category.policyChanges || {})
+    .filter((key) => key <= month)
+    .sort()
+    .at(-1)
+  return latest
+    ? category.policyChanges![latest]
+    : {
+        frequency: category.frequency,
+        paymentDay: category.paymentDay,
+        mode: category.mode,
+        targetType: category.targetType,
+        targetValue: category.targetValue,
+        funding: category.funding,
+      }
+}
 export const categoryBudget = (category: Category, month: MonthKey, monthlyIncome: number) => {
-  if (category.archived || month < category.starts) return 0
+  if (!categoryActiveInMonth(category, month)) return 0
   if (Object.prototype.hasOwnProperty.call(category.overrides, month))
     return category.overrides[month]
-  if (category.mode === 'rollover' && category.targetType === 'percent')
-    return Math.max(0, (monthlyIncome * category.targetValue) / 100)
-  if (category.mode === 'rollover' && category.targetType === 'none') return 0
-  return monthlyPay(categoryPeriodAmount(category, month), category.frequency)
+  const policy = categoryPolicy(category, month)
+  if (policy.mode === 'rollover' && policy.targetType === 'percent')
+    return Math.max(0, (monthlyIncome * policy.targetValue) / 100)
+  if (policy.mode === 'rollover' && policy.targetType === 'none') return 0
+  return monthlyPay(categoryPeriodAmount(category, month), policy.frequency)
 }
+export const categoryActiveInMonth = (category: Category, month: MonthKey) =>
+  month >= category.starts && (!category.archived || (!!category.ends && month <= category.ends))
 export const spendingByCategory = (transactions: Transaction[], month: MonthKey) => {
   const totals: Record<string, number> = {}
   for (const t of transactionsInMonth(transactions, month)) {
@@ -96,7 +133,7 @@ export const monthSummary = (data: PockitData, month: MonthKey) => {
   }
 }
 export const rolloverBalance = (category: Category, data: PockitData, month: MonthKey) => {
-  if (category.mode !== 'rollover')
+  if (categoryPolicy(category, month).mode !== 'rollover')
     return (
       categoryBudget(category, month, monthSummary(data, month).income) -
       (spendingByCategory(data.transactions, month)[category.id] || 0)
@@ -104,10 +141,19 @@ export const rolloverBalance = (category: Category, data: PockitData, month: Mon
   let total = 0
   let cursor = category.starts
   let guard = 0
-  while (cursor <= month && guard++ < 240) {
+  let priorMode: CategoryPolicy['mode'] | undefined
+  while (cursor <= month && guard++ < 1200) {
+    const policy = categoryPolicy(category, cursor)
     const income = monthSummary(data, cursor).income
+    if (policy.mode === 'fresh') {
+      total = 0
+      priorMode = 'fresh'
+      cursor = shiftMonth(cursor, 1)
+      continue
+    }
+    if (priorMode === 'fresh') total = 0
     total +=
-      category.funding === 'manual'
+      policy.funding === 'manual'
         ? transactionsInMonth(data.transactions, cursor)
             .filter(
               (t) => t.categoryId === category.id && (t.type === 'transfer' || t.type === 'income'),
@@ -115,9 +161,29 @@ export const rolloverBalance = (category: Category, data: PockitData, month: Mon
             .reduce((n, t) => n + t.amount, 0)
         : categoryBudget(category, cursor, income)
     total -= spendingByCategory(data.transactions, cursor)[category.id] || 0
+    priorMode = policy.mode
     cursor = shiftMonth(cursor, 1)
   }
   return total
+}
+/** The balance is calculated from the plan and recorded transactions, never duplicated into a new month. */
+export const rolloverMonth = (category: Category, data: PockitData, month: MonthKey) => {
+  const previous = shiftMonth(month, -1)
+  const carried =
+    previous < category.starts || categoryPolicy(category, previous).mode !== 'rollover'
+      ? 0
+      : rolloverBalance(category, data, previous)
+  const planned = categoryBudget(category, month, monthSummary(data, month).income)
+  const added =
+    categoryPolicy(category, month).funding === 'manual'
+      ? transactionsInMonth(data.transactions, month)
+          .filter(
+            (t) => t.categoryId === category.id && (t.type === 'transfer' || t.type === 'income'),
+          )
+          .reduce((sum, t) => sum + t.amount, 0)
+      : planned
+  const spent = spendingByCategory(data.transactions, month)[category.id] || 0
+  return { carried, planned, added, spent, available: carried + added - spent }
 }
 export interface Projection {
   months: number | null
@@ -170,9 +236,10 @@ export const budgetHealth = (data: PockitData, month: MonthKey) => {
   const spend = spendingByCategory(data.transactions, month)
   const trouble = data.categories.filter(
     (c) =>
-      !c.archived &&
-      month >= c.starts &&
-      (spend[c.id] || 0) > categoryBudget(c, month, summary.income),
+      categoryActiveInMonth(c, month) &&
+      (categoryPolicy(c, month).mode === 'rollover'
+        ? rolloverBalance(c, data, month) < -0.001
+        : (spend[c.id] || 0) > categoryBudget(c, month, summary.income)),
   )
   return { ...summary, trouble, spend }
 }
@@ -207,16 +274,41 @@ export const categoryDueDates = (data: PockitData, month: MonthKey) => {
   return data.categories
     .filter(
       (category) =>
-        !category.archived &&
-        category.paymentDay &&
+        categoryActiveInMonth(category, month) &&
+        categoryPolicy(category, month).paymentDay &&
         !billCategories.has(category.id) &&
         categoryBudget(category, month, income) > 0,
     )
     .map((category) => ({
       category,
-      date: `${month}-${String(Math.min(category.paymentDay!, days)).padStart(2, '0')}`,
+      date: `${month}-${String(Math.min(categoryPolicy(category, month).paymentDay!, days)).padStart(2, '0')}`,
       amount: categoryBudget(category, month, income),
     }))
+}
+const billLikeCategories = new Set([
+  'Rent',
+  'Mortgage',
+  'Car Payment',
+  'Car Insurance',
+  'Insurance',
+  'Utilities',
+  'Internet',
+  'Phone',
+  'Internet & Phone',
+  'Gym',
+])
+/** Show only bill-like plans that lack both a payment day and a linked bill. */
+export const categoriesMissingBillDates = (data: PockitData, month: MonthKey) => {
+  const income = monthSummary(data, month).income
+  const linked = new Set(data.bills.map((bill) => bill.categoryId).filter(Boolean))
+  return data.categories.filter(
+    (category) =>
+      categoryActiveInMonth(category, month) &&
+      (category.group === 'Bills & Utilities' || billLikeCategories.has(category.name)) &&
+      categoryBudget(category, month, income) > 0 &&
+      !categoryPolicy(category, month).paymentDay &&
+      !linked.has(category.id),
+  )
 }
 /** An estimate to set aside each month until the next quarterly or yearly bill. */
 export const billMonthlyReserve = (bill: Bill, month: MonthKey) => {

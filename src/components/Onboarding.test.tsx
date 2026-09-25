@@ -7,6 +7,29 @@ import { Onboarding } from './Onboarding'
 afterEach(cleanup)
 
 describe('onboarding', () => {
+  it('shows the local example clearly, accepts an actual rent amount, and warns about an unaffordable draft', () => {
+    const initial = makeInitialData()
+    initial.onboardingStep = 2
+    initial.profile.payAmount = 500
+    initial.profile.payFrequency = 'monthly'
+    const view = render(<Onboarding initial={initial} onDone={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /i rent/i }))
+    expect(screen.getByText(/2,154 Vancouver one-bedroom/i)).toBeTruthy()
+    fireEvent.change(screen.getByPlaceholderText('Enter your real payment'), {
+      target: { value: '1280' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /public transit/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }))
+    expect(screen.getByLabelText('Starting monthly plan').textContent).toMatch(
+      /Plan exceeds expected pay/,
+    )
+    view.unmount()
+  })
   it('keeps the completed plan separate from the check icon', () => {
     const data = makeInitialData()
     data.onboardingStep = 8
@@ -16,7 +39,7 @@ describe('onboarding', () => {
     const preview = screen.getByLabelText('Starting monthly plan')
     expect(preview.className).toBe('onboarding-plan-preview')
     expect(preview.parentElement?.querySelector('.finish-icon')).toBeTruthy()
-    expect(preview.textContent).toMatch(/Suggested category plan/)
+    expect(preview.textContent).toMatch(/Starting monthly plan/)
   })
   it('saves the current step and goal details, then resumes them on sign-in', async () => {
     const saves: ReturnType<typeof makeInitialData>[] = []
@@ -79,6 +102,9 @@ describe('onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     expect(screen.getByRole('alert').textContent).toMatch(/get around/i)
     fireEvent.click(screen.getByRole('button', { name: /^car$/i }))
+    fireEvent.change(screen.getByPlaceholderText('Leave blank if you do not have one'), {
+      target: { value: '280' },
+    })
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))
     fireEvent.click(screen.getByRole('button', { name: /gym/i }))
     fireEvent.click(screen.getByRole('button', { name: /continue/i }))

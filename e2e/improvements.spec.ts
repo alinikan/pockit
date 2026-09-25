@@ -13,6 +13,8 @@ test('phone guides, privacy control, and theme work without moving the page side
   await expect(guide.getByText('Until your next paycheque')).toBeVisible()
   await guide.getByRole('button', { name: 'Next' }).click()
   await expect(guide.getByText('A tiny weekly reset')).toBeVisible()
+  await guide.getByRole('button', { name: 'Next' }).click()
+  await expect(guide.getByText('Make Home your own')).toBeVisible()
   await guide.getByRole('button', { name: 'Got it' }).click()
   await page.getByRole('button', { name: 'Hide money amounts' }).click()
   await expect(page.locator('.app-shell')).toHaveClass(/private-amounts/)
@@ -20,7 +22,7 @@ test('phone guides, privacy control, and theme work without moving the page side
   await page.getByRole('button', { name: 'Show money amounts' }).click()
   await expect(page.locator('.app-shell')).not.toHaveClass(/private-amounts/)
   await expect(page.locator('.hero-number')).toContainText('$')
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await page.getByRole('button', { name: /Switch to (light|dark) mode/ }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   const widths = await page.evaluate(() => [
     document.documentElement.clientWidth,

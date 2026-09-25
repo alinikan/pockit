@@ -2,6 +2,7 @@ import type { MonthKey, PockitData } from '../types'
 import {
   categoryBudget,
   categoryPeriodAmount,
+  categoryPolicy,
   monthSummary,
   monthlyPay,
   projectGoal,
@@ -148,7 +149,10 @@ export function applyScenario(data: PockitData, month: MonthKey, input: Scenario
   if (input.expenseChange !== 0) {
     const category = data.categories.find((item) => item.id === input.categoryId)
     if (!category) throw new Error('Choose a category for the recurring expense change.')
-    if (category.mode === 'rollover' && category.targetType !== 'fixed')
+    if (
+      categoryPolicy(category, month).mode === 'rollover' &&
+      categoryPolicy(category, month).targetType !== 'fixed'
+    )
       throw new Error('Edit this percentage or no-target category directly in Budget.')
     next.categories = next.categories.map((item) =>
       item.id === category.id

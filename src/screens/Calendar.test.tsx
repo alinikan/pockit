@@ -111,4 +111,27 @@ describe('calendar', () => {
     )
     expect(monthSummary(data, month).spent).toBe(before)
   })
+  it('offers a missing bill date, requires a real day, and links the reminder to its budget category', () => {
+    let data: PockitData = makeDemoData()
+    const month = currentMonth()
+    const phone = data.categories.find((category) => category.name === 'Phone')!
+    const update = (recipe: (value: PockitData) => PockitData) => {
+      data = recipe(data)
+    }
+    const view = () => <CalendarScreen data={data} month={month} update={update} />
+    const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: /Set Phone date/ }))
+    const save = screen.getByRole('button', { name: 'Save bill' }) as HTMLButtonElement
+    expect(save.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Day of month'), { target: { value: '15' } })
+    expect(save.disabled).toBe(false)
+    fireEvent.click(save)
+    expect(data.bills.find((bill) => bill.categoryId === phone.id)).toMatchObject({
+      day: 15,
+      amount: 65,
+    })
+    rerender(view())
+    expect(screen.queryByRole('button', { name: /Set Phone date/ })).toBeNull()
+    expect(data.transactions).toHaveLength(20)
+  })
 })

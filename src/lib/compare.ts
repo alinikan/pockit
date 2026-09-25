@@ -1,7 +1,9 @@
 import type { MonthKey, PockitData } from '../types'
 import {
   beforeWaypointPlan,
+  categoryActiveInMonth,
   categoryBudget,
+  categoryPolicy,
   money,
   monthSummary,
   rolloverBalance,
@@ -194,13 +196,13 @@ export function budgetComparison(data: PockitData, month: MonthKey) {
       name: category.name,
       icon: category.icon,
       color: category.color,
-      mode: category.mode,
+      mode: categoryPolicy(category, month).mode,
       planned,
       spent,
       planUnavailable,
       balance: planUnavailable
         ? 0
-        : category.mode === 'rollover'
+        : categoryPolicy(category, month).mode === 'rollover'
           ? rolloverBalance(category, data, month)
           : planned - spent,
     }
@@ -253,7 +255,7 @@ export function comparisonFindings(data: PockitData, before: MonthSnapshot, afte
     })
   const historicalUnplanned =
     beforeWaypointPlan(data, after.month) &&
-    !data.categories.some((category) => !category.archived && category.starts <= after.month)
+    !data.categories.some((category) => categoryActiveInMonth(category, after.month))
   const over = historicalUnplanned
     ? []
     : budgetComparison(data, after.month).filter((row) => row.balance < 0)

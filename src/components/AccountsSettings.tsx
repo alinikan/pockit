@@ -65,7 +65,7 @@ export function AccountsSettings({
     )
     setReconciling(null)
     setActual('')
-    setMessage('Balance reconciled. Pockit now starts its estimate from this amount.')
+    setMessage('Balance updated. Pockit now starts its estimate from this amount.')
   }
   return (
     <section className="panel settings-panel" id="accounts">
@@ -135,7 +135,7 @@ export function AccountsSettings({
               setActual('')
             }}
           >
-            Reconcile
+            Check balance
           </button>
           <button
             className="text-button"

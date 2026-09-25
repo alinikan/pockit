@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { Session } from '@supabase/supabase-js'
 import type { MonthKey, PockitData } from './types'
 import { currentMonth, setMoneyPrivacy } from './lib/finance'
@@ -35,6 +36,11 @@ import { CompareScreen } from './screens/Compare'
 import { MoreScreen } from './screens/More'
 import { Coach } from './screens/Coach'
 import { Guide } from './components/Guide'
+import { QuickActions, type QuickAction } from './components/QuickActions'
+import { themeBackground } from './lib/themes'
+import { syncGoalPlans } from './lib/goalPlans'
+import { animateThemeChange } from './lib/themeMotion'
+import { normalizedMobileTabs } from './lib/mobileNavigation'
 
 type Tab = 'Home' | 'Activity' | 'Budget' | 'Calendar' | 'Goals' | 'Compare' | 'More'
 const tabs: [Tab, string][] = [
@@ -65,6 +71,7 @@ export default function App() {
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [coachOpen, setCoachOpen] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState<
     'saved' | 'saving' | 'offline' | 'conflict' | 'error'
   >('saved')
@@ -82,6 +89,17 @@ export default function App() {
   const conflictRef = useRef(conflict)
   dataRef.current = data
   conflictRef.current = conflict
+
+  useEffect(() => {
+    const openSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setQuickActionsOpen(true)
+      }
+    }
+    window.addEventListener('keydown', openSearch)
+    return () => window.removeEventListener('keydown', openSearch)
+  }, [])
 
   useEffect(() => {
     const retryPending = () => {
@@ -126,6 +144,9 @@ export default function App() {
     supabase.auth
       .getSession()
       .then(({ data: result }) => setSession(result.session))
+      .catch(() =>
+        setError('Could not restore your sign-in. Check your connection and reopen Pockit.'),
+      )
       .finally(() => setLoading(false))
     const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
       setSession(next)
@@ -199,9 +220,13 @@ export default function App() {
   useEffect(() => {
     if (!data || !ready.current) return
     document.documentElement.dataset.theme = data.settings.theme
+    document.documentElement.dataset.palette = data.settings.palette || 'pockit'
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', data.settings.theme === 'light' ? '#f5f7f1' : '#0c1515')
+      ?.setAttribute(
+        'content',
+        themeBackground(data.settings.palette || 'pockit', data.settings.theme),
+      )
     document
       .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
       ?.setAttribute('content', data.settings.theme === 'light' ? 'default' : 'black-translucent')
@@ -334,7 +359,18 @@ export default function App() {
     setData(readDemo() || makeDemoData())
   }
   function update(recipe: (current: PockitData) => PockitData) {
-    setData((current) => (current ? recipe(current) : current))
+    setData((current) => (current ? syncGoalPlans(current, recipe(current)) : current))
+  }
+  function changeTheme(theme: 'light' | 'dark', origin?: Element | null) {
+    animateThemeChange(() => {
+      document.documentElement.dataset.theme = theme
+      flushSync(() =>
+        update((current) => ({
+          ...current,
+          settings: { ...current.settings, theme },
+        })),
+      )
+    }, origin)
   }
   function exitDemo() {
     setDemo(false)
@@ -350,7 +386,7 @@ export default function App() {
           'Signed out, but this device may still receive generic reminders. Turn off Pockit notifications in device settings if needed.',
         )
       })
-      await supabase?.auth.signOut()
+      await supabase?.auth.signOut({ scope: 'local' })
     }
   }
   setMoneyPrivacy(!!data?.settings.hideAmounts)
@@ -488,6 +524,45 @@ export default function App() {
         onDone={setData}
       />
     )
+  const quickActions: QuickAction[] = [
+    ...tabs.map(([name, icon]): QuickAction => ({
+      label: name === 'More' ? 'More and settings' : name,
+      description:
+        name === 'Compare'
+          ? 'Compare spending and budget plans across months'
+          : name === 'Activity'
+            ? 'Search and review your transactions'
+            : `Open ${name.toLowerCase()}`,
+      group: 'Pages',
+      icon,
+      run: () => setTab(name),
+    })),
+    {
+      label: 'Add transaction',
+      description: 'Record an expense, paycheque, or transfer',
+      group: 'Actions',
+      icon: 'Plus',
+      run: () => {
+        setMonth(currentMonth())
+        setTab('Activity')
+        setQuickAdd((value) => value + 1)
+      },
+    },
+    {
+      label: 'Open a guide',
+      description: 'Plain-language help for the current page',
+      group: 'Actions',
+      icon: 'CircleHelp',
+      run: () => setGuideOpen(true),
+    },
+    {
+      label: 'Change appearance',
+      description: 'Choose dark, light, and colour themes',
+      group: 'Actions',
+      icon: 'Palette',
+      run: () => setTab('More'),
+    },
+  ]
   return (
     <div
       className={`app-shell ${data.settings.hideAmounts ? 'private-amounts' : ''}`}
@@ -545,6 +620,14 @@ export default function App() {
           <div className="topbar-right">
             <button
               className="icon-button top-utility"
+              aria-label="Search pages and actions"
+              title="Search pages and actions (⌘K / Ctrl+K)"
+              onClick={() => setQuickActionsOpen(true)}
+            >
+              <Icon name="Search" size={19} />
+            </button>
+            <button
+              className="icon-button top-utility"
               aria-label={`Open ${tab} guide`}
               title="Guide"
               onClick={() => setGuideOpen(true)}
@@ -566,16 +649,10 @@ export default function App() {
             </button>
             <button
               className="theme-button"
-              title="Toggle theme"
-              aria-label="Toggle theme"
-              onClick={() =>
-                update((d) => ({
-                  ...d,
-                  settings: {
-                    ...d.settings,
-                    theme: d.settings.theme === 'dark' ? 'light' : 'dark',
-                  },
-                }))
+              title={`Switch to ${data.settings.theme === 'dark' ? 'light' : 'dark'} mode`}
+              aria-label={`Switch to ${data.settings.theme === 'dark' ? 'light' : 'dark'} mode`}
+              onClick={(event) =>
+                changeTheme(data.settings.theme === 'dark' ? 'light' : 'dark', event.currentTarget)
               }
             >
               <Icon name={data.settings.theme === 'dark' ? 'Sun' : 'Moon'} size={19} />
@@ -675,6 +752,7 @@ export default function App() {
             <MoreScreen
               data={data}
               update={update}
+              changeTheme={changeTheme}
               logout={logout}
               onDeleted={() => {
                 if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -693,9 +771,9 @@ export default function App() {
         </main>
       </div>
       <nav className="bottom-nav">
-        {tabs.map(([name, icon]) => (
+        {normalizedMobileTabs(data.settings.mobileTabs).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            <Icon name={icon} size={21} />
+            <Icon name={tabs.find(([label]) => label === name)?.[1] || 'Circle'} size={21} />
             <span>{name}</span>
           </button>
         ))}
@@ -714,6 +792,9 @@ export default function App() {
       </button>
       {coachOpen && <Coach data={data} month={month} onClose={() => setCoachOpen(false)} />}
       {guideOpen && <Guide topic={tab} onClose={() => setGuideOpen(false)} />}
+      {quickActionsOpen && (
+        <QuickActions actions={quickActions} onClose={() => setQuickActionsOpen(false)} />
+      )}
     </div>
   )
 }

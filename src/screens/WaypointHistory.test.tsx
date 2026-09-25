@@ -72,7 +72,7 @@ describe('historical Waypoint months in the app', () => {
   it('does not offer to cover a false overage in Budget', () => {
     render(<BudgetScreen data={historicalImport()} month="2026-08" update={() => {}} />)
     expect(
-      screen.getByText(/did not include budget allocations for this earlier month/i),
+      screen.getByText(/did not include the amounts you planned for this earlier month/i),
     ).toBeTruthy()
     expect(screen.getByText('No plan')).toBeTruthy()
     expect(screen.queryByText('MONTHLY PLAN')).toBeNull()
@@ -81,9 +81,9 @@ describe('historical Waypoint months in the app', () => {
 
   it('does not present a fabricated plan gap in Compare', () => {
     render(<CompareScreen data={historicalImport()} month="2026-08" />)
-    fireEvent.click(screen.getByRole('tab', { name: /Plan vs actual/ }))
-    expect(screen.getByText(/no matching monthly budget allocations/i)).toBeTruthy()
-    expect(screen.getByText(/amounts below are actual spending only/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: /Plan vs spent/ }))
+    expect(screen.getByText(/no matching monthly budget amounts/i)).toBeTruthy()
+    expect(screen.getByText(/amounts below are recorded spending only/i)).toBeTruthy()
     expect(screen.queryByText('THIS MONTH GAP')).toBeNull()
   })
 

@@ -233,7 +233,7 @@ export function WhatIfLab({
           <small>
             {result.roomAfter < 0
               ? 'This scenario exceeds planned income. Reduce or delay something before applying.'
-              : 'Planned income after allocations and the changes above.'}
+              : 'Expected pay after planned category amounts and the changes above.'}
           </small>
         </div>
         {payday.afterBills !== null && oneTimeExpense > 0 && (

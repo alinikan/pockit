@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
+  ArrowDown,
   ArrowDownLeft,
   ArrowLeft,
   ArrowLeftRight,
@@ -21,6 +22,7 @@ import {
   ChevronUp,
   Circle,
   CircleDot,
+  CircleHelp,
   Clapperboard,
   Columns3,
   Cloud,
@@ -54,6 +56,7 @@ import {
   LockKeyhole,
   LogOut,
   Moon,
+  Palette,
   PawPrint,
   Percent,
   PiggyBank,
@@ -70,6 +73,7 @@ import {
   Search,
   Settings2,
   Shapes,
+  SlidersHorizontal,
   Shield,
   ShieldCheck,
   ShoppingBag,
@@ -102,6 +106,7 @@ export function Icon({
   const Component =
     (
       {
+        ArrowDown,
         ArrowDownLeft,
         ArrowLeft,
         ArrowLeftRight,
@@ -123,6 +128,7 @@ export function Icon({
         ChevronUp,
         Circle,
         CircleDot,
+        CircleHelp,
         Clapperboard,
         Columns3,
         Cloud,
@@ -156,6 +162,7 @@ export function Icon({
         LockKeyhole,
         LogOut,
         Moon,
+        Palette,
         PawPrint,
         Percent,
         PiggyBank,
@@ -172,6 +179,7 @@ export function Icon({
         Search,
         Settings2,
         Shapes,
+        SlidersHorizontal,
         Shield,
         ShieldCheck,
         ShoppingBag,
@@ -362,7 +370,7 @@ export function Toggle({
   description,
 }: {
   checked: boolean
-  onChange: (value: boolean) => void
+  onChange: (value: boolean, origin: Element) => void
   label: string
   description?: string
 }) {
@@ -372,7 +380,13 @@ export function Toggle({
         <strong>{label}</strong>
         {description && <small>{description}</small>}
       </span>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) =>
+          onChange(e.target.checked, e.currentTarget.nextElementSibling || e.currentTarget)
+        }
+      />
       <span className="toggle-track" />
     </label>
   )

@@ -87,8 +87,8 @@ describe('Compare screen', () => {
     expect((screen.getByLabelText('Include $0 categories') as HTMLInputElement).checked).toBe(true)
     fireEvent.click(screen.getByRole('tab', { name: /Trend/ }))
     expect(screen.getByText('The longer view', { selector: 'h3' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('tab', { name: /Plan vs actual/ }))
-    expect(screen.getByText('Plan vs actual', { selector: 'h3' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: /Plan vs spent/ }))
+    expect(screen.getByText('Plan vs spent', { selector: 'h3' })).toBeTruthy()
   })
 
   it('prevents duplicate comparison months', () => {
@@ -184,10 +184,10 @@ describe('Compare screen', () => {
 
   it('explains fresh, rollover, and unallocated spending separately', () => {
     render(<CompareScreen data={comparisonData()} month="2026-01" />)
-    fireEvent.click(screen.getByRole('tab', { name: /Plan vs actual/ }))
-    expect(screen.getByText('$30.00 over allocation')).toBeTruthy()
-    expect(screen.getByText('$80.00 available with rollover')).toBeTruthy()
-    expect(screen.getByText('Spent without a monthly allocation')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: /Plan vs spent/ }))
+    expect(screen.getByText('$30.00 over the planned amount')).toBeTruthy()
+    expect(screen.getByText('$80.00 available after carryover')).toBeTruthy()
+    expect(screen.getByText('Spent without a monthly plan')).toBeTruthy()
     expect(screen.getByText('$820.00')).toBeTruthy()
   })
 

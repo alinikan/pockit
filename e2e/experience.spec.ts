@@ -12,6 +12,107 @@ async function noOverflow(page: Page) {
   expect(widths.content).toBeLessThanOrEqual(widths.viewport + 1)
 }
 
+test('Home sections can be hidden, moved, and reset on an iPhone-sized screen', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await preview(page)
+  await page.getByRole('button', { name: 'Customize Home' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Customize Home' })
+  await dialog.getByRole('checkbox', { name: /Weekly check-in/ }).uncheck()
+  await expect(page.getByLabel('Pockit Pulse')).toHaveCount(0)
+  await dialog.getByRole('button', { name: 'Move Income and expenses up' }).click()
+  await expect(dialog.locator('.home-layout-row').nth(5)).toContainText('Income and expenses')
+  await dialog.getByRole('button', { name: 'Reset layout' }).click()
+  await expect(page.getByLabel('Pockit Pulse')).toBeVisible()
+  await noOverflow(page)
+})
+
+test('iPhone bottom tabs can be simplified while every page remains reachable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await preview(page)
+  await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
+  await page.getByText('iPhone bottom tabs').click()
+  await page.getByRole('checkbox', { name: 'Compare' }).uncheck()
+  await expect(page.locator('.bottom-nav').getByRole('button', { name: 'Compare' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Search pages and actions' }).click()
+  const search = page.getByRole('dialog', { name: 'Search Pockit' })
+  await search.getByRole('combobox', { name: 'Search pages and actions' }).fill('compare')
+  await search.getByRole('combobox', { name: 'Search pages and actions' }).press('Enter')
+  await expect(page.getByRole('heading', { name: 'Put your months in perspective.' })).toBeVisible()
+  await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
+  await page.getByText('iPhone bottom tabs').click()
+  await page.getByRole('button', { name: 'Reset bottom tabs' }).click()
+  await expect(page.locator('.bottom-nav').getByRole('button', { name: 'Compare' })).toBeVisible()
+  await noOverflow(page)
+})
+
+test('quick actions and appearance switch work from the top bar', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 850 })
+  await preview(page)
+  await page.keyboard.press('ControlOrMeta+k')
+  const dialog = page.getByRole('dialog', { name: 'Search Pockit' })
+  await expect(dialog).toBeVisible()
+  await dialog.getByRole('combobox', { name: 'Search pages and actions' }).fill('compare')
+  await dialog.getByRole('combobox', { name: 'Search pages and actions' }).press('Enter')
+  await expect(page.getByRole('heading', { name: 'Put your months in perspective.' })).toBeVisible()
+  await page.getByRole('button', { name: 'Switch to light mode' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.getByRole('button', { name: 'Switch to dark mode' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+})
+
+test('Calendar turns a planned phone cost into a dated reminder without recording a payment', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await preview(page)
+  await page.locator('.bottom-nav').getByRole('button', { name: 'Calendar' }).click()
+  await page.getByRole('button', { name: /Set Phone date/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Add a bill' })
+  await expect(dialog.getByRole('button', { name: 'Save bill' })).toBeDisabled()
+  await dialog.getByRole('spinbutton', { name: 'Day of month' }).fill('15')
+  await dialog.getByRole('button', { name: 'Save bill' }).click()
+  await expect(page.getByRole('button', { name: /Set Phone date/ })).toHaveCount(0)
+  await page.getByRole('button', { name: '15', exact: true }).click()
+  await expect(page.getByText('Phone', { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Record payment' })).toBeVisible()
+  await noOverflow(page)
+})
+
+test('a merchant rule suggests a category and tags make the new transaction searchable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await preview(page)
+  await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
+  await page.getByText('Merchant category rules').click()
+  await page.getByRole('textbox', { name: 'Payee for new rule' }).fill('My Cafe')
+  await page
+    .getByRole('combobox', { name: 'Category for new rule' })
+    .selectOption({ label: 'Groceries' })
+  await page.getByRole('button', { name: 'Add rule' }).click()
+  await expect(page.getByRole('button', { name: 'Remove rule for my cafe' })).toBeVisible()
+  await page.locator('.bottom-nav').getByRole('button', { name: 'Activity' }).click()
+  await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'New transaction' })
+  await dialog.getByRole('textbox', { name: 'Payee or description' }).fill('My Cafe')
+  await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveValue(
+    (await page
+      .locator('select[aria-label="Filter category"] option', { hasText: 'Groceries' })
+      .getAttribute('value')) || '',
+  )
+  await dialog.getByRole('spinbutton', { name: 'Amount' }).fill('12')
+  await dialog.getByRole('textbox', { name: /Tags \(optional\)/ }).fill('work, reimbursable')
+  await dialog.getByRole('button', { name: 'Save transaction' }).click()
+  await page.getByPlaceholder('Search transactions').fill('reimbursable')
+  await expect(page.locator('.transaction-row')).toHaveCount(1)
+  await expect(page.locator('.transaction-row')).toContainText('My Cafe')
+  await noOverflow(page)
+})
+
 test('iPhone Air, iPhone 17 Pro, newer phone, MacBook, and Windows-sized layouts stay usable', async ({
   page,
 }) => {
@@ -130,11 +231,44 @@ test('touch controls stay at least 44 pixels high and charts expose their values
   await page.getByRole('slider', { name: /Inspect Emergency fund projection/i }).fill('3')
   await expect(page.getByText(/Month 3:/)).toBeVisible()
   await page.getByRole('button', { name: 'Budget', exact: true }).click()
-  await page.getByRole('button', { name: 'Inspect Groceries allocation' }).click()
+  await page.getByRole('button', { name: 'Inspect Groceries planned amount' }).click()
   await expect(page.getByRole('status')).toContainText('Groceries:')
   for (const button of await page.locator('button:visible').all()) {
     const box = await button.boundingBox()
     expect(box!.height).toBeGreaterThanOrEqual(44)
   }
   await context.close()
+})
+
+test('colour choices, light mode, and carryover explanation fit a small iPhone screen', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await preview(page)
+  await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.getByRole('radio', { name: /Waypoint style/ }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-palette', 'waypoint')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#111827')
+  await page.getByRole('button', { name: /Switch to (light|dark) mode/ }).click()
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f7f8fb')
+  for (const palette of ['Pacific', 'Afterglow', 'Pockit Garden']) {
+    await page.getByRole('radio', { name: new RegExp(palette) }).click()
+    const dimensions = await page.evaluate(() => [
+      document.documentElement.clientWidth,
+      document.documentElement.scrollWidth,
+    ])
+    expect(dimensions[1]).toBeLessThanOrEqual(dimensions[0] + 1)
+  }
+  await page.getByRole('button', { name: 'Budget', exact: true }).click()
+  await page
+    .locator('.allocation-row')
+    .filter({ hasText: /^Savings/ })
+    .click()
+  await expect(page.getByText('How this month’s balance adds up')).toBeVisible()
+  await expect(page.locator('.rollover-breakdown')).toContainText('Carried from last month')
+  await expect(page.locator('.rollover-breakdown')).toContainText('Available now')
+  const dialog = page.getByRole('dialog', { name: 'Edit category' })
+  const bounds = await dialog.boundingBox()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(391)
 })

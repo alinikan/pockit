@@ -1,16 +1,16 @@
 import type { Category, Goal, PockitData, Transaction } from '../types'
-import { currentMonth, monthlyPay, shiftMonth } from './finance'
+import { currentMonth, shiftMonth } from './finance'
 
 export const categoryPresets = [
-  ['Rent', 'House', 'Bills & Utilities', '#a9a3f5', 1500],
-  ['Mortgage', 'House', 'Bills & Utilities', '#a9a3f5', 1800],
-  ['Groceries', 'ShoppingBasket', 'Food & Dining', '#aee789', 480],
-  ['Car Payment', 'Car', 'Transportation', '#f0ae75', 350],
-  ['Savings', 'PiggyBank', 'Savings & Goals', '#91d9c0', 300],
-  ['Debt Payments', 'CreditCard', 'Savings & Goals', '#f19b96', 200],
+  ['Rent', 'House', 'Bills & Utilities', '#a9a3f5', 2154],
+  ['Mortgage', 'House', 'Bills & Utilities', '#a9a3f5', 0],
+  ['Groceries', 'ShoppingBasket', 'Food & Dining', '#aee789', 450],
+  ['Car Payment', 'Car', 'Transportation', '#f0ae75', 0],
+  ['Savings', 'PiggyBank', 'Savings & Goals', '#91d9c0', 0],
+  ['Debt Payments', 'CreditCard', 'Savings & Goals', '#f19b96', 0],
   ['Dining Out', 'Utensils', 'Food & Dining', '#f4c586', 180],
   ['Gas', 'Fuel', 'Transportation', '#e7a17a', 160],
-  ['Transit', 'TrainFront', 'Transportation', '#93bfe2', 130],
+  ['Transit', 'TrainFront', 'Transportation', '#93bfe2', 117.2],
   ['Rideshare', 'CarTaxiFront', 'Transportation', '#e7a17a', 120],
   ['Investments', 'TrendingUp', 'Savings & Goals', '#8ecdb9', 150],
   ['Car Insurance', 'Shield', 'Transportation', '#9fc2ee', 130],
@@ -72,7 +72,7 @@ export const makeInitialData = (name = ''): PockitData => ({
     transport: '',
     extras: [],
   },
-  settings: { theme: 'dark', smart: true, currency: 'CAD' },
+  settings: { theme: 'dark', palette: 'pockit', smart: true, currency: 'CAD' },
   categories: [],
   transactions: [],
   goals: [],
@@ -90,7 +90,12 @@ export const buildOnboardedData = (input: PockitData): PockitData => {
         : ''
   const transport =
     input.profile.transport === 'Car'
-      ? ['Car Payment', 'Gas', 'Car Insurance', 'Car Maintenance']
+      ? [
+          ...(input.profile.carPayment && input.profile.carPayment > 0 ? ['Car Payment'] : []),
+          'Gas',
+          'Car Insurance',
+          'Car Maintenance',
+        ]
       : input.profile.transport === 'Public transit'
         ? ['Transit']
         : input.profile.transport === 'Rideshare or taxi'
@@ -116,22 +121,55 @@ export const buildOnboardedData = (input: PockitData): PockitData => {
     selected.add('Shopping')
     selected.add('Entertainment')
   }
-  const monthlyIncome = monthlyPay(input.profile.payAmount, input.profile.payFrequency)
-  const suggestedTotal = [...selected].reduce(
-    (sum, name) => sum + (categoryPresets.find((preset) => preset[0] === name)?.[4] || 0),
-    0,
-  )
-  const scale = suggestedTotal > 0 ? Math.min(1, (monthlyIncome * 0.9) / suggestedTotal) : 1
   const categories = [...selected].map((name) => {
     const preset = categoryPresets.find((p) => p[0] === name)
-    const category = newCategory(
-      name,
-      preset?.[1],
-      preset?.[2],
-      preset?.[3],
-      Math.round(((preset?.[4] || 0) * scale) / 5) * 5,
-      month,
+    const housingPayment = input.profile.housingPayment
+    const amount =
+      (name === 'Rent' || name === 'Mortgage') && housingPayment !== undefined
+        ? housingPayment
+        : name === 'Car Payment' && input.profile.carPayment !== undefined
+          ? input.profile.carPayment
+          : name === 'Savings' &&
+              input.goals.some((goal) => goal.kind === 'saving' && goal.monthly > 0)
+            ? input.goals
+                .filter((goal) => goal.kind === 'saving')
+                .reduce((sum, goal) => sum + goal.monthly, 0)
+            : name === 'Debt Payments' &&
+                input.goals.some((goal) => goal.kind === 'debt' && goal.monthly > 0)
+              ? input.goals
+                  .filter((goal) => goal.kind === 'debt')
+                  .reduce((sum, goal) => sum + goal.monthly, 0)
+              : preset?.[4] || 0
+    const category = newCategory(name, preset?.[1], preset?.[2], preset?.[3], amount, month)
+    category.needsAmount = amount === 0 && ['Mortgage', 'Savings', 'Debt Payments'].includes(name)
+    if (name === 'Savings' && input.goals.some((goal) => goal.kind === 'saving'))
+      category.linkedGoalKind = 'saving'
+    if (name === 'Debt Payments' && input.goals.some((goal) => goal.kind === 'debt'))
+      category.linkedGoalKind = 'debt'
+    category.suggested = !(
+      ((name === 'Rent' || name === 'Mortgage') && housingPayment !== undefined) ||
+      (name === 'Car Payment' && input.profile.carPayment !== undefined) ||
+      ((name === 'Savings' || name === 'Debt Payments') &&
+        input.goals.some(
+          (goal) => goal.kind === (name === 'Savings' ? 'saving' : 'debt') && goal.monthly > 0,
+        ))
     )
+    if (category.needsAmount) category.suggested = false
+    if (category.suggested && !category.notes)
+      category.notes =
+        'Starting example for planning. Check this against your real monthly cost and change it in Budget.'
+    if (name === 'Rent' && housingPayment === undefined)
+      category.notes =
+        'Example only: August 2026 Vancouver one-bedroom asking rent. Replace with your actual rent.'
+    if (name === 'Mortgage' && housingPayment === undefined)
+      category.notes =
+        'Enter your actual monthly mortgage payment; Pockit cannot estimate it without your loan details.'
+    if (name === 'Transit')
+      category.notes =
+        'Example: July 2026 TransLink adult one-zone monthly pass. Change this for your zones and travel.'
+    if ((name === 'Savings' || name === 'Debt Payments') && amount === 0)
+      category.notes =
+        'No monthly amount entered yet. Add the amount you actually plan to put toward this.'
     if (
       [
         'Savings',
@@ -152,10 +190,16 @@ export const makeDemoData = (): PockitData => {
   const month = currentMonth()
   const previous = shiftMonth(month, -1)
   const base = makeInitialData('Alex')
+  const demoAmounts: Record<string, number> = {
+    Rent: 1500,
+    'Car Payment': 350,
+    Savings: 300,
+    'Debt Payments': 200,
+  }
   const categories = categoryPresets
     .slice(0, 19)
     .filter((preset) => !['Mortgage', 'Transit', 'Rideshare'].includes(preset[0]))
-    .map((p) => newCategory(p[0], p[1], p[2], p[3], p[4], previous))
+    .map((p) => newCategory(p[0], p[1], p[2], p[3], demoAmounts[p[0]] ?? p[4], previous))
   for (const c of categories)
     if (['Savings', 'Car Maintenance', 'Emergency'].includes(c.name)) c.mode = 'rollover'
   const id = (name: string) => categories.find((c) => c.name === name)?.id

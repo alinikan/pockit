@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { MonthKey, PockitData, Transaction, TransactionType } from '../types'
 import {
   categorizePayee,
+  monthKey,
   money,
   receiptFields,
   recurringMerchants,
@@ -23,6 +24,11 @@ const blank = (): Transaction => ({
 })
 const dateInMonth = (month: MonthKey) =>
   `${month}-${String(Math.min(new Date().getDate(), new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate())).padStart(2, '0')}`
+const yesterdayISO = () => {
+  const date = new Date()
+  date.setDate(date.getDate() - 1)
+  return `${monthKey(date)}-${String(date.getDate()).padStart(2, '0')}`
+}
 export function ActivityScreen({
   data,
   month,
@@ -52,6 +58,7 @@ export function ActivityScreen({
   const [suspectPage, setSuspectPage] = useState(0)
   const [rememberMerchant, setRememberMerchant] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [tagText, setTagText] = useState('')
   const [undo, setUndo] = useState<{
     before: Transaction | null
     after: Transaction | null
@@ -65,6 +72,9 @@ export function ActivityScreen({
         accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
       })
   }, [quickAdd])
+  useEffect(() => {
+    setTagText(editing?.waypointTagsRaw || (editing?.tags || []).join(', '))
+  }, [editing?.id])
   const monthTxs = transactionsInMonth(data.transactions, month)
   const counts = {
     all: monthTxs.length,
@@ -79,7 +89,9 @@ export function ActivityScreen({
           (t) =>
             (type === 'all' || t.type === type) &&
             (category === 'all' || t.categoryId === category) &&
-            `${t.payee} ${t.note || ''}`.toLowerCase().includes(search.toLowerCase()),
+            `${t.payee} ${t.note || ''} ${(t.tags || []).join(' ')}`
+              .toLowerCase()
+              .includes(search.toLowerCase()),
         )
         .sort((a, b) => {
           if (sort === 'oldest') return a.date.localeCompare(b.date)
@@ -526,12 +538,25 @@ export function ActivityScreen({
         >
           <div className="modal-body">
             <div className="segmented full">
-              {(['expense', 'income', 'transfer'] as const).map((item) => (
+              {(['expense', 'income', 'refund', 'transfer'] as const).map((item) => (
                 <button
                   key={item}
                   disabled={!!editing.goalId || !!editing.billId}
-                  className={editing.type === item ? 'active' : ''}
-                  onClick={() => setDraft({ type: item })}
+                  className={
+                    item === 'refund'
+                      ? editing.type === 'expense' && editing.refund
+                        ? 'active'
+                        : ''
+                      : editing.type === item && !editing.refund
+                        ? 'active'
+                        : ''
+                  }
+                  onClick={() =>
+                    setDraft({
+                      type: item === 'refund' ? 'expense' : item,
+                      refund: item === 'refund',
+                    })
+                  }
                 >
                   {item[0].toUpperCase() + item.slice(1)}
                 </button>
@@ -639,6 +664,23 @@ export function ActivityScreen({
                 />
               </Field>
             </div>
+            <div className="date-shortcuts" aria-label="Quick dates">
+              <button
+                type="button"
+                className={editing.date === todayISO() ? 'selected' : ''}
+                onClick={() => setDraft({ date: todayISO() })}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                className={editing.date === yesterdayISO() ? 'selected' : ''}
+                onClick={() => setDraft({ date: yesterdayISO() })}
+              >
+                Yesterday
+              </button>
+              <small>Or choose any date above.</small>
+            </div>
             {data.accounts?.length ? (
               <div className="form-grid">
                 <Field label={editing.type === 'transfer' ? 'From account' : 'Account'}>
@@ -676,18 +718,8 @@ export function ActivityScreen({
               </div>
             ) : (
               <div className="soft-note">
-                Add a manual account in More to track and reconcile balances.
+                Add a manual account in More to track balances and check them against your bank.
               </div>
-            )}
-            {editing.type === 'expense' && (
-              <label className="check-line">
-                <input
-                  type="checkbox"
-                  checked={!!editing.refund}
-                  onChange={(e) => setDraft({ refund: e.target.checked })}
-                />{' '}
-                This is a refund or return
-              </label>
             )}
             {data.bills.length > 0 && (
               <Field
@@ -831,25 +863,30 @@ export function ActivityScreen({
                 comparisons, account estimates, and any goal or bill you link above.
               </div>
             )}
-            {editing.source === 'waypoint' && (
-              <Field
-                label="Tags from Waypoint (optional)"
-                hint="Separate tags with commas. These are kept with the transaction for reference."
-              >
-                <input
-                  value={editing.waypointTagsRaw || ''}
-                  onChange={(event) =>
-                    setDraft({
-                      waypointTagsRaw: event.target.value,
-                      tags: event.target.value
-                        .split(',')
-                        .map((tag) => tag.trim())
-                        .filter(Boolean),
-                    })
-                  }
-                />
-              </Field>
-            )}
+            <Field
+              label="Tags (optional)"
+              hint="Separate tags with commas. Use them to find this transaction later. Tags do not change your budget."
+            >
+              <input
+                value={tagText}
+                onChange={(event) => {
+                  setTagText(event.target.value)
+                  setDraft({
+                    waypointTagsRaw:
+                      editing.source === 'waypoint' ? event.target.value : editing.waypointTagsRaw,
+                    tags: [
+                      ...new Set(
+                        event.target.value
+                          .split(/[;,]/)
+                          .map((tag) => tag.trim())
+                          .filter(Boolean),
+                      ),
+                    ],
+                  })
+                }}
+                placeholder="e.g. work, reimbursable"
+              />
+            </Field>
             {editing.type === 'expense' && (
               <label className="check-line">
                 <input

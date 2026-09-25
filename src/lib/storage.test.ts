@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { makeDemoData } from './defaults'
 import {
+  browserAuthOptions,
   clearCache,
   clearPending,
   readCache,
@@ -14,6 +15,13 @@ import {
 afterEach(() => localStorage.clear())
 
 describe('device copies for cloud sync', () => {
+  it('keeps browser and installed app sessions between ordinary launches', () => {
+    expect(browserAuthOptions).toMatchObject({
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    })
+  })
   it('keeps pending and last saved copies separate for each account', () => {
     const data = makeDemoData()
     writeCache('alice', { data, revision: 4 })

@@ -16,31 +16,33 @@ These screenshots use Pockit's preview mode and sample data.
 
 ## The experience
 
-Pockit starts with a short setup about pay, housing, spending, savings, and debt. The suggested category amounts scale to the entered pay, and every category and goal can be changed later. If someone leaves during setup, their progress is saved to their account.
+Pockit starts with a short setup about pay, housing, spending, savings, and debt. Its first plan uses clearly marked 2026 Vancouver examples where local figures are available; the user can enter actual housing costs and change every category. Pockit shows when the draft costs more than expected pay instead of silently reducing bills. [How starter amounts are chosen](docs/STARTER_BUDGET.md). If someone leaves during setup, their progress is saved to their account.
 
-| Area         | What it helps you do                                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| **Home**     | See your monthly plan, a next-paycheque estimate, bills, and categories needing attention.                          |
-| **Activity** | Add and split transactions, record refunds, review CSV imports and suspected duplicates, and undo an import.        |
-| **Budget**   | Set allocations, cover an overage, prepare for irregular bills, and choose fresh or rollover categories.            |
-| **Calendar** | Set a real payday, see exactly which months have extra cheques, and manage bills and due dates.                     |
-| **Goals**    | Follow savings and debts, record contributions or withdrawals, choose a payoff order, and test What-if scenarios.   |
-| **Compare**  | Compare months and categories side by side, inspect merchants behind a change, and check incomplete months.         |
-| **More**     | Change appearance, manage manual accounts, passkeys, and reminders, import a Waypoint ZIP, and export account data. |
+| Area         | What it helps you do                                                                                                   |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| **Home**     | See your monthly plan, a next-paycheque estimate, bills, and categories needing attention. Reorder or hide sections.   |
+| **Activity** | Add and split transactions, record refunds, search by tags, and review CSV imports and suspected duplicates.           |
+| **Budget**   | Set allocations, cover an overage, prepare for irregular bills, and choose fresh or rollover categories.               |
+| **Calendar** | Set a real payday, see exactly which months have extra cheques, and fill in missing regular bill dates.                |
+| **Goals**    | Follow savings and debts, record contributions or withdrawals, choose a payoff order, and test What-if scenarios.      |
+| **Compare**  | Compare months and categories side by side, inspect merchants behind a change, and check incomplete months.            |
+| **More**     | Change appearance, edit merchant category rules, manage accounts and passkeys, import a Waypoint ZIP, and export data. |
 
 Pockit Insights answers a small set of guided questions using the numbers you enter. It explains when a question is outside that scope. It does not send financial data to a language model or require a paid AI service.
 
 ## Details that matter
 
-- **Built for a phone:** an installable web app with dark and light themes, large touch targets, reduced-motion support, and charts that can be explored by touch.
+- **Built for a phone:** an installable web app with customizable bottom tabs, four colour palettes in dark and light modes, a circular appearance switch on supported browsers, large touch targets, reduced-motion support, and charts that can be explored by touch.
+- **Quick to navigate:** a search control opens pages and common actions. On a Mac or Windows keyboard, press ⌘K or Ctrl+K.
 - **Clear about estimates:** paycheque, savings, and debt projections show what the current plan implies. They are not a bank balance or a promise of a payoff date.
 - **Pay dates that add up:** a weekly or biweekly anchor counts the actual dates in each month; twice-monthly and monthly schedules respect month ends. Until a date is set, Pockit labels the monthly figure as an average.
 - **Safer edits across devices:** saves show their cloud status. Independent edits to different records or settings can be combined after a conflict. Overlapping edits require a choice, with a download available first.
-- **Connected actions:** recording a goal contribution or bill payment can create the matching Activity entry, so progress and spending tell the same story.
+- **Connected actions:** recording a goal contribution or bill payment can create the matching Activity entry, so progress and spending tell the same story. Starter savings and debt categories follow goal payment amounts until a user chooses their own category amount.
+- **Carryover without duplicate entries:** categories set to carry forward calculate each month's available amount from earlier plans and recorded transactions. Editing an earlier item updates later balances.
 - **Move an existing budget:** import a full Waypoint ZIP with a review step, duplicate checks, and a downloaded Pockit backup. Budget dates remain distinct from confirmed bills. See the [Waypoint import guide](docs/WAYPOINT_IMPORT.md).
 - **CAD first:** the app plans and displays money in Canadian dollars. There is no currency conversion or automatic bank feed.
 - **Help on demand:** optional guides and contextual explanations describe what each view means, with examples.
-- **Private accounts:** email/password sign-in, optional passkeys, and per-user access rules in Supabase. A signed-in device can keep a pending copy while offline and sync it later.
+- **Private accounts:** email/password sign-in, optional passkeys, and per-user access rules in Supabase. The browser and installed app persist a signed-in session across ordinary closes; a signed-in device can keep a pending copy while offline and sync it later.
 
 ## How it was built
 

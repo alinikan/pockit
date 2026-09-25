@@ -91,4 +91,52 @@ describe('activity', () => {
     })
     expect(names()).toEqual(['Costco', 'Superstore', 'Fresh Market'])
   })
+  it('records a refund and offers date shortcuts without requiring a second refund checkbox', () => {
+    let data = makeDemoData()
+    const update = (recipe: (value: PockitData) => PockitData) => {
+      data = recipe(data)
+    }
+    render(<ActivityScreen data={data} month={currentMonth()} update={update} />)
+    fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refund' }))
+    fireEvent.change(screen.getByLabelText('Payee or description'), {
+      target: { value: 'Returned shoes' },
+    })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '45' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }))
+    const today = new Date()
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe(date)
+    fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
+    expect(data.transactions.at(-1)).toMatchObject({
+      type: 'expense',
+      refund: true,
+      amount: 45,
+      date,
+    })
+  })
+  it('keeps comma-separated tags while typing and finds the saved transaction by tag', () => {
+    let data = makeDemoData()
+    const update = (recipe: (value: PockitData) => PockitData) => {
+      data = recipe(data)
+    }
+    const view = () => <ActivityScreen data={data} month={currentMonth()} update={update} />
+    const { rerender, container } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
+    fireEvent.change(screen.getByLabelText('Payee or description'), {
+      target: { value: 'Office supplies' },
+    })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '18' } })
+    const tags = screen.getByLabelText(/Tags \(optional\)/) as HTMLInputElement
+    fireEvent.change(tags, { target: { value: 'work,' } })
+    expect(tags.value).toBe('work,')
+    fireEvent.change(tags, { target: { value: 'work, reimbursable' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
+    expect(data.transactions.at(-1)?.tags).toEqual(['work', 'reimbursable'])
+    rerender(view())
+    fireEvent.change(screen.getByPlaceholderText('Search transactions'), {
+      target: { value: 'reimbursable' },
+    })
+    expect(container.querySelectorAll('.transaction-row')).toHaveLength(1)
+  })
 })

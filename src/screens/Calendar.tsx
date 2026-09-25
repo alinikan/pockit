@@ -3,6 +3,8 @@ import { useState } from 'react'
 import type { Bill, Frequency, MonthKey, PockitData } from '../types'
 import {
   billsForMonth,
+  categoriesMissingBillDates,
+  categoryBudget,
   categoryDueDates,
   money,
   monthSummary,
@@ -32,6 +34,7 @@ export function CalendarScreen({
   const plannedDates = categoryDueDates(data, month)
   const paydays = paydaysInMonth(data.profile, month)
   const paySummary = monthSummary(data, month)
+  const unscheduled = categoriesMissingBillDates(data, month)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const seven = new Date(today)
@@ -76,6 +79,9 @@ export function CalendarScreen({
     if (
       !editing?.name.trim() ||
       editing.amount <= 0 ||
+      !Number.isInteger(editing.day) ||
+      editing.day < 1 ||
+      editing.day > 31 ||
       (editing.paymentType === 'transfer' &&
         !!editing.accountId &&
         editing.accountId === editing.toAccountId)
@@ -139,6 +145,48 @@ export function CalendarScreen({
   }
   return (
     <div className="calendar-layout">
+      {unscheduled.length > 0 && (
+        <section className="calendar-setup-note" aria-label="Plan dates for regular bills">
+          <span className="calendar-setup-icon">
+            <Icon name="CalendarClock" size={21} />
+          </span>
+          <div>
+            <strong>
+              {unscheduled.length} regular {unscheduled.length === 1 ? 'cost needs' : 'costs need'}{' '}
+              a date
+            </strong>
+            <p>
+              Choose when these bills are due. Pockit will show them on the calendar; planning one
+              does not mark it paid.
+            </p>
+            <div className="calendar-setup-actions">
+              {unscheduled.slice(0, 4).map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() =>
+                    setEditing({
+                      id: crypto.randomUUID(),
+                      name: category.name,
+                      amount: categoryBudget(category, month, paySummary.income),
+                      day: 0,
+                      categoryId: category.id,
+                      paidMonths: [],
+                      frequency: 'monthly',
+                      starts: month,
+                    })
+                  }
+                >
+                  Set {category.name} date <Icon name="ArrowRight" size={15} />
+                </button>
+              ))}
+              {unscheduled.length > 4 && (
+                <small>And {unscheduled.length - 4} more regular costs</small>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
       <section className="panel calendar-panel">
         <SectionHead
           title="Your calendar"
@@ -490,11 +538,11 @@ export function CalendarScreen({
                   type="number"
                   min="1"
                   max="31"
-                  value={editing.day}
+                  value={editing.day || ''}
                   onChange={(e) =>
                     setEditing({
                       ...editing,
-                      day: Math.min(31, Math.max(1, Number(e.target.value))),
+                      day: e.target.value ? Math.min(31, Math.max(1, Number(e.target.value))) : 0,
                     })
                   }
                 />
@@ -609,6 +657,9 @@ export function CalendarScreen({
                 disabled={
                   !editing.name.trim() ||
                   editing.amount <= 0 ||
+                  !Number.isInteger(editing.day) ||
+                  editing.day < 1 ||
+                  editing.day > 31 ||
                   (editing.paymentType === 'transfer' &&
                     !!editing.accountId &&
                     editing.accountId === editing.toAccountId)

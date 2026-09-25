@@ -776,9 +776,9 @@ export function GoalsScreen({
             </Field>
             {planDraft.extra > Math.max(0, availablePlanRoom) && (
               <div className="form-message" role="alert">
-                Extra payments exceed the {money(Math.max(0, availablePlanRoom))} unallocated in{' '}
+                Extra payments exceed the {money(Math.max(0, availablePlanRoom))} not yet planned in{' '}
                 {month}. Review your Budget before relying on this plan. Existing Debt Payments
-                allocations may already cover your minimum payments.
+                category amounts may already cover your minimum payments.
               </div>
             )}
             {(() => {

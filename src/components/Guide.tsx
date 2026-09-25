@@ -33,6 +33,14 @@ const guides: Record<
       example: 'A five-minute review each week can prevent month-end surprises.',
       tone: 'peach',
     },
+    {
+      icon: 'SlidersHorizontal',
+      title: 'Make Home your own',
+      message:
+        'Use Customize Home to hide sections you do not need and move important ones closer to the top. Reset layout brings them all back.',
+      example: 'Put spending and categories first when you are checking purchases every day.',
+      tone: 'blue',
+    },
   ],
   Activity: [
     {
@@ -57,9 +65,18 @@ const guides: Record<
       icon: 'Tags',
       title: 'Split and remember',
       message:
-        'Split one purchase between categories, or teach Pockit a rule for a merchant you visit often.',
-      example: 'A $70 store receipt can be $50 Groceries and $20 Personal Care.',
+        'Split one purchase between categories, add searchable tags, or teach Pockit a category rule for a merchant you visit often. Review those rules in More.',
+      example:
+        'A $70 store receipt can be $50 Groceries and $20 Personal Care. Add a “work” tag if you need to find it later.',
       tone: 'lime',
+    },
+    {
+      icon: 'ArrowDownLeft',
+      title: 'When money comes back',
+      message:
+        'Choose Refund when a store returns money for a purchase. Pockit subtracts it from spending rather than treating it like a paycheque.',
+      example: 'A $30 return reduces your net spending by $30.',
+      tone: 'blue',
     },
   ],
   Budget: [
@@ -67,23 +84,24 @@ const guides: Record<
       icon: 'ChartPie',
       title: 'A plan for Canadian dollars',
       message:
-        'Allocations tell Pockit what you intend to spend or set aside each month. Planned income stays steady even before all paycheques arrive.',
+        'The amount beside each category is what you intend to spend or set aside. It is a plan, not money moved in your bank. Planned income may appear before all paycheques arrive.',
       example: 'Plan $400 for groceries, then compare it with actual purchases.',
       tone: 'lime',
     },
     {
       icon: 'Layers3',
-      title: 'Fresh or rollover',
+      title: 'Start fresh or carry forward',
       message:
-        'Fresh starts with the same allocation each month. Rollover carries unused money forward for less frequent costs.',
-      example: 'Car maintenance is often a good rollover category.',
+        'Start fresh resets the amount each month. Carry forward adds unused money to the next month for less frequent costs.',
+      example:
+        'Plan $80 a month for car repairs. If you spend nothing, $160 is available after two months.',
       tone: 'blue',
     },
     {
       icon: 'ArrowLeftRight',
       title: 'Cover an overage',
       message:
-        'Move this month’s plan from unallocated money or another category. This changes your plan; it does not transfer money at a bank.',
+        'Move part of the money you have not planned yet, or part of another category’s plan. This changes your plan; no money moves at a bank.',
       example: 'Move $25 from Dining Out to Groceries when groceries cost more than expected.',
       tone: 'peach',
     },
@@ -113,6 +131,15 @@ const guides: Record<
         'Skip this reminder hides it for the selected month without changing spending. You can restore it later.',
       example: 'Use Skip if a bill was cancelled or does not apply this month.',
       tone: 'peach',
+    },
+    {
+      icon: 'CalendarClock',
+      title: 'Give regular bills a date',
+      message:
+        'When a planned regular cost has no payment day, Calendar offers a shortcut to add its due date. A reminder is still only a plan until you record payment.',
+      example:
+        'If your phone bill is due on the 15th, add that day and it will appear on the calendar.',
+      tone: 'blue',
     },
   ],
   Goals: [
@@ -191,6 +218,14 @@ const guides: Record<
       message: 'Passkeys can make signing in easier. Hide amounts when using Pockit around others.',
       example: 'A passkey does not itself lock a session that is already open.',
       tone: 'peach',
+    },
+    {
+      icon: 'Smartphone',
+      title: 'Your bottom tabs',
+      message:
+        'On iPhone, choose which shortcuts stay along the bottom. Search at the top still opens every page, and Home and More always remain available.',
+      example: 'Keep Calendar and Goals in the bar if you use them often; move Compare to Search.',
+      tone: 'blue',
     },
   ],
 }

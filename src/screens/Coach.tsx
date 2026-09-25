@@ -58,7 +58,7 @@ export function answer(question: string, data: PockitData, month: MonthKey) {
     return `Your largest flexible ${flexible.length === 1 ? 'category is' : 'categories are'} ${flexible.map((c) => `${c.name} (${money(spending[c.id], currency, true)})`).join(' and ') || 'still taking shape'}.${overs} Try a small limit change there before cutting essentials.`
   }
   if (/income|paycheque|paycheck/.test(q))
-    return `Your expected monthly take-home pay is ${money(health.income, currency, true)}. You’ve planned ${money(health.allocated, currency, true)} across categories, leaving ${money(health.unallocated, currency, true)} unallocated.`
+    return `Your expected monthly take-home pay is ${money(health.income, currency, true)}. You’ve planned ${money(health.allocated, currency, true)} across categories, leaving ${money(health.unallocated, currency, true)} not yet assigned to a category.`
   if (/bill|due|upcoming/.test(q)) {
     const bills = billsForMonth(data.bills, month)
       .filter((b) => !b.paid && !b.skipped)

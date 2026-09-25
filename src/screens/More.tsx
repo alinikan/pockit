@@ -12,16 +12,25 @@ import { PushSettings } from '../components/PushSettings'
 import { AccountsSettings } from '../components/AccountsSettings'
 import { parseBackup } from '../lib/backup'
 import { WaypointImport } from '../components/WaypointImport'
+import { palettes } from '../lib/themes'
+import {
+  allMobileTabs,
+  moveMobileTab,
+  normalizedMobileTabs,
+  type MobileTab,
+} from '../lib/mobileNavigation'
 
 export function MoreScreen({
   data,
   update,
+  changeTheme,
   logout,
   onDeleted,
   demo,
 }: {
   data: PockitData
   update: (recipe: (value: PockitData) => PockitData) => void
+  changeTheme?: (theme: 'light' | 'dark', origin?: Element | null) => void
   logout: () => void
   onDeleted: () => void
   demo: boolean
@@ -35,6 +44,14 @@ export function MoreScreen({
   const [deleteMessage, setDeleteMessage] = useState('')
   const [restoreDraft, setRestoreDraft] = useState<PockitData | null>(null)
   const [restoreMessage, setRestoreMessage] = useState('')
+  const [rulePayee, setRulePayee] = useState('')
+  const [ruleCategory, setRuleCategory] = useState('')
+  const mobileTabs = normalizedMobileTabs(data.settings.mobileTabs)
+  const setMobileTabs = (tabs: MobileTab[]) =>
+    update((current) => ({
+      ...current,
+      settings: { ...current.settings, mobileTabs: tabs },
+    }))
   const setProfile = (patch: Partial<PockitData['profile']>) =>
     update((d) => ({ ...d, profile: { ...d.profile, ...patch } }))
   function exportData() {
@@ -296,7 +313,7 @@ export function MoreScreen({
               (account) =>
                 !account.archived && (account.kind === 'chequing' || account.kind === 'cash'),
             )
-              ? 'Your first active chequing or cash account now starts the payday estimate. Reconcile it below whenever its actual balance differs.'
+              ? 'Your first active chequing or cash account now starts the payday estimate. Check its balance below whenever your real balance differs.'
               : 'Enter the amount available today, after transactions already in your account. Later recorded income and spending update this estimate. Refresh it when your real balance differs.'}
           </div>
           {data.profile.cashAsOf && (
@@ -313,17 +330,246 @@ export function MoreScreen({
             checked={data.settings.smart}
             onChange={(smart) => update((d) => ({ ...d, settings: { ...d.settings, smart } }))}
           />
+          <details className="merchant-rules-setting">
+            <summary>
+              <span>
+                <strong>Merchant category rules</strong>
+                <small>
+                  When a payee matches exactly, Pockit suggests this category next time. You can
+                  still change it for any transaction.
+                </small>
+              </span>
+              <Icon name="ChevronDown" size={18} />
+            </summary>
+            {(data.settings.merchantRules || []).length > 0 && (
+              <div className="merchant-rule-list">
+                {data.settings.merchantRules!.map((rule) => (
+                  <div className="merchant-rule-row" key={rule.payee}>
+                    <strong>{rule.payee}</strong>
+                    <select
+                      aria-label={`Category for ${rule.payee}`}
+                      value={rule.categoryId}
+                      onChange={(event) =>
+                        update((current) => ({
+                          ...current,
+                          settings: {
+                            ...current.settings,
+                            merchantRules: current.settings.merchantRules?.map((item) =>
+                              item.payee === rule.payee
+                                ? { ...item, categoryId: event.target.value }
+                                : item,
+                            ),
+                          },
+                        }))
+                      }
+                    >
+                      {!data.categories.some((category) => category.id === rule.categoryId) && (
+                        <option value={rule.categoryId}>Category removed</option>
+                      )}
+                      {data.categories
+                        .filter((category) => !category.archived)
+                        .map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      aria-label={`Remove rule for ${rule.payee}`}
+                      onClick={() =>
+                        update((current) => ({
+                          ...current,
+                          settings: {
+                            ...current.settings,
+                            merchantRules: current.settings.merchantRules?.filter(
+                              (item) => item.payee !== rule.payee,
+                            ),
+                          },
+                        }))
+                      }
+                    >
+                      <Icon name="X" size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="merchant-rule-add">
+              <input
+                aria-label="Payee for new rule"
+                placeholder="Payee name"
+                value={rulePayee}
+                maxLength={120}
+                onChange={(event) => setRulePayee(event.target.value)}
+              />
+              <select
+                aria-label="Category for new rule"
+                value={ruleCategory}
+                onChange={(event) => setRuleCategory(event.target.value)}
+              >
+                <option value="">Choose category</option>
+                {data.categories
+                  .filter((category) => !category.archived)
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                className="secondary-button compact"
+                disabled={!rulePayee.trim() || !ruleCategory}
+                onClick={() => {
+                  const payee = rulePayee.trim().toLowerCase()
+                  update((current) => ({
+                    ...current,
+                    settings: {
+                      ...current.settings,
+                      merchantRules: [
+                        ...(current.settings.merchantRules || []).filter(
+                          (rule) => rule.payee !== payee,
+                        ),
+                        { payee, categoryId: ruleCategory },
+                      ],
+                    },
+                  }))
+                  setRulePayee('')
+                  setRuleCategory('')
+                }}
+              >
+                <Icon name="Plus" size={16} /> Add rule
+              </button>
+            </div>
+          </details>
           <Toggle
             label="Light mode"
-            description="Switch between Pockit’s light and dark palettes."
+            description="Choose a light or dark background. Your colour choice below works in both."
             checked={data.settings.theme === 'light'}
-            onChange={(light) =>
-              update((d) => ({
-                ...d,
-                settings: { ...d.settings, theme: light ? 'light' : 'dark' },
-              }))
+            onChange={(light, origin) =>
+              changeTheme
+                ? changeTheme(light ? 'light' : 'dark', origin)
+                : update((d) => ({
+                    ...d,
+                    settings: { ...d.settings, theme: light ? 'light' : 'dark' },
+                  }))
             }
           />
+          <div className="theme-choice" role="radiogroup" aria-label="Colour theme">
+            <div>
+              <strong>Colour theme</strong>
+              <small>
+                Choose the look that is easiest for you to read. You can change it anytime.
+              </small>
+            </div>
+            <div className="theme-choice-grid">
+              {palettes.map((palette) => (
+                <button
+                  key={palette.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={(data.settings.palette || 'pockit') === palette.id}
+                  className={`theme-choice-card ${(data.settings.palette || 'pockit') === palette.id ? 'selected' : ''}`}
+                  onClick={() =>
+                    update((current) => ({
+                      ...current,
+                      settings: { ...current.settings, palette: palette.id },
+                    }))
+                  }
+                >
+                  <span className="theme-swatches" aria-hidden="true">
+                    {palette.swatches.map((colour) => (
+                      <i key={colour} style={{ background: colour }} />
+                    ))}
+                  </span>
+                  <strong>{palette.name}</strong>
+                  <small>{palette.description}</small>
+                </button>
+              ))}
+            </div>
+            <small>
+              The Waypoint style is a colour choice inspired by Waypoint’s visual language; Pockit
+              remains its own app.
+            </small>
+          </div>
+          <details className="mobile-nav-setting">
+            <summary>
+              <span>
+                <strong>iPhone bottom tabs</strong>
+                <small>
+                  Choose four to seven shortcuts. Every page stays available from Search.
+                </small>
+              </span>
+              <Icon name="ChevronDown" size={18} />
+            </summary>
+            <p className="settings-footnote">
+              Home and More always stay in the bar. Use the arrows to change the order.
+            </p>
+            <div className="mobile-nav-list">
+              {[...mobileTabs, ...allMobileTabs.filter((name) => !mobileTabs.includes(name))].map(
+                (name) => {
+                  const chosen = mobileTabs.includes(name)
+                  const index = mobileTabs.indexOf(name)
+                  const required = name === 'Home' || name === 'More'
+                  return (
+                    <div className="mobile-nav-row" key={name}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={chosen}
+                          disabled={required || (chosen && mobileTabs.length <= 4)}
+                          onChange={() =>
+                            setMobileTabs(
+                              chosen
+                                ? mobileTabs.filter((item) => item !== name)
+                                : [...mobileTabs, name],
+                            )
+                          }
+                        />
+                        <span>
+                          {name}
+                          {required && <small>Always shown</small>}
+                        </span>
+                      </label>
+                      {chosen && (
+                        <div className="home-layout-move">
+                          <button
+                            type="button"
+                            aria-label={`Move ${name} tab up`}
+                            disabled={index === 0}
+                            onClick={() => setMobileTabs(moveMobileTab(mobileTabs, name, -1))}
+                          >
+                            <Icon name="ArrowUp" size={17} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Move ${name} tab down`}
+                            disabled={index === mobileTabs.length - 1}
+                            onClick={() => setMobileTabs(moveMobileTab(mobileTabs, name, 1))}
+                          >
+                            <Icon name="ArrowDown" size={17} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                },
+              )}
+            </div>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() =>
+                update((current) => ({
+                  ...current,
+                  settings: { ...current.settings, mobileTabs: undefined },
+                }))
+              }
+            >
+              Reset bottom tabs
+            </button>
+          </details>
           <Toggle
             label="Show optional guides"
             description="Short, illustrated explanations can open from the question mark in each part of Pockit."
@@ -368,6 +614,12 @@ export function MoreScreen({
               </p>
             </div>
           </div>
+          <p className="soft-note">
+            Once you sign in from the Home Screen icon, Pockit keeps you signed in when you close
+            and reopen it. You may need to sign in again if you sign out, clear website data, or
+            your session is revoked. Safari and the Home Screen app may ask for separate first
+            sign-ins.
+          </p>
           <div className="soft-note">
             The website also works without installing it. Bill notifications on iPhone require the
             Home Screen version and your permission.
@@ -583,7 +835,7 @@ export function MoreScreen({
           </div>
         </div>
         <button className="signout-button" onClick={logout}>
-          <Icon name="LogOut" size={18} /> {demo ? 'Exit preview' : 'Sign out'}
+          <Icon name="LogOut" size={18} /> {demo ? 'Exit preview' : 'Sign out on this device'}
         </button>
       </aside>
     </div>

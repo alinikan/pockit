@@ -48,4 +48,56 @@ describe('backup restore validation', () => {
       ),
     ).toThrow(/invalid transaction/)
   })
+  it('validates theme, linked goal, and historical category dates without rejecting older backups', () => {
+    const data = makeDemoData()
+    expect(
+      parseBackup(JSON.stringify({ ...data, settings: { ...data.settings, palette: undefined } }))
+        .settings.palette,
+    ).toBeUndefined()
+    expect(() =>
+      parseBackup(
+        JSON.stringify({ ...data, settings: { ...data.settings, palette: 'invisible' } }),
+      ),
+    ).toThrow(/invalid profile or settings/)
+    expect(() =>
+      parseBackup(JSON.stringify({ ...data, profile: { ...data.profile, carPayment: -1 } })),
+    ).toThrow(/invalid profile or settings/)
+    expect(() =>
+      parseBackup(
+        JSON.stringify({
+          ...data,
+          categories: [{ ...data.categories[0], archived: true, ends: '2020-01' }],
+        }),
+      ),
+    ).toThrow(/invalid category/)
+    expect(() =>
+      parseBackup(
+        JSON.stringify({
+          ...data,
+          categories: [{ ...data.categories[0], linkedGoalKind: 'other' }],
+        }),
+      ),
+    ).toThrow(/invalid category/)
+    expect(() =>
+      parseBackup(
+        JSON.stringify({
+          ...data,
+          categories: [{ ...data.categories[0], changes: { '2026-88': 20 } }],
+        }),
+      ),
+    ).toThrow(/invalid category/)
+    expect(() =>
+      parseBackup(
+        JSON.stringify({
+          ...data,
+          categories: [
+            {
+              ...data.categories[0],
+              policyOverrides: { '2026-09': { mode: 'rollover', targetValue: -1 } },
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/invalid category/)
+  })
 })

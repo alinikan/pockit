@@ -1,10 +1,12 @@
 import { num } from '../lib/numbers'
 import { useState } from 'react'
-import type { Category, Frequency, MonthKey, PockitData } from '../types'
+import type { Category, CategoryPolicy, Frequency, MonthKey, PockitData } from '../types'
 import { newCategory } from '../lib/defaults'
 import {
   beforeWaypointPlan,
+  categoryActiveInMonth,
   categoryBudget,
+  categoryPolicy,
   billMonthlyReserve,
   categoryPeriodAmount,
   money,
@@ -12,6 +14,8 @@ import {
   monthSummary,
   monthlyPay,
   rolloverBalance,
+  rolloverMonth,
+  shiftMonth,
   spendingByCategory,
 } from '../lib/finance'
 import { Empty, Field, Icon, Modal, Progress, SectionHead } from '../components/UI'
@@ -48,14 +52,14 @@ export function BudgetScreen({
   const summary = monthSummary(data, month)
   const historicalUnplanned =
     beforeWaypointPlan(data, month) &&
-    !data.categories.some((category) => !category.archived && category.starts <= month)
+    !data.categories.some((category) => categoryActiveInMonth(category, month))
   const spend = spendingByCategory(data.transactions, month)
-  const active = data.categories.filter((c) => !c.archived)
+  const active = data.categories.filter((c) => !c.archived || (!!c.ends && month <= c.ends))
   const overages = active
     .map((category) => ({
       category,
       available:
-        category.mode === 'rollover'
+        categoryPolicy(category, month).mode === 'rollover'
           ? rolloverBalance(category, data, month)
           : categoryBudget(category, month, summary.income) - (spend[category.id] || 0),
     }))
@@ -77,20 +81,73 @@ export function BudgetScreen({
   const donut = `conic-gradient(${[...slices, `var(--track) ${cursor}% 100%`].join(', ')})`
   function saveCategory() {
     if (!editing?.name.trim()) return
-    const value = {
+    const value: Category = {
       ...editing,
       name: editing.name.trim(),
+      suggested: false,
+      needsAmount: editing.baseAmount <= 0 && editing.needsAmount,
       starts: editing.starts > month ? month : editing.starts,
     }
     const original = data.categories.find((c) => c.id === value.id)
+    const originalPolicy = original && categoryPolicy(original, month)
+    const selectedPolicy: CategoryPolicy = {
+      frequency: editing.frequency,
+      paymentDay: editing.paymentDay,
+      mode: editing.mode,
+      targetType: editing.targetType,
+      targetValue: editing.targetValue,
+      funding: editing.funding,
+    }
+    if (
+      original?.linkedGoalKind &&
+      (editing.baseAmount !== categoryPeriodAmount(original, month) ||
+        editing.frequency !== originalPolicy?.frequency ||
+        editing.mode !== originalPolicy?.mode ||
+        editing.targetType !== originalPolicy?.targetType ||
+        editing.funding !== originalPolicy?.funding)
+    )
+      value.linkedGoalKind = undefined
     if (scope === 'month') {
-      value.overrides = {
-        ...value.overrides,
-        [month]: monthlyPay(value.baseAmount, value.frequency),
+      if (original) {
+        Object.assign(value, {
+          frequency: original.frequency,
+          paymentDay: original.paymentDay,
+          mode: original.mode,
+          targetType: original.targetType,
+          targetValue: original.targetValue,
+          funding: original.funding,
+        })
+        value.policyChanges = original.policyChanges
       }
+      value.policyOverrides = { ...original?.policyOverrides, [month]: selectedPolicy }
+      value.overrides = { ...value.overrides }
+      if (selectedPolicy.mode === 'rollover' && selectedPolicy.targetType !== 'fixed')
+        delete value.overrides[month]
+      else value.overrides[month] = monthlyPay(value.baseAmount, selectedPolicy.frequency)
       value.baseAmount = original?.baseAmount || 0
       value.changes = original?.changes || {}
     } else {
+      value.policyOverrides = Object.fromEntries(
+        Object.entries(value.policyOverrides || {}).filter(([key]) => key < month),
+      )
+      const earlierPolicies = Object.fromEntries(
+        Object.entries(original?.policyChanges || {}).filter(([key]) => key < month),
+      )
+      if (original && month > original.starts) {
+        if (!Object.keys(earlierPolicies).length)
+          earlierPolicies[original.starts] = {
+            frequency: original.frequency,
+            paymentDay: original.paymentDay,
+            mode: original.mode,
+            targetType: original.targetType,
+            targetValue: original.targetValue,
+            funding: original.funding,
+          }
+        earlierPolicies[month] = selectedPolicy
+      } else if (Object.keys(earlierPolicies).length) {
+        earlierPolicies[month] = selectedPolicy
+      }
+      value.policyChanges = earlierPolicies
       value.overrides = Object.fromEntries(
         Object.entries(value.overrides).filter(([key]) => key < month),
       )
@@ -111,10 +168,12 @@ export function BudgetScreen({
     setEditing(null)
   }
   function openCategory(c: Category) {
+    const policy = categoryPolicy(c, month)
     setEditing({
       ...c,
+      ...policy,
       baseAmount: Object.hasOwn(c.overrides, month)
-        ? c.overrides[month] / monthlyPay(1, c.frequency)
+        ? c.overrides[month] / monthlyPay(1, policy.frequency)
         : categoryPeriodAmount(c, month),
     })
     setAdvanced(false)
@@ -124,11 +183,16 @@ export function BudgetScreen({
     if (
       !editing ||
       !window.confirm(
-        `Delete ${editing.name}? Past transactions will keep their amounts but lose this category label.`,
+        `Remove ${editing.name} from ${monthLabel(month)} onward? Earlier plans and transaction labels will stay. You can restore it later.`,
       )
     )
       return
-    update((d) => ({ ...d, categories: d.categories.filter((c) => c.id !== editing.id) }))
+    update((d) => ({
+      ...d,
+      categories: d.categories.map((c) =>
+        c.id === editing.id ? { ...c, archived: true, ends: shiftMonth(month, -1) } : c,
+      ),
+    }))
     setEditing(null)
   }
   function openGroups() {
@@ -167,15 +231,15 @@ export function BudgetScreen({
     <div className="screen-stack">
       {historicalUnplanned && (
         <p className="soft-note" role="status">
-          Waypoint did not include budget allocations for this earlier month. Its transactions are
-          available in Activity and Compare. Add a plan here only if you know the amounts you used
+          Waypoint did not include the amounts you planned for this earlier month. Its transactions
+          are available in Activity and Compare. Add a plan here only if you know what you used
           then.
         </p>
       )}
       {!historicalUnplanned && summary.income === 0 && (
         <p className="soft-note" role="status">
           No monthly income is planned. If the Waypoint export says $0 but you receive pay, set the
-          expected amount in More → Your profile before using allocation percentages.
+          expected amount in More → Your profile before planning with a percentage of income.
         </p>
       )}
       {!historicalUnplanned && (
@@ -186,7 +250,7 @@ export function BudgetScreen({
               {money(summary.income, data.settings.currency, true)} <span>income</span>
             </h2>
             <div className="budget-info-stat">
-              <span>Allocated</span>
+              <span>Planned for categories</span>
               <strong>
                 {money(allocated, data.settings.currency, true)} of{' '}
                 {money(summary.income, data.settings.currency, true)}
@@ -199,21 +263,25 @@ export function BudgetScreen({
             <p>
               {allocated > summary.income
                 ? `${money(allocated - summary.income, data.settings.currency, true)} over your income`
-                : `${money(summary.income - allocated, data.settings.currency, true)} left to allocate`}{' '}
+                : `${money(summary.income - allocated, data.settings.currency, true)} not yet planned`}{' '}
               ·{' '}
               {Math.max(
                 0,
                 Math.round(((summary.income - allocated) / Math.max(summary.income, 1)) * 100),
               )}
-              % unallocated
+              % not yet planned
             </p>
           </div>
           <div className="donut-wrap">
             <div className="donut" style={{ background: donut }}>
               <div>
-                <small>TOTAL BUDGETED</small>
+                <small>PLANNED FOR CATEGORIES</small>
                 <strong>{money(allocated, data.settings.currency, true)}</strong>
-                <span>{money(summary.income - allocated, data.settings.currency, true)} left</span>
+                <span>
+                  {allocated > summary.income
+                    ? `${money(allocated - summary.income, data.settings.currency, true)} over expected pay`
+                    : `${money(summary.income - allocated, data.settings.currency, true)} not yet planned`}
+                </span>
               </div>
             </div>
           </div>
@@ -225,7 +293,7 @@ export function BudgetScreen({
             key={c.id}
             className={focusedSlice === c.id ? 'active' : ''}
             onClick={() => setFocusedSlice(c.id)}
-            aria-label={`Inspect ${c.name} allocation`}
+            aria-label={`Inspect ${c.name} planned amount`}
           >
             <i style={{ background: c.color }} />
             {c.name}
@@ -243,7 +311,7 @@ export function BudgetScreen({
         <section className="panel cover-panel" aria-label="Categories needing attention">
           <SectionHead
             title="Cover an overage"
-            help="Move part of this month's plan from unallocated money or another category. No bank transfer happens. You can undo the move."
+            help="Move part of this month's unplanned money or another category's plan. No bank transfer happens. You can undo the move."
           />
           {overages.map(({ category, available }) => (
             <div className="cover-row" key={category.id}>
@@ -343,8 +411,8 @@ export function BudgetScreen({
       )}
       <section className="panel allocation-panel">
         <SectionHead
-          title="Monthly allocations"
-          help="An allocation is the amount you plan for a category. Fresh categories restart each period. Rollover categories carry unused amounts forward."
+          title="Your monthly plan"
+          help="A category's planned amount is what you expect to spend or set aside. Some categories start fresh each month; others carry unused money forward. These are planning numbers, not your bank balance."
           aside={
             <div className="section-actions">
               <button className="secondary-button compact" onClick={openGroups}>
@@ -361,13 +429,25 @@ export function BudgetScreen({
             </div>
           }
         />
+        {active.some((category) => category.suggested || category.needsAmount) && (
+          <div className="starter-budget-notice" role="note">
+            <Icon name="MapPin" size={19} />
+            <span>
+              <strong>Check your starter amounts.</strong> Pockit used 2026 Vancouver examples for
+              rent and transit, and general planning examples for other costs. Some payments start
+              at $0 until you enter the real amount. Tap each category to enter what you pay or want
+              to limit. We never shrink a bill just to make the plan fit your pay.
+            </span>
+          </div>
+        )}
         <div className="allocation-list">
           {active.length ? (
             active.map((c) => {
               const planned = categoryBudget(c, month, summary.income)
               const used = spend[c.id] || 0
               const planUnavailable = month < c.starts
-              const left = c.mode === 'rollover' ? rolloverBalance(c, data, month) : planned - used
+              const isRollover = categoryPolicy(c, month).mode === 'rollover'
+              const left = isRollover ? rolloverBalance(c, data, month) : planned - used
               return (
                 <button className="allocation-row" key={c.id} onClick={() => openCategory(c)}>
                   <div
@@ -381,7 +461,13 @@ export function BudgetScreen({
                       <strong>{c.name}</strong>
                       <small>
                         {c.group}
-                        {c.mode === 'rollover' ? ' · Rolls over' : ''}
+                        {isRollover ? ' · Unused money carries forward' : ''}
+                        {c.needsAmount
+                          ? ' · Add your amount'
+                          : c.suggested
+                            ? ' · Example amount'
+                            : ''}
+                        {c.linkedGoalKind ? ' · Follows Goals' : ''}
                       </small>
                     </div>
                     <div className="allocation-progress">
@@ -390,9 +476,7 @@ export function BudgetScreen({
                           planUnavailable ? 0 : planned ? (used / planned) * 100 : used ? 100 : 0
                         }
                         color={
-                          !planUnavailable && used > planned && c.mode === 'fresh'
-                            ? 'var(--red)'
-                            : c.color
+                          !planUnavailable && used > planned && !isRollover ? 'var(--red)' : c.color
                         }
                       />
                     </div>
@@ -414,11 +498,41 @@ export function BudgetScreen({
           ) : (
             <Empty
               icon="Layers3"
-              title="No allocations yet"
-              text="Add a category to begin planning your month."
+              title="No category amounts yet"
+              text="Add a category, like Groceries, and choose an amount for this month."
             />
           )}
         </div>
+        {data.categories.some(
+          (category) => category.archived && category.ends && month > category.ends,
+        ) && (
+          <details className="archived-categories">
+            <summary>Removed categories</summary>
+            <p>
+              Old transactions keep their category names. Restore a category to plan for it again.
+            </p>
+            {data.categories
+              .filter((category) => category.archived && category.ends && month > category.ends)
+              .map((category) => (
+                <button
+                  key={category.id}
+                  className="secondary-button compact"
+                  onClick={() =>
+                    update((d) => ({
+                      ...d,
+                      categories: d.categories.map((item) =>
+                        item.id === category.id
+                          ? { ...item, archived: false, ends: undefined }
+                          : item,
+                      ),
+                    }))
+                  }
+                >
+                  Restore {category.name}
+                </button>
+              ))}
+          </details>
+        )}
       </section>
       {editing && (
         <Modal
@@ -429,6 +543,43 @@ export function BudgetScreen({
           wide
         >
           <div className="modal-body">
+            {data.categories.some(
+              (category) =>
+                category.id === editing.id && categoryPolicy(category, month).mode === 'rollover',
+            ) &&
+              (() => {
+                const savedCategory = data.categories.find(
+                  (category) => category.id === editing.id,
+                )!
+                const balance = rolloverMonth(savedCategory, data, month)
+                return (
+                  <div
+                    className="rollover-breakdown"
+                    aria-label={`${editing.name} balance in ${monthLabel(month)}`}
+                  >
+                    <strong>How this month’s balance adds up</strong>
+                    <span>
+                      Carried from last month <b>{money(balance.carried)}</b>
+                    </span>
+                    <span>
+                      {categoryPolicy(savedCategory, month).funding === 'manual'
+                        ? 'Added by recorded transfers'
+                        : 'Added by this month’s plan'}{' '}
+                      <b>{money(balance.added)}</b>
+                    </span>
+                    <span>
+                      Spent this month <b>{money(balance.spent)}</b>
+                    </span>
+                    <span>
+                      Available now <b>{money(balance.available)}</b>
+                    </span>
+                    <small>
+                      Changing a past plan or transaction updates this and future months
+                      automatically. These amounts are budget tracking, not a bank balance.
+                    </small>
+                  </div>
+                )
+              })()}
             <div className="form-grid">
               <Field label="Category name">
                 <input
@@ -450,7 +601,7 @@ export function BudgetScreen({
               </Field>
             </div>
             <div className="form-grid">
-              <Field label="Amount each period">
+              <Field label="Amount to plan each period">
                 <input
                   type="number"
                   min="0"
@@ -481,6 +632,13 @@ export function BudgetScreen({
                 </select>
               </Field>
             </div>
+            {editing.linkedGoalKind && (
+              <p className="soft-note">
+                This amount follows your monthly{' '}
+                {editing.linkedGoalKind === 'saving' ? 'saving' : 'debt'} payments in Goals. Enter a
+                different amount here if you want this category to have its own plan.
+              </p>
+            )}
             <Field
               label="Payment day (optional)"
               hint="For bills, add an upcoming bill in Calendar too."
@@ -502,7 +660,7 @@ export function BudgetScreen({
               />
             </Field>
             <button className="advanced-toggle" onClick={() => setAdvanced(!advanced)}>
-              Advanced options <Icon name={advanced ? 'ChevronUp' : 'ChevronDown'} size={17} />
+              More choices <Icon name={advanced ? 'ChevronUp' : 'ChevronDown'} size={17} />
             </button>
             {advanced && (
               <div className="advanced-content">
@@ -515,7 +673,9 @@ export function BudgetScreen({
                     >
                       <Icon name="RefreshCcw" />
                       <strong>Starts fresh</strong>
-                      <small>Same amount each period. Good for groceries and gas.</small>
+                      <small>
+                        Start with the same amount each period. Good for groceries and gas.
+                      </small>
                     </button>
                     <button
                       className={editing.mode === 'rollover' ? 'selected' : ''}
@@ -523,13 +683,13 @@ export function BudgetScreen({
                     >
                       <Icon name="Layers3" />
                       <strong>Rolls over</strong>
-                      <small>Build a balance for trips, repairs, or a cushion.</small>
+                      <small>Keep unused money for a later trip, repair, or cushion.</small>
                     </button>
                   </div>
                 </div>
                 {editing.mode === 'rollover' && (
                   <>
-                    <Field label="Contribution target">
+                    <Field label="How much to add each period">
                       <select
                         value={editing.targetType}
                         onChange={(e) =>
@@ -542,7 +702,7 @@ export function BudgetScreen({
                       >
                         <option value="fixed">Fixed amount each period</option>
                         <option value="percent">% of income</option>
-                        <option value="none">No target, just track the balance</option>
+                        <option value="none">No set amount, just track the balance</option>
                       </select>
                     </Field>
                     {editing.targetType === 'percent' && (
@@ -573,7 +733,7 @@ export function BudgetScreen({
                             })
                           }
                         >
-                          <option value="auto">Autofund from planned income</option>
+                          <option value="auto">Add from my planned income</option>
                           <option value="manual">I’ll add money manually</option>
                         </select>
                         <small>
@@ -615,7 +775,7 @@ export function BudgetScreen({
             <div className="modal-actions">
               {data.categories.some((c) => c.id === editing.id) && (
                 <button className="danger-button" onClick={removeCategory}>
-                  Delete category
+                  Remove category
                 </button>
               )}
               <button
@@ -638,12 +798,12 @@ export function BudgetScreen({
             </p>
             <Field label="Move from">
               <select value={coverSource} onChange={(event) => setCoverSource(event.target.value)}>
-                <option value="unallocated">Unallocated · {money(summary.unallocated)}</option>
+                <option value="unallocated">Not yet planned · {money(summary.unallocated)}</option>
                 {active
                   .filter((category) => category.id !== coverId)
                   .map((category) => {
                     const available =
-                      category.mode === 'rollover'
+                      categoryPolicy(category, month).mode === 'rollover'
                         ? rolloverBalance(category, data, month)
                         : categoryBudget(category, month, summary.income) -
                           (spend[category.id] || 0)

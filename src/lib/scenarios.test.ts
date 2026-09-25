@@ -72,7 +72,7 @@ describe('What-if Lab', () => {
       goalId: '',
       categoryId: category.id,
     })
-    expect(result.expenseChange).toBe(-480)
-    expect(result.roomAfter).toBe(before + 480)
+    expect(result.expenseChange).toBe(-category.baseAmount)
+    expect(result.roomAfter).toBe(before + category.baseAmount)
   })
 })

@@ -8,7 +8,7 @@ test('completion preview has its own readable space on small and large screens',
     await page.setViewportSize({ width, height: 850 })
     await page.evaluate(() => {
       document.getElementById('root')!.innerHTML =
-        `<div class="onboarding"><div class="onboarding-body"><div class="finish-card"><div class="finish-icon">✓</div><strong>Good things start with a clear picture.</strong><p>A simple starting plan in Canadian dollars.</p><div class="onboarding-plan-preview" aria-label="Starting monthly plan"><div><span>Pay this month</span><strong>$4,000.00</strong></div><div><span>Suggested category plan</span><strong>$3,500.00</strong></div><div><span>Still open for choices</span><strong>$500.00</strong></div><small>A plan, not recorded spending.</small></div></div></div></div>`
+        `<div class="onboarding"><div class="onboarding-body"><div class="finish-card"><div class="finish-icon">✓</div><strong>Good things start with a clear picture.</strong><p>A first draft in Canadian dollars.</p><div class="onboarding-plan-preview" aria-label="Starting monthly plan"><div><span>Pay this month</span><strong>$4,000.00</strong></div><div><span>Starting monthly plan</span><strong>$3,500.00</strong></div><div><span>Not yet planned</span><strong>$500.00</strong></div><small>This is a plan, not money already spent.</small></div></div></div></div>`
     })
     const icon = await page.locator('.finish-icon').boundingBox()
     const preview = await page.getByLabel('Starting monthly plan').boundingBox()
@@ -46,7 +46,7 @@ test('phone header controls and goal charts are legible and inside their cards',
   expect(svgBox!.height).toBeGreaterThanOrEqual(135)
   expect(svgBox!.x).toBeGreaterThanOrEqual(chartBox!.x)
   expect(svgBox!.x + svgBox!.width).toBeLessThanOrEqual(chartBox!.x + chartBox!.width + 1)
-  await page.getByRole('button', { name: 'Toggle theme' }).click()
+  await page.getByRole('button', { name: /Switch to (light|dark) mode/ }).click()
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f5f7f1')
   await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute(
     'content',

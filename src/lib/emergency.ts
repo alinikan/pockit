@@ -1,5 +1,5 @@
 import type { MonthKey, PockitData } from '../types'
-import { categoryBudget, monthSummary } from './finance'
+import { categoryActiveInMonth, categoryBudget, monthSummary } from './finance'
 
 /** A transparent starting point based on the essentials the user has planned. */
 export function emergencyMilestones(data: PockitData, month: MonthKey) {
@@ -7,7 +7,7 @@ export function emergencyMilestones(data: PockitData, month: MonthKey) {
   const essential = data.categories
     .filter(
       (category) =>
-        !category.archived &&
+        categoryActiveInMonth(category, month) &&
         (['Bills & Utilities', 'Transportation'].includes(category.group) ||
           /grocer|healthcare|medical|childcare/i.test(category.name)),
     )

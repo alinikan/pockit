@@ -3,9 +3,11 @@ import type { Category, Goal, PockitData, Transaction } from '../types'
 import {
   billMonthlyReserve,
   billsForMonth,
+  categoriesMissingBillDates,
   budgetHealth,
   categorizePayee,
   categoryBudget,
+  categoryPolicy,
   monthKey,
   monthSummary,
   money,
@@ -14,7 +16,9 @@ import {
   receiptFields,
   recurringMerchants,
   setMoneyPrivacy,
+  shortDate,
   rolloverBalance,
+  rolloverMonth,
   shiftMonth,
   simulateDebtPlan,
   spendingByCategory,
@@ -61,6 +65,9 @@ const debt = (patch: Partial<Goal> = {}): Goal => ({
 })
 
 describe('months and pay frequencies', () => {
+  it('shows a friendly calendar date without shifting it across time zones', () => {
+    expect(shortDate('2026-09-24')).toBe('Sep 24')
+  })
   it('crosses year boundaries in both directions', () => {
     expect(shiftMonth('2026-12', 1)).toBe('2027-01')
     expect(shiftMonth('2026-01', -1)).toBe('2025-12')
@@ -71,6 +78,32 @@ describe('months and pay frequencies', () => {
     expect(monthlyPay(1000, 'biweekly')).toBeCloseTo(2166.67, 1)
     expect(monthlyPay(1000, 'twice-monthly')).toBe(2000)
     expect(monthlyPay(1000, 'weekly')).toBeCloseTo(4333.33, 1)
+  })
+})
+describe('calendar setup hints', () => {
+  it('shows active regular costs without a day and stops prompting for linked bills', () => {
+    const data = makeInitialData('Alex')
+    const phone = category({
+      id: 'phone',
+      name: 'Phone',
+      group: 'Bills & Utilities',
+      baseAmount: 65,
+      targetValue: 65,
+    })
+    const groceries = category()
+    data.categories = [phone, groceries]
+    expect(categoriesMissingBillDates(data, '2026-09').map((item) => item.id)).toEqual(['phone'])
+    data.bills = [
+      { id: 'bill-1', name: 'Phone', day: 10, amount: 65, categoryId: 'phone', paidMonths: [] },
+    ]
+    expect(categoriesMissingBillDates(data, '2026-09')).toHaveLength(0)
+    data.bills = []
+    phone.paymentDay = 12
+    expect(categoriesMissingBillDates(data, '2026-09')).toHaveLength(0)
+    phone.paymentDay = undefined
+    phone.ends = '2026-08'
+    phone.archived = true
+    expect(categoriesMissingBillDates(data, '2026-09')).toHaveLength(0)
   })
 })
 describe('budgets and spending', () => {
@@ -157,6 +190,73 @@ describe('budgets and spending', () => {
     }
     expect(rolloverBalance(data.categories[0], data, '2026-02')).toBe(400)
   })
+  it('starts carrying money only when the rule begins, without changing earlier months', () => {
+    const fresh = {
+      frequency: 'monthly' as const,
+      mode: 'fresh' as const,
+      targetType: 'fixed' as const,
+      targetValue: 100,
+      funding: 'auto' as const,
+    }
+    const c = category({
+      baseAmount: 100,
+      mode: 'rollover',
+      policyChanges: {
+        '2026-01': fresh,
+        '2026-03': { ...fresh, mode: 'rollover' },
+      },
+    })
+    const data = {
+      ...makeInitialData(),
+      categories: [c],
+      transactions: [tx('2026-01-10', 20), tx('2026-02-10', 30), tx('2026-03-10', 40)],
+    }
+    expect(categoryPolicy(c, '2026-02').mode).toBe('fresh')
+    expect(rolloverBalance(c, data, '2026-02')).toBe(70)
+    expect(rolloverMonth(c, data, '2026-03')).toMatchObject({
+      carried: 0,
+      added: 100,
+      spent: 40,
+      available: 60,
+    })
+    expect(rolloverMonth(c, data, '2026-04').carried).toBe(60)
+  })
+  it('resets carryover for a fresh month and uses one-month policy overrides', () => {
+    const rollover = {
+      frequency: 'monthly' as const,
+      mode: 'rollover' as const,
+      targetType: 'fixed' as const,
+      targetValue: 100,
+      funding: 'auto' as const,
+    }
+    const c = category({
+      baseAmount: 100,
+      mode: 'rollover',
+      policyOverrides: { '2026-02': { ...rollover, mode: 'fresh' } },
+    })
+    const data = { ...makeInitialData(), categories: [c], transactions: [] }
+    expect(rolloverBalance(c, data, '2026-01')).toBe(100)
+    expect(rolloverBalance(c, data, '2026-02')).toBe(100)
+    expect(rolloverMonth(c, data, '2026-03').carried).toBe(0)
+    expect(rolloverBalance(c, data, '2026-03')).toBe(100)
+  })
+  it('recalculates a one-month percentage rule when expected income changes', () => {
+    const c = category({
+      policyOverrides: {
+        '2026-02': {
+          frequency: 'monthly',
+          mode: 'rollover',
+          targetType: 'percent',
+          targetValue: 10,
+          funding: 'auto',
+        },
+      },
+    })
+    expect(categoryBudget(c, '2026-01', 4000)).toBe(400)
+    expect(categoryBudget(c, '2026-02', 4000)).toBe(400)
+    expect(categoryBudget(c, '2026-02', 6000)).toBe(600)
+    expect(categoryBudget(c, '2026-03', 6000)).toBe(400)
+  })
   it('does not carry fresh balances forward', () => {
     const data = {
       ...makeInitialData(),
@@ -173,6 +273,32 @@ describe('budgets and spending', () => {
       transactions: [tx('2026-01-10', 250, 'transfer'), tx('2026-02-10', 100)],
     }
     expect(rolloverBalance(c, data, '2026-02')).toBe(150)
+  })
+  it('carries balances across years and recalculates after an earlier edit', () => {
+    const c = category({ starts: '2026-11', baseAmount: 100, targetValue: 100, mode: 'rollover' })
+    const data = {
+      ...makeInitialData(),
+      categories: [c],
+      transactions: [tx('2026-11-09', 30), tx('2026-12-20', 50)],
+    }
+    expect(rolloverMonth(c, data, '2027-01')).toMatchObject({
+      carried: 120,
+      added: 100,
+      spent: 0,
+      available: 220,
+    })
+    data.transactions[0].amount = 60
+    expect(rolloverMonth(c, data, '2027-01').available).toBe(190)
+    c.overrides['2026-12'] = 150
+    expect(rolloverMonth(c, data, '2027-01').available).toBe(240)
+  })
+  it('keeps a removed category and its earlier plan available in history', () => {
+    const c = category({ mode: 'rollover', archived: true, ends: '2026-02' })
+    const data = { ...makeInitialData(), categories: [c], transactions: [tx('2026-01-10', 150)] }
+    expect(categoryBudget(c, '2026-01', 3000)).toBe(400)
+    expect(categoryBudget(c, '2026-03', 3000)).toBe(0)
+    expect(rolloverBalance(c, data, '2026-02')).toBe(650)
+    expect(spendingByCategory(data.transactions, '2026-01')[c.id]).toBe(150)
   })
   it('spots categories over budget', () => {
     const data = {
