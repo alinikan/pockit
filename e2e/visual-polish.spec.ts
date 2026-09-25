@@ -29,6 +29,10 @@ test('phone header controls and goal charts are legible and inside their cards',
 }) => {
   await page.setViewportSize({ width: 402, height: 874 })
   await page.goto('/')
+  await expect(page.locator('meta[name="apple-mobile-web-app-status-bar-style"]')).toHaveAttribute(
+    'content',
+    'black',
+  )
   await page.getByRole('button', { name: 'Preview Pockit' }).click()
   const topbar = await page.locator('.topbar').boundingBox()
   for (const button of await page.locator('.topbar button').all()) {

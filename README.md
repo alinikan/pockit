@@ -42,7 +42,7 @@ Pockit Insights answers a small set of guided questions using the numbers you en
 - **Move an existing budget:** import a full Waypoint ZIP with a review step, duplicate checks, and a downloaded Pockit backup. Budget dates remain distinct from confirmed bills. See the [Waypoint import guide](docs/WAYPOINT_IMPORT.md).
 - **CAD first:** the app plans and displays money in Canadian dollars. There is no currency conversion or automatic bank feed.
 - **Help on demand:** optional guides and contextual explanations describe what each view means, with examples.
-- **Private accounts:** email/password sign-in, optional passkeys, and per-user access rules in Supabase. The browser and installed app persist a signed-in session across ordinary closes; a signed-in device can keep a pending copy while offline and sync it later.
+- **Private accounts:** email/password sign-in, optional passkeys, and per-user access rules in Supabase. The browser and installed app each persist their own signed-in session; when signed in to the same account, they refresh setup and budget data from the cloud. A device can keep pending edits while offline and sync them later.
 
 ## How it was built
 

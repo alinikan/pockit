@@ -48,6 +48,9 @@ const canonical = (value: unknown): unknown => {
 }
 export const sameData = (first: PockitData, second: PockitData) =>
   JSON.stringify(canonical(first)) === JSON.stringify(canonical(second))
+/** A cached copy with no edits must not block newer account data. */
+export const hasPendingEdits = (pending: PendingSnapshot) =>
+  !pending.base || !sameData(pending.data, pending.base)
 const equal = (first: unknown, second: unknown) =>
   JSON.stringify(canonical(first)) === JSON.stringify(canonical(second))
 

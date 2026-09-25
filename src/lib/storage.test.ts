@@ -5,6 +5,7 @@ import {
   browserAuthOptions,
   clearCache,
   clearPending,
+  hasPendingEdits,
   readCache,
   readPending,
   sameData,
@@ -49,5 +50,18 @@ describe('device copies for cloud sync', () => {
     expect(sameData(local, remote)).toBe(true)
     remote.transactions[0].amount += 1
     expect(sameData(local, remote)).toBe(false)
+  })
+  it('does not treat an unchanged setup cache as a competing edit', () => {
+    const base = makeDemoData()
+    const pending = {
+      data: JSON.parse(JSON.stringify(base)),
+      base,
+      revision: 2,
+      changedAt: '2026-09-22T12:00:00Z',
+    }
+    expect(hasPendingEdits(pending)).toBe(false)
+    pending.data.profile.name = 'New name'
+    expect(hasPendingEdits(pending)).toBe(true)
+    expect(hasPendingEdits({ ...pending, base: undefined })).toBe(true)
   })
 })

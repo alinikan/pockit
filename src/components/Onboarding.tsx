@@ -45,11 +45,15 @@ export function Onboarding({
   onDone,
   onChange,
   onSave,
+  accountEmail,
+  syncStatus = 'saved',
 }: {
   initial: PockitData
   onDone: (value: PockitData) => void
   onChange?: (value: PockitData) => void
   onSave?: (value: PockitData) => Promise<void>
+  accountEmail?: string
+  syncStatus?: 'saved' | 'saving' | 'offline' | 'conflict' | 'error'
 }) {
   const [data, setData] = useState(initial)
   const [step, setStep] = useState(() => Math.max(0, Math.min(8, initial.onboardingStep ?? 0)))
@@ -57,6 +61,7 @@ export function Onboarding({
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   useEffect(() => {
+    if (data === initial && selectedGoals === initial.goals) return
     onChange?.({ ...data, goals: selectedGoals })
   }, [data, selectedGoals, onChange])
   const setProfile = (patch: Partial<PockitData['profile']>) =>
@@ -150,7 +155,24 @@ export function Onboarding({
       <div className="onboarding-progress">
         <Progress value={((step + 1) / 9) * 100} />
       </div>
-      <div className="onboarding-body">
+      {accountEmail && (
+        <div className={`onboarding-account ${syncStatus}`} role="status">
+          <Icon name={syncStatus === 'saved' ? 'CloudCheck' : 'CloudUpload'} size={15} />
+          <span>
+            {syncStatus === 'saved'
+              ? 'Saved to your account'
+              : syncStatus === 'saving'
+                ? 'Saving to your account…'
+                : syncStatus === 'offline'
+                  ? 'Offline — saved on this device'
+                  : 'Sync needs attention'}
+          </span>
+          <span className="onboarding-account-email" title={accountEmail}>
+            {accountEmail}
+          </span>
+        </div>
+      )}
+      <div className="onboarding-body" inert={saving} aria-busy={saving}>
         <div className="onboarding-intro">
           <div className="eyebrow">LET'S MAKE IT YOURS</div>
           <h1>

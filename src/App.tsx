@@ -9,6 +9,7 @@ import {
   clearCache,
   clearPending,
   downloadJSON,
+  hasPendingEdits,
   isConflictError,
   loadCloud,
   mergeSnapshots,
@@ -80,6 +81,7 @@ export default function App() {
     remote: CloudSnapshot
   } | null>(null)
   const [retry, setRetry] = useState(0)
+  const [cloudEpoch, setCloudEpoch] = useState(0)
   const saveQueue = useRef(Promise.resolve())
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ready = useRef(false)
@@ -102,39 +104,63 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const retryPending = () => {
-      if (!session || conflictRef.current) return
-      if (readPending(session.user.id)) {
-        setRetry((value) => value + 1)
+    let cancelled = false
+    let checkingCloud = false
+    const retryPending = async () => {
+      if (
+        !session ||
+        demo ||
+        !navigator.onLine ||
+        !ready.current ||
+        conflictRef.current ||
+        checkingCloud
+      )
         return
-      }
-      void loadCloud(session)
-        .then((remote) => {
-          if (
-            remote &&
-            remote.revision > revision.current &&
-            !readPending(session.user.id) &&
-            !conflictRef.current
-          ) {
-            revision.current = remote.revision
-            writeCache(session.user.id, remote)
-            suppressNextSave.current = true
-            setData(remote.data)
-            setSyncStatus('saved')
+      checkingCloud = true
+      try {
+        const remote = await loadCloud(session)
+        if (cancelled || !ready.current || conflictRef.current) return
+        const pending = readPending(session.user.id)
+        if (remote && remote.revision > revision.current) {
+          if (pending && hasPendingEdits(pending) && !sameData(pending.data, remote.data)) {
+            setConflict({ local: pending, remote })
+            setSyncStatus('conflict')
+            return
           }
-        })
-        .catch(() => {})
+          if (pending) clearPending(session.user.id)
+          revision.current = remote.revision
+          writeCache(session.user.id, remote)
+          suppressNextSave.current = true
+          setData(remote.data)
+          setCloudEpoch((value) => value + 1)
+          setSyncStatus('saved')
+        } else if (pending && !hasPendingEdits(pending)) clearPending(session.user.id)
+        else if (pending && navigator.onLine) setRetry((value) => value + 1)
+      } catch {
+        // Keep the device copy; the next foreground or online check can retry.
+      } finally {
+        checkingCloud = false
+      }
     }
     window.addEventListener('online', retryPending)
+    window.addEventListener('focus', retryPending)
+    window.addEventListener('pageshow', retryPending)
     const onVisible = () => {
       if (document.visibilityState === 'visible') retryPending()
     }
     document.addEventListener('visibilitychange', onVisible)
+    const poll = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void retryPending()
+    }, 30_000)
     return () => {
+      cancelled = true
       window.removeEventListener('online', retryPending)
+      window.removeEventListener('focus', retryPending)
+      window.removeEventListener('pageshow', retryPending)
       document.removeEventListener('visibilitychange', onVisible)
+      window.clearInterval(poll)
     }
-  }, [session?.user.id])
+  }, [session?.user.id, demo])
 
   useEffect(() => {
     if (!supabase) {
@@ -176,7 +202,11 @@ export default function App() {
           const pending = readPending(session.user.id)
           revision.current = cloud?.revision || 0
           if (cloud) writeCache(session.user.id, cloud)
-          if (pending && (!cloud || !sameData(pending.data, cloud.data))) {
+          if (
+            pending &&
+            hasPendingEdits(pending) &&
+            (!cloud || !sameData(pending.data, cloud.data))
+          ) {
             setData(pending.data)
             if (pending.revision !== revision.current) {
               setConflict({
@@ -229,7 +259,7 @@ export default function App() {
       )
     document
       .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
-      ?.setAttribute('content', data.settings.theme === 'light' ? 'default' : 'black-translucent')
+      ?.setAttribute('content', data.settings.theme === 'light' ? 'default' : 'black')
     if (conflict) return
     if (suppressNextSave.current) {
       suppressNextSave.current = false
@@ -304,7 +334,7 @@ export default function App() {
       clearTimeout(timer)
       if (saveTimer.current === timer) saveTimer.current = null
     }
-  }, [data, demo, session, conflict, retry])
+  }, [data, demo, session?.user.id, conflict, retry])
 
   async function resolveConflict(
     choice: 'device' | 'cloud' | 'merge' | 'merge-device' | 'merge-cloud',
@@ -316,6 +346,7 @@ export default function App() {
       clearPending(session.user.id)
       suppressNextSave.current = true
       setData(conflict.remote.data)
+      setCloudEpoch((value) => value + 1)
       setConflict(null)
       setSyncStatus('saved')
       setError('')
@@ -340,6 +371,7 @@ export default function App() {
       clearPending(session.user.id)
       suppressNextSave.current = true
       setData(selected)
+      setCloudEpoch((value) => value + 1)
       setConflict(null)
       setSyncStatus('saved')
       setError('')
@@ -432,6 +464,12 @@ export default function App() {
             This device has changes that differ from your cloud copy. Download this device’s copy
             before choosing if you want to keep a backup.
           </p>
+          {conflict.remote.data.onboarded && !conflict.local.data.onboarded && (
+            <p>
+              You finished setup on another device. Choose “Use cloud copy” to open your completed
+              Pockit here, or save this device’s draft first.
+            </p>
+          )}
           {conflict.local.base &&
             (() => {
               const merged = mergeSnapshots(
@@ -495,10 +533,14 @@ export default function App() {
   if (!data.onboarded)
     return (
       <Onboarding
+        key={`${session?.user.id || 'preview'}:${cloudEpoch}`}
         initial={data}
+        accountEmail={session?.user.email}
+        syncStatus={syncStatus}
         onChange={setData}
         onSave={async (next) => {
           if (!session) throw new Error('Your session has expired. Sign in again.')
+          setSyncStatus('saving')
           if (saveTimer.current) {
             clearTimeout(saveTimer.current)
             saveTimer.current = null
@@ -517,8 +559,21 @@ export default function App() {
               writeCache(session.user.id, { data: next, revision: nextRevision })
               clearPending(session.user.id)
               suppressNextSave.current = true
+              setSyncStatus('saved')
             })
-          await saveQueue.current
+          try {
+            await saveQueue.current
+          } catch (cause) {
+            if (isConflictError(cause)) {
+              const remote = await loadCloud(session).catch(() => null)
+              const local = readPending(session.user.id)
+              if (remote && local) {
+                setConflict({ local, remote })
+                setSyncStatus('conflict')
+              }
+            } else setSyncStatus(navigator.onLine ? 'error' : 'offline')
+            throw cause
+          }
           setError('')
         }}
         onDone={setData}

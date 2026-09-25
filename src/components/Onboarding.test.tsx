@@ -7,6 +7,35 @@ import { Onboarding } from './Onboarding'
 afterEach(cleanup)
 
 describe('onboarding', () => {
+  it('does not save an unchanged setup screen just because it opened', () => {
+    const onChange = vi.fn()
+    render(<Onboarding initial={makeInitialData('Sam')} onDone={vi.fn()} onChange={onChange} />)
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /get out of debt/i }))
+    expect(onChange).toHaveBeenCalledOnce()
+    expect(onChange.mock.calls[0][0].profile.reason).toBe('Get out of debt')
+  })
+  it('shows which account is saving setup progress and when it is offline', () => {
+    const initial = makeInitialData('Sam')
+    const view = render(
+      <Onboarding
+        initial={initial}
+        onDone={vi.fn()}
+        accountEmail="sam@example.com"
+        syncStatus="saved"
+      />,
+    )
+    expect(screen.getByRole('status').textContent).toMatch(/Saved to your account.*sam@example.com/)
+    view.rerender(
+      <Onboarding
+        initial={initial}
+        onDone={vi.fn()}
+        accountEmail="sam@example.com"
+        syncStatus="offline"
+      />,
+    )
+    expect(screen.getByRole('status').textContent).toMatch(/Offline — saved on this device/)
+  })
   it('shows the local example clearly, accepts an actual rent amount, and warns about an unaffordable draft', () => {
     const initial = makeInitialData()
     initial.onboardingStep = 2
