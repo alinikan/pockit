@@ -20,6 +20,8 @@ import {
 } from '../lib/finance'
 import { Empty, Field, Icon, Modal, Progress, SectionHead } from '../components/UI'
 import { coverOverspend } from '../lib/budgetMoves'
+import { budgetChart } from '../lib/budgetChart'
+import { BudgetBreakdown } from '../components/BudgetBreakdown'
 
 const groups = [
   'Food & Dining',
@@ -43,7 +45,6 @@ export function BudgetScreen({
   const [groupsOpen, setGroupsOpen] = useState(false)
   const [groupDraft, setGroupDraft] = useState<Record<string, string>>({})
   const [groupSelected, setGroupSelected] = useState<Record<string, boolean>>({})
-  const [focusedSlice, setFocusedSlice] = useState<string | null>(null)
   const [coverId, setCoverId] = useState<string | null>(null)
   const [coverSource, setCoverSource] = useState('unallocated')
   const [coverAmount, setCoverAmount] = useState(0)
@@ -67,18 +68,8 @@ export function BudgetScreen({
   const irregular = data.bills
     .map((bill) => ({ bill, reserve: billMonthlyReserve(bill, month) }))
     .filter((entry) => entry.reserve !== null)
-  const allocated = active.reduce((n, c) => n + categoryBudget(c, month, summary.income), 0)
-  const chartColors = active.filter((c) => categoryBudget(c, month, summary.income) > 0)
-  const focusedCategory = chartColors.find((category) => category.id === focusedSlice)
-  let cursor = 0
-  const slices = chartColors.map((c) => {
-    const percent =
-      (categoryBudget(c, month, summary.income) / Math.max(allocated, summary.income, 1)) * 100
-    const part = `${c.color} ${cursor}% ${cursor + percent}%`
-    cursor += percent
-    return part
-  })
-  const donut = `conic-gradient(${[...slices, `var(--track) ${cursor}% 100%`].join(', ')})`
+  const chart = budgetChart(active, month, summary.income)
+  const allocated = chart.total
   function saveCategory() {
     if (!editing?.name.trim()) return
     const value: Category = {
@@ -247,8 +238,17 @@ export function BudgetScreen({
           <div className="budget-info">
             <div className="eyebrow">MONTHLY PLAN</div>
             <h2>
-              {money(summary.income, data.settings.currency, true)} <span>income</span>
+              {money(summary.income, data.settings.currency, true)} <span>expected income</span>
             </h2>
+            <div className="budget-actual-income">
+              <Icon name="ArrowDownLeft" size={17} />
+              <span>Recorded income</span>
+              <strong>{money(summary.actualIncome, data.settings.currency, true)}</strong>
+            </div>
+            <p className="budget-income-explanation">
+              Actual pay can change. Record each deposit in Activity; your category limits stay as
+              planned until you adjust them.
+            </p>
             <div className="budget-info-stat">
               <span>Planned for categories</span>
               <strong>
@@ -272,40 +272,10 @@ export function BudgetScreen({
               % not yet planned
             </p>
           </div>
-          <div className="donut-wrap">
-            <div className="donut" style={{ background: donut }}>
-              <div>
-                <small>PLANNED FOR CATEGORIES</small>
-                <strong>{money(allocated, data.settings.currency, true)}</strong>
-                <span>
-                  {allocated > summary.income
-                    ? `${money(allocated - summary.income, data.settings.currency, true)} over expected pay`
-                    : `${money(summary.income - allocated, data.settings.currency, true)} not yet planned`}
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       )}
-      <div className="budget-legend">
-        {chartColors.map((c) => (
-          <button
-            key={c.id}
-            className={focusedSlice === c.id ? 'active' : ''}
-            onClick={() => setFocusedSlice(c.id)}
-            aria-label={`Inspect ${c.name} planned amount`}
-          >
-            <i style={{ background: c.color }} />
-            {c.name}
-          </button>
-        ))}
-      </div>
-      {focusedCategory && (
-        <p className="budget-chart-detail" role="status">
-          {focusedCategory.name}:{' '}
-          {money(categoryBudget(focusedCategory, month, summary.income), data.settings.currency)}{' '}
-          planned for {monthLabel(month)}.
-        </p>
+      {!historicalUnplanned && (
+        <BudgetBreakdown chart={chart} income={summary.income} currency={data.settings.currency} />
       )}
       {overages.length > 0 && (
         <section className="panel cover-panel" aria-label="Categories needing attention">

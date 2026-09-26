@@ -9,6 +9,87 @@ import { ActivityScreen } from './Activity'
 afterEach(cleanup)
 
 describe('activity', () => {
+  it('records the real amount and date of income independently of the pay schedule', () => {
+    let data = makeDemoData()
+    const before = data.transactions.filter((item) => item.type === 'income').length
+    const setMonth = vi.fn()
+    render(
+      <ActivityScreen
+        data={data}
+        month={'2026-09'}
+        setMonth={setMonth}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Record income' }))
+    expect(screen.getByText(/Record the amount you actually received/)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Income from'), { target: { value: 'Overtime pay' } })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '1234.56' } })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-08-28' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
+    expect(data.transactions.filter((item) => item.type === 'income')).toHaveLength(before + 1)
+    expect(data.transactions.at(-1)).toMatchObject({
+      type: 'income',
+      payee: 'Overtime pay',
+      amount: 1234.56,
+      date: '2026-08-28',
+      source: 'manual',
+    })
+    expect(setMonth).toHaveBeenCalledWith('2026-08')
+  })
+
+  it('opens quick add directly on income when requested from Home', () => {
+    render(
+      <ActivityScreen
+        data={makeDemoData()}
+        month={currentMonth()}
+        update={() => {}}
+        quickAdd={1}
+        quickAddType="income"
+        onQuickAddConsumed={() => {}}
+      />,
+    )
+    expect(screen.getByLabelText('Income from')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Income' }).className).toBe('active')
+  })
+  it('prefills the calendar date without fixing the income amount', () => {
+    render(
+      <ActivityScreen
+        data={makeDemoData()}
+        month="2026-09"
+        update={() => {}}
+        quickAdd={1}
+        quickAddType="income"
+        quickAddDate="2026-09-18"
+        onQuickAddConsumed={() => {}}
+      />,
+    )
+    expect((screen.getByLabelText('Date') as HTMLInputElement).value).toBe('2026-09-18')
+    expect((screen.getByLabelText('Amount') as HTMLInputElement).value).toBe('')
+  })
+  it('does not call a future estimated payday received income', () => {
+    let data = makeDemoData()
+    render(
+      <ActivityScreen
+        data={data}
+        month={currentMonth()}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Record income' }))
+    fireEvent.change(screen.getByLabelText('Income from'), { target: { value: 'Next pay' } })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '1200' } })
+    fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2999-01-10' } })
+    expect(screen.getByText(/Record this income after it arrives/)).toBeTruthy()
+    expect(
+      (screen.getByRole('button', { name: 'Save transaction' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    expect(data.transactions.some((item) => item.payee === 'Next pay')).toBe(false)
+  })
   it('opens quick add only for a fresh request and consumes that request', () => {
     const data = makeDemoData()
     const consumed = vi.fn()

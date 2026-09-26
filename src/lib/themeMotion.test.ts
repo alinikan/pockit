@@ -6,6 +6,7 @@ afterEach(() => {
   Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined })
   document.documentElement.classList.remove('theme-revealing')
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 describe('theme change motion', () => {
@@ -51,5 +52,20 @@ describe('theme change motion', () => {
     animateThemeChange(apply)
     expect(apply).toHaveBeenCalledOnce()
     expect(start).not.toHaveBeenCalled()
+  })
+  it('clears the reveal state if a browser never finishes its transition', () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: (apply: () => void) => {
+        apply()
+        return { finished: new Promise(() => {}) }
+      },
+    })
+    animateThemeChange(() => {})
+    expect(document.documentElement.classList.contains('theme-revealing')).toBe(true)
+    vi.advanceTimersByTime(901)
+    expect(document.documentElement.classList.contains('theme-revealing')).toBe(false)
   })
 })

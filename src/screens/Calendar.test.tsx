@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { PockitData } from '../types'
 import { makeDemoData } from '../lib/defaults'
@@ -9,6 +9,31 @@ import { CalendarScreen } from './Calendar'
 afterEach(cleanup)
 
 describe('calendar', () => {
+  it('passes the selected calendar date to manual income entry', () => {
+    const onAddIncome = vi.fn()
+    render(
+      <CalendarScreen
+        data={makeDemoData()}
+        month="2026-09"
+        update={() => {}}
+        onAddIncome={onAddIncome}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /^18$/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record income for this day' }))
+    expect(onAddIncome).toHaveBeenCalledWith('2026-09-18')
+  })
+  it('keeps future paydays as estimates until the date arrives', () => {
+    render(
+      <CalendarScreen
+        data={makeDemoData()}
+        month="2999-01"
+        update={() => {}}
+        onAddIncome={() => {}}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Record income for this day' })).toBeNull()
+  })
   it('moves between months from the calendar header', () => {
     let month: `${number}-${number}` = '2026-09'
     const data = makeDemoData()

@@ -105,6 +105,38 @@ export const spendingByCategory = (transactions: Transaction[], month: MonthKey)
   }
   return totals
 }
+/** Entries behind one category total, including the allocated share of split expenses. */
+export const categorySpendingEntries = (
+  transactions: Transaction[],
+  month: MonthKey,
+  categoryId: string,
+) =>
+  transactionsInMonth(transactions, month)
+    .flatMap((transaction) => {
+      if (transaction.type !== 'expense' || transaction.excludedFromBudget) return []
+      const share = transaction.splits?.length
+        ? transaction.splits
+            .filter((split) => split.categoryId === categoryId)
+            .reduce((sum, split) => sum + split.amount, 0)
+        : transaction.categoryId === categoryId
+          ? transaction.amount
+          : 0
+      return share
+        ? [
+            {
+              transaction,
+              amount: transaction.refund ? -share : share,
+              split: !!transaction.splits?.length,
+            },
+          ]
+        : []
+    })
+    .sort(
+      (a, b) =>
+        b.transaction.date.localeCompare(a.transaction.date) ||
+        (b.transaction.createdAt || '').localeCompare(a.transaction.createdAt || '') ||
+        b.transaction.id.localeCompare(a.transaction.id),
+    )
 export const monthSummary = (data: PockitData, month: MonthKey) => {
   const undatedIncome =
     data.profile.plannedMonthlyIncome !== undefined &&

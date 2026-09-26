@@ -58,7 +58,7 @@ describe('historical Waypoint months in the app', () => {
         data={historicalImport()}
         month="2026-08"
         setTab={() => {}}
-        openCoach={() => {}}
+        onAddIncome={() => {}}
         update={() => {}}
       />,
     )

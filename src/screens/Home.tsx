@@ -1,15 +1,16 @@
 import type { MonthKey, PockitData } from '../types'
-import { useState } from 'react'
+import { useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   homeSections,
-  moveHomeSection,
   normalizedHomeOrder,
+  reorderHomeSection,
   type HomeSectionId,
 } from '../lib/homeLayout'
 import {
   billsForMonth,
   beforeWaypointPlan,
   budgetHealth,
+  categorySpendingEntries,
   categoryBudget,
   categoryPolicy,
   categoryActiveInMonth,
@@ -31,17 +32,21 @@ export function HomeScreen({
   data,
   month,
   setTab,
-  openCoach,
+  onAddIncome,
   update,
 }: {
   data: PockitData
   month: MonthKey
   setTab: (tab: 'Activity' | 'Budget' | 'Calendar' | 'More') => void
-  openCoach: () => void
+  onAddIncome: () => void
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
   const [customizing, setCustomizing] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'on-track' | 'off-track'>('all')
+  const [detailCategoryId, setDetailCategoryId] = useState<string | null>(null)
   const homeOrder = normalizedHomeOrder(data.settings.homeOrder)
+  const [draftOrder, setDraftOrder] = useState<HomeSectionId[]>(homeOrder)
+  const [dragging, setDragging] = useState<HomeSectionId | null>(null)
   const hidden = new Set(data.settings.hiddenHomeSections || [])
   const homeStyle = (id: HomeSectionId) => ({ order: homeOrder.indexOf(id) })
   const isVisible = (id: HomeSectionId) => !hidden.has(id)
@@ -50,6 +55,32 @@ export function HomeScreen({
       ...current,
       settings: { ...current.settings, homeOrder: order },
     }))
+  const openCustomization = () => {
+    setDraftOrder(homeOrder)
+    setCustomizing(true)
+  }
+  const startDragging = (event: ReactPointerEvent<HTMLButtonElement>, id: HomeSectionId) => {
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDragging(id)
+  }
+  const dragOver = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!dragging) return
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-home-section]')?.dataset.homeSection as
+      HomeSectionId | undefined
+    if (target) setDraftOrder((order) => reorderHomeSection(order, dragging, target))
+  }
+  const finishDragging = () => {
+    if (!dragging) return
+    setHomeOrder(draftOrder)
+    setDragging(null)
+  }
+  const cancelDragging = () => {
+    setDraftOrder(homeOrder)
+    setDragging(null)
+  }
   const toggleHomeSection = (id: HomeSectionId) =>
     update((current) => {
       const next = new Set(current.settings.hiddenHomeSections || [])
@@ -62,11 +93,59 @@ export function HomeScreen({
     beforeWaypointPlan(data, month) &&
     !data.categories.some((category) => categoryActiveInMonth(category, month))
   const chartIncome = historicalUnplanned ? actualIncome : actualIncome || income
-  const useActualCashFlow = actualIncome > 0 && (historicalUnplanned || !income)
+  const useActualCashFlow = actualIncome > 0
   const spend = spendingByCategory(data.transactions, month)
   const sorted = [...data.categories]
     .filter((c) => categoryBudget(c, month, income) > 0 || spend[c.id])
     .sort((a, b) => (spend[b.id] || 0) - (spend[a.id] || 0))
+  const categoryRows = sorted.map((category) => {
+    const used = spend[category.id] || 0
+    const planned = categoryBudget(category, month, income)
+    const active = categoryActiveInMonth(category, month)
+    const rollover =
+      active && categoryPolicy(category, month).mode === 'rollover'
+        ? rolloverMonth(category, data, month)
+        : null
+    const availableToSpend = rollover ? rollover.carried + rollover.added : planned
+    const remaining = rollover ? rollover.available : planned - used
+    const hasPlan = active && (planned > 0 || !!rollover?.carried || !!rollover?.added)
+    const offTrack = hasPlan ? remaining < -0.005 : used > 0
+    const nearLimit =
+      hasPlan &&
+      !offTrack &&
+      remaining > 0.005 &&
+      availableToSpend > 0 &&
+      used / availableToSpend >= 0.9
+    return {
+      category,
+      used,
+      planned,
+      rollover,
+      availableToSpend,
+      remaining,
+      hasPlan,
+      offTrack,
+      nearLimit,
+    }
+  })
+  const offTrackCount = categoryRows.filter((row) => row.offTrack).length
+  const filteredCategoryRows = categoryRows.filter((row) =>
+    categoryFilter === 'all' ? true : categoryFilter === 'off-track' ? row.offTrack : !row.offTrack,
+  )
+  const detailRow = categoryRows.find((row) => row.category.id === detailCategoryId)
+  const detailEntries = detailRow
+    ? categorySpendingEntries(data.transactions, month, detailRow.category.id)
+    : []
+  const detailMovements = detailRow
+    ? data.transactions
+        .filter(
+          (transaction) =>
+            transaction.date.slice(0, 7) === month &&
+            transaction.categoryId === detailRow.category.id &&
+            transaction.type !== 'expense',
+        )
+        .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+    : []
   const bills = billsForMonth(data.bills, month)
     .filter((b) => !b.paid && !b.skipped)
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -107,7 +186,7 @@ export function HomeScreen({
     <div className="screen-stack">
       <div className="home-customize-bar" style={{ order: -2 }}>
         <span>Make this space work for you.</span>
-        <button className="secondary-button compact" onClick={() => setCustomizing(true)}>
+        <button className="secondary-button compact" onClick={openCustomization}>
           <Icon name="SlidersHorizontal" size={16} /> Customize Home
         </button>
       </div>
@@ -245,16 +324,13 @@ export function HomeScreen({
             <div className="hero-bottom">
               <span>
                 {useActualCashFlow
-                  ? 'Based on income and expenses recorded for this month; no income plan is set.'
+                  ? 'Based on income and expenses recorded this month. Your planned income stays separate.'
                   : historicalUnplanned
                     ? 'Only spending recorded in the ZIP; no historical budget plan was exported.'
                     : remaining >= 0
                       ? 'Planned income minus spending entered for this month.'
                       : 'Recorded spending has passed your planned income.'}
               </span>
-              <button onClick={openCoach}>
-                Get insight <Icon name="ArrowRight" size={15} />
-              </button>
             </div>
           </div>
           <div className="summary-stack">
@@ -270,7 +346,12 @@ export function HomeScreen({
                     : money(income, data.settings.currency, true)}
                 </strong>
               </div>
-              <small>Received so far: {money(actualIncome, data.settings.currency, true)}</small>
+              <div className="income-record-line">
+                <small>Received so far: {money(actualIncome, data.settings.currency, true)}</small>
+                <button className="text-button" onClick={onAddIncome}>
+                  <Icon name="Plus" size={15} /> Record income
+                </button>
+              </div>
             </div>
             <div className="summary-card">
               <div className="summary-icon spent">
@@ -351,7 +432,7 @@ export function HomeScreen({
         </section>
       )}
       {isVisible('spending') && (
-        <div className="dashboard-grid" style={homeStyle('spending')}>
+        <div className="dashboard-grid spending-breakdown-grid" style={homeStyle('spending')}>
           <section className="panel actual-panel">
             <SectionHead
               title="Actual spending"
@@ -398,69 +479,111 @@ export function HomeScreen({
           </section>
           <section className="panel breakdown-panel">
             <SectionHead
-              title="Category breakdown"
-              help="Each line compares your expense transactions with the monthly amount you planned. Rollover categories carry unused balances forward."
+              title="Category Breakdown"
+              help="Compare what you spent with each category's plan for this month. Tap the eye to see every recorded expense and refund included in a total. Split transactions show only the amount assigned to that category."
               aside={
                 <button className="link-button" onClick={() => setTab('Budget')}>
                   Full budget <Icon name="ArrowRight" size={15} />
                 </button>
               }
             />
+            <div className="category-filter-row" role="group" aria-label="Filter categories">
+              {(
+                [
+                  ['all', 'All', categoryRows.length],
+                  ['on-track', 'On Track', categoryRows.length - offTrackCount],
+                  ['off-track', 'Off Track', offTrackCount],
+                ] as const
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={categoryFilter === key ? 'active' : ''}
+                  aria-pressed={categoryFilter === key}
+                  onClick={() => setCategoryFilter(key)}
+                >
+                  {label} <span>{count}</span>
+                </button>
+              ))}
+            </div>
             <div className="category-list">
-              {sorted.slice(0, 6).map((c) => {
-                const budget = categoryBudget(c, month, income)
-                const used = spend[c.id] || 0
-                const carried =
-                  categoryPolicy(c, month).mode === 'rollover' && month >= c.starts
-                    ? rolloverMonth(c, data, month)
-                    : null
+              {filteredCategoryRows.map((row) => {
+                const {
+                  category: c,
+                  used,
+                  remaining,
+                  availableToSpend,
+                  hasPlan,
+                  offTrack,
+                  nearLimit,
+                  rollover,
+                } = row
                 return (
                   <div className="category-line" key={c.id}>
-                    <div
-                      className="category-badge"
-                      style={{ background: `${c.color}22`, color: c.color }}
-                    >
-                      <Icon name={c.icon} size={18} />
-                    </div>
-                    <div className="category-line-main">
-                      <div>
-                        <strong>{c.name}</strong>
+                    <div className="category-line-top">
+                      <div
+                        className="category-badge"
+                        style={{ background: `${c.color}20`, color: c.color }}
+                      >
+                        <Icon name={c.icon} size={21} />
+                      </div>
+                      <div className="category-line-main">
+                        <strong title={c.name}>{c.name}</strong>
                         <span>
-                          {money(used, data.settings.currency, true)}
-                          {month < c.starts
-                            ? ' · no plan for this month'
-                            : ` / ${money(budget, data.settings.currency, true)} planned`}
-                          {carried &&
-                            ` · ${money(carried.available, data.settings.currency, true)} available with carryover`}
+                          {money(used, data.settings.currency)} /{' '}
+                          {hasPlan ? money(availableToSpend, data.settings.currency) : 'No plan'}
+                          {rollover && hasPlan ? ' with carryover' : ''}
                         </span>
                       </div>
-                      <Progress
-                        value={
-                          month < c.starts
-                            ? 0
-                            : carried
-                              ? (used / Math.max(carried.carried + carried.added, 1)) * 100
-                              : budget
-                                ? (used / budget) * 100
-                                : used
-                                  ? 100
-                                  : 0
-                        }
-                        color={
-                          month >= c.starts && (carried ? carried.available < 0 : used > budget)
-                            ? 'var(--red)'
-                            : c.color
-                        }
-                      />
+                      <div className="category-line-totals">
+                        <strong>{money(used, data.settings.currency)}</strong>
+                        <span className={offTrack ? 'over' : nearLimit ? 'near' : ''}>
+                          {!hasPlan && used > 0
+                            ? 'No budget set'
+                            : offTrack
+                              ? `${money(Math.abs(remaining), data.settings.currency)} over`
+                              : `${money(remaining, data.settings.currency)} remaining`}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="category-view-button"
+                        aria-label={`View ${c.name} transactions`}
+                        title={`View ${c.name} transactions`}
+                        onClick={() => setDetailCategoryId(c.id)}
+                      >
+                        <Icon name="Eye" size={20} />
+                      </button>
                     </div>
+                    <Progress
+                      value={
+                        availableToSpend > 0 ? (used / availableToSpend) * 100 : offTrack ? 100 : 0
+                      }
+                      color={offTrack ? 'var(--red)' : nearLimit ? 'var(--peach)' : c.color}
+                    />
                   </div>
                 )
               })}
-              {sorted.length === 0 && (
+              {categoryRows.length === 0 && (
                 <Empty
                   icon="Layers3"
                   title="No categories yet"
                   text="Choose your first category and monthly amount in Budget."
+                />
+              )}
+              {categoryRows.length > 0 && filteredCategoryRows.length === 0 && (
+                <Empty
+                  icon="CheckCircle2"
+                  title={
+                    categoryFilter === 'off-track'
+                      ? 'Everything is on track'
+                      : 'Nothing in this view'
+                  }
+                  text={
+                    categoryFilter === 'off-track'
+                      ? 'No categories need attention this month.'
+                      : 'Try All to see every category.'
+                  }
                 />
               )}
             </div>
@@ -567,7 +690,7 @@ export function HomeScreen({
         </div>
       )}
       {isVisible('trends') && (
-        <div className="dashboard-grid lower" style={homeStyle('trends')}>
+        <div className="home-trends" style={homeStyle('trends')}>
           <section className="panel compare-panel">
             <SectionHead
               title="Income vs expenses"
@@ -575,7 +698,8 @@ export function HomeScreen({
             />
             <div className="compare-legend">
               <span>
-                <i className="legend-dot green" /> Income
+                <i className="legend-dot green" />{' '}
+                {actualIncome > 0 ? 'Recorded income' : 'Expected income'}
               </span>
               <span>
                 <i className="legend-dot peach" /> Expenses
@@ -583,7 +707,7 @@ export function HomeScreen({
             </div>
             <div className="compare-bars">
               <div>
-                <span>Income</span>
+                <span>{actualIncome > 0 ? 'Recorded income' : 'Expected income'}</span>
                 <div className="compare-track">
                   <div className="income-fill" style={{ width: `${(chartIncome / max) * 100}%` }} />
                 </div>
@@ -603,33 +727,174 @@ export function HomeScreen({
                 : 'Last month’s comparison will appear once you have transactions.'}
             </p>
           </section>
-          <section className="coach-promo">
-            <div className="coach-promo-icon">
-              <Icon name="Sparkles" size={25} />
-            </div>
-            <span>POCKIT MONEY COACH</span>
-            <h3>A second set of eyes for your money.</h3>
-            <p>
-              Ask about your month, your goals, or where you might find a little breathing room.
-            </p>
-            <button onClick={openCoach}>
-              Ask Pockit <Icon name="ArrowUpRight" size={17} />
-            </button>
-          </section>
         </div>
+      )}
+      {detailRow && (
+        <Modal
+          title={`${detailRow.category.name} transactions`}
+          onClose={() => setDetailCategoryId(null)}
+          wide
+        >
+          <div className="modal-body category-detail-body">
+            <div className="category-detail-heading">
+              <span
+                className="category-badge"
+                style={{
+                  background: `${detailRow.category.color}20`,
+                  color: detailRow.category.color,
+                }}
+              >
+                <Icon name={detailRow.category.icon} size={23} />
+              </span>
+              <div>
+                <strong>{detailRow.category.name}</strong>
+                <span>
+                  {monthLabel(month)} · {detailEntries.length + detailMovements.length}{' '}
+                  {detailEntries.length + detailMovements.length === 1 ? 'entry' : 'entries'}
+                </span>
+              </div>
+            </div>
+            <div className="category-detail-summary">
+              <div>
+                <span>Net spent</span>
+                <strong>{money(detailRow.used, data.settings.currency)}</strong>
+              </div>
+              <div>
+                <span>{detailRow.hasPlan ? 'Available to spend' : 'Monthly plan'}</span>
+                <strong>
+                  {detailRow.hasPlan
+                    ? money(detailRow.availableToSpend, data.settings.currency)
+                    : 'Not set'}
+                </strong>
+              </div>
+              <div>
+                <span>{detailRow.offTrack ? 'Needs attention' : 'Remaining'}</span>
+                <strong className={detailRow.offTrack ? 'over' : ''}>
+                  {detailRow.hasPlan
+                    ? detailRow.offTrack
+                      ? `${money(Math.abs(detailRow.remaining), data.settings.currency)} over`
+                      : money(detailRow.remaining, data.settings.currency)
+                    : 'Set a plan in Budget'}
+                </strong>
+              </div>
+            </div>
+            {detailRow.rollover && detailRow.hasPlan && (
+              <p className="category-detail-note">
+                Available to spend includes money carried over and added this month.
+              </p>
+            )}
+            {detailEntries.length > 0 && (
+              <div className="category-entry-list" aria-label="Category transactions">
+                {detailEntries.map(({ transaction, amount, split }) => {
+                  const account = data.accounts?.find((item) => item.id === transaction.accountId)
+                  return (
+                    <div className="category-entry" key={transaction.id}>
+                      <span className={`category-entry-icon ${amount < 0 ? 'refund' : ''}`}>
+                        <Icon name={amount < 0 ? 'ArrowDownLeft' : 'ReceiptText'} size={19} />
+                      </span>
+                      <div className="category-entry-description">
+                        <strong>{transaction.payee}</strong>
+                        <span>
+                          {shortDate(transaction.date)} ·{' '}
+                          {amount < 0
+                            ? transaction.waypointTypeRaw?.toLowerCase() === 'reimbursement'
+                              ? 'Reimbursement'
+                              : 'Refund'
+                            : split
+                              ? 'Split expense'
+                              : 'Expense'}
+                          {account ? ` · ${account.name}` : ''}
+                        </span>
+                        {split && (
+                          <small>
+                            {money(Math.abs(amount), data.settings.currency)} assigned here from a{' '}
+                            {money(transaction.amount, data.settings.currency)} transaction
+                          </small>
+                        )}
+                        {transaction.note && (
+                          <small className="category-entry-note">{transaction.note}</small>
+                        )}
+                      </div>
+                      <strong className={`category-entry-amount ${amount < 0 ? 'refund' : ''}`}>
+                        {amount < 0 ? '+' : '−'}
+                        {money(Math.abs(amount), data.settings.currency)}
+                      </strong>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {detailMovements.length > 0 && (
+              <div className="category-related-activity">
+                <div>
+                  <strong>Money added or moved</strong>
+                  <span>These entries are connected to this category but are not spending.</span>
+                </div>
+                <div className="category-entry-list" aria-label="Related category movements">
+                  {detailMovements.map((transaction) => (
+                    <div className="category-entry" key={transaction.id}>
+                      <span className="category-entry-icon movement">
+                        <Icon
+                          name={transaction.type === 'income' ? 'ArrowDownLeft' : 'ArrowLeftRight'}
+                          size={19}
+                        />
+                      </span>
+                      <div className="category-entry-description">
+                        <strong>{transaction.payee}</strong>
+                        <span>
+                          {shortDate(transaction.date)} ·{' '}
+                          {transaction.type === 'income' ? 'Income' : 'Transfer'} · not spending
+                        </span>
+                        {transaction.note && (
+                          <small className="category-entry-note">{transaction.note}</small>
+                        )}
+                      </div>
+                      <strong className="category-entry-amount">
+                        {money(transaction.amount, data.settings.currency)}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {detailEntries.length === 0 && detailMovements.length === 0 && (
+              <Empty
+                icon="ReceiptText"
+                title="No entries yet"
+                text="Expenses and refunds recorded in this category for this month will appear here."
+              />
+            )}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setDetailCategoryId(null)
+                  setTab('Activity')
+                }}
+              >
+                Open Activity <Icon name="ArrowRight" size={16} />
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
       {customizing && (
         <Modal title="Customize Home" onClose={() => setCustomizing(false)}>
           <div className="modal-body">
             <p className="modal-intro">
-              Choose what appears on Home. Move the most useful sections up; your layout saves with
-              your Pockit data.
+              Choose what appears on Home. Drag the handles to arrange sections. Your layout saves
+              when you release a section.
             </p>
             <div className="home-layout-list">
-              {homeOrder.map((id, index) => {
+              {draftOrder.map((id, index) => {
                 const section = homeSections.find((item) => item.id === id)!
                 return (
-                  <div className="home-layout-row" key={id}>
+                  <div
+                    className={`home-layout-row ${dragging === id ? 'dragging' : ''}`}
+                    key={id}
+                    data-home-section={id}
+                  >
                     <label>
                       <input
                         type="checkbox"
@@ -641,22 +906,27 @@ export function HomeScreen({
                         <small>{section.description}</small>
                       </span>
                     </label>
-                    <div className="home-layout-move">
-                      <button
-                        aria-label={`Move ${section.label} up`}
-                        disabled={index === 0}
-                        onClick={() => setHomeOrder(moveHomeSection(homeOrder, id, -1))}
-                      >
-                        <Icon name="ArrowUp" size={17} />
-                      </button>
-                      <button
-                        aria-label={`Move ${section.label} down`}
-                        disabled={index === homeOrder.length - 1}
-                        onClick={() => setHomeOrder(moveHomeSection(homeOrder, id, 1))}
-                      >
-                        <Icon name="ArrowDown" size={17} />
-                      </button>
-                    </div>
+                    <button
+                      className="home-layout-grip"
+                      type="button"
+                      aria-label={`Drag ${section.label} to reorder`}
+                      aria-description="Drag to another position, or use the up and down arrow keys."
+                      onPointerDown={(event) => startDragging(event, id)}
+                      onPointerMove={dragOver}
+                      onPointerUp={finishDragging}
+                      onPointerCancel={cancelDragging}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+                        event.preventDefault()
+                        const target = draftOrder[index + (event.key === 'ArrowUp' ? -1 : 1)]
+                        if (!target) return
+                        const order = reorderHomeSection(draftOrder, id, target)
+                        setDraftOrder(order)
+                        setHomeOrder(order)
+                      }}
+                    >
+                      <Icon name="GripVertical" size={22} />
+                    </button>
                   </div>
                 )
               })}
@@ -664,7 +934,8 @@ export function HomeScreen({
             <div className="modal-actions">
               <button
                 className="secondary-button"
-                onClick={() =>
+                onClick={() => {
+                  setDraftOrder(normalizedHomeOrder())
                   update((current) => ({
                     ...current,
                     settings: {
@@ -673,7 +944,7 @@ export function HomeScreen({
                       hiddenHomeSections: undefined,
                     },
                   }))
-                }
+                }}
               >
                 Reset layout
               </button>

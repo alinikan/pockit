@@ -22,11 +22,13 @@ export function CalendarScreen({
   data,
   month,
   setMonth,
+  onAddIncome,
   update,
 }: {
   data: PockitData
   month: MonthKey
   setMonth?: (month: MonthKey) => void
+  onAddIncome?: (date: string) => void
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
@@ -75,6 +77,8 @@ export function CalendarScreen({
     (month === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
       ? today.getDate()
       : 1)
+  const chosenDate = `${month}-${String(chosen).padStart(2, '0')}`
+  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const dayTxs = txs.filter((t) => Number(t.date.slice(-2)) === chosen)
   const dayRepeats = repeats.filter((item) => Number(item.date.slice(-2)) === chosen)
   const dayBills = bills.filter((b) => Number(b.date.slice(-2)) === chosen)
@@ -440,12 +444,20 @@ export function CalendarScreen({
                 </div>
                 <div>
                   <strong>Expected pay{dayPayCount > 1 ? ` × ${dayPayCount}` : ''}</strong>
-                  <small>Scheduled · add the real deposit in Activity</small>
+                  <small>Scheduled · record the real amount when it arrives</small>
                 </div>
                 <strong>
                   {money(data.profile.payAmount * dayPayCount, data.settings.currency, true)}
                 </strong>
               </div>
+            )}
+            {onAddIncome && chosenDate <= todayDate && (
+              <button
+                className="secondary-button compact calendar-income-add"
+                onClick={() => onAddIncome(chosenDate)}
+              >
+                <Icon name="ArrowDownLeft" size={17} /> Record income for this day
+              </button>
             )}
             {dayBills.map((b) => (
               <div className="agenda-item" key={b.id}>

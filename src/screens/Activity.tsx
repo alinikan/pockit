@@ -40,13 +40,19 @@ export function ActivityScreen({
   month,
   update,
   quickAdd = 0,
+  quickAddType = 'expense',
+  quickAddDate,
   onQuickAddConsumed,
+  setMonth,
 }: {
   data: PockitData
   month: MonthKey
   update: (recipe: (value: PockitData) => PockitData) => void
   quickAdd?: number
+  quickAddType?: TransactionType
+  quickAddDate?: string
   onQuickAddConsumed?: () => void
+  setMonth?: (month: MonthKey) => void
 }) {
   const [search, setSearch] = useState('')
   const [type, setType] = useState<'all' | TransactionType>('all')
@@ -72,12 +78,17 @@ export function ActivityScreen({
     after: Transaction | null
     message: string
   } | null>(null)
+  const newTransaction = (kind: TransactionType) => ({
+    ...blank(),
+    type: kind,
+    date: dateInMonth(month),
+    accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
+  })
   useEffect(() => {
     if (quickAdd > 0) {
       setEditing({
-        ...blank(),
-        date: dateInMonth(month),
-        accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
+        ...newTransaction(quickAddType),
+        date: quickAddDate && validISODate(quickAddDate) ? quickAddDate : dateInMonth(month),
       })
       onQuickAddConsumed?.()
     }
@@ -133,7 +144,13 @@ export function ActivityScreen({
     .slice(0, 4)
   const setDraft = (patch: Partial<Transaction>) => setEditing((d) => (d ? { ...d, ...patch } : d))
   function save() {
-    if (!editing?.payee.trim() || editing.amount <= 0 || !validISODate(editing.date)) return
+    if (
+      !editing?.payee.trim() ||
+      editing.amount <= 0 ||
+      !validISODate(editing.date) ||
+      (editing.type === 'income' && editing.date > todayISO())
+    )
+      return
     if (
       editing.recurrenceEnd &&
       (!validISODate(editing.recurrenceEnd) || editing.recurrenceEnd < editing.date)
@@ -184,6 +201,7 @@ export function ActivityScreen({
     })
     setEditing(null)
     setRememberMerchant(false)
+    if (value.date.slice(0, 7) !== month) setMonth?.(value.date.slice(0, 7) as MonthKey)
   }
   function remove() {
     if (!editing || !window.confirm(`Delete ${editing.payee}?`)) return
@@ -272,17 +290,18 @@ export function ActivityScreen({
             <Icon name="FileUp" size={17} /> <span>Import file</span>
           </button>
           <button
-            className="primary-button"
+            className="secondary-button"
             aria-label="Add transaction"
-            onClick={() =>
-              setEditing({
-                ...blank(),
-                date: dateInMonth(month),
-                accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
-              })
-            }
+            onClick={() => setEditing(newTransaction('expense'))}
           >
             <Icon name="Plus" size={18} /> <span>Add transaction</span>
+          </button>
+          <button
+            className="primary-button income-add-button"
+            aria-label="Record income"
+            onClick={() => setEditing(newTransaction('income'))}
+          >
+            <Icon name="ArrowDownLeft" size={18} /> <span>Record income</span>
           </button>
         </div>
       </div>
@@ -582,7 +601,14 @@ export function ActivityScreen({
                 </button>
               ))}
             </div>
-            <Field label="Payee or description">
+            {editing.type === 'income' && (
+              <p className="soft-note">
+                Record the amount you actually received and its date. Your pay schedule stays a
+                forecast, so overtime or a smaller paycheque appears correctly in your activity and
+                cash flow.
+              </p>
+            )}
+            <Field label={editing.type === 'income' ? 'Income from' : 'Payee or description'}>
               <input
                 autoFocus
                 value={editing.payee}
@@ -604,7 +630,11 @@ export function ActivityScreen({
                         : editing.categoryId),
                   })
                 }}
-                placeholder="e.g. Fresh Market"
+                placeholder={
+                  editing.type === 'income'
+                    ? 'e.g. Paycheque or freelance work'
+                    : 'e.g. Fresh Market'
+                }
               />
             </Field>
             {editing.goalId && (
@@ -701,6 +731,11 @@ export function ActivityScreen({
               </button>
               <small>Or choose any date above.</small>
             </div>
+            {editing.type === 'income' && editing.date > todayISO() && (
+              <p className="form-message" role="alert">
+                Record this income after it arrives. Future paydays stay on Calendar as estimates.
+              </p>
+            )}
             {!editing.goalId && !editing.billId && (
               <>
                 <Field
@@ -1004,6 +1039,7 @@ export function ActivityScreen({
                   !editing.payee.trim() ||
                   editing.amount <= 0 ||
                   !validISODate(editing.date) ||
+                  (editing.type === 'income' && editing.date > todayISO()) ||
                   (!!editing.recurrenceEnd &&
                     (!validISODate(editing.recurrenceEnd) ||
                       editing.recurrenceEnd < editing.date)) ||

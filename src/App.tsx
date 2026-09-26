@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { Session } from '@supabase/supabase-js'
-import type { MonthKey, PockitData } from './types'
+import type { MonthKey, PockitData, TransactionType } from './types'
 import { currentMonth, setMoneyPrivacy } from './lib/finance'
 import { disablePushForCurrentAccount } from './lib/push'
 import { makeDemoData, makeInitialData } from './lib/defaults'
@@ -69,6 +69,8 @@ export default function App() {
     new URLSearchParams(window.location.search).get('open') === 'calendar' ? 'Calendar' : 'Home',
   )
   const [quickAdd, setQuickAdd] = useState(0)
+  const [quickAddType, setQuickAddType] = useState<TransactionType>('expense')
+  const [quickAddDate, setQuickAddDate] = useState<string | undefined>()
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [coachOpen, setCoachOpen] = useState(false)
   const [insightMessages, setInsightMessages] = useState<InsightMessage[]>([openingMessage])
@@ -582,6 +584,17 @@ export default function App() {
         onDone={setData}
       />
     )
+  const openNewTransaction = (
+    type: TransactionType,
+    selectedMonth = currentMonth(),
+    date?: string,
+  ) => {
+    setMonth(selectedMonth)
+    setQuickAddType(type)
+    setQuickAddDate(date)
+    setTab('Activity')
+    setQuickAdd((value) => value + 1)
+  }
   const quickActions: QuickAction[] = [
     ...tabs.map(([name, icon]): QuickAction => ({
       label: name === 'More' ? 'More and settings' : name,
@@ -600,11 +613,14 @@ export default function App() {
       description: 'Record an expense, paycheque, or transfer',
       group: 'Actions',
       icon: 'Plus',
-      run: () => {
-        setMonth(currentMonth())
-        setTab('Activity')
-        setQuickAdd((value) => value + 1)
-      },
+      run: () => openNewTransaction('expense'),
+    },
+    {
+      label: 'Record income',
+      description: 'Enter the real amount and date of a paycheque or other income',
+      group: 'Actions',
+      icon: 'ArrowDownLeft',
+      run: () => openNewTransaction('income'),
     },
     {
       label: 'Open a guide',
@@ -678,14 +694,6 @@ export default function App() {
           <div className="topbar-right">
             <button
               className="icon-button top-utility"
-              aria-label="Search pages and actions"
-              title="Search pages and actions (⌘K / Ctrl+K)"
-              onClick={() => setQuickActionsOpen(true)}
-            >
-              <Icon name="Search" size={19} />
-            </button>
-            <button
-              className="icon-button top-utility"
               aria-label={`Open ${tab} guide`}
               title="Guide"
               onClick={() => setGuideOpen(true)}
@@ -694,7 +702,24 @@ export default function App() {
             </button>
             <button
               className="icon-button top-utility"
+              aria-label="Search pages and actions"
+              title="Search pages and actions (⌘K / Ctrl+K)"
+              onClick={() => setQuickActionsOpen(true)}
+            >
+              <Icon name="Search" size={19} />
+            </button>
+            <button
+              className="coach-top"
+              aria-label="Open Pockit Insights"
+              title="Pockit Insights"
+              onClick={() => setCoachOpen(true)}
+            >
+              <Icon name="Sparkles" size={19} /> <span>Insights</span>
+            </button>
+            <button
+              className="icon-button top-utility"
               aria-label={data.settings.hideAmounts ? 'Show money amounts' : 'Hide money amounts'}
+              aria-pressed={!!data.settings.hideAmounts}
               title={data.settings.hideAmounts ? 'Show amounts' : 'Hide amounts'}
               onClick={() =>
                 update((current) => ({
@@ -714,9 +739,6 @@ export default function App() {
               }
             >
               <Icon name={data.settings.theme === 'dark' ? 'Sun' : 'Moon'} size={19} />
-            </button>
-            <button className="coach-top" onClick={() => setCoachOpen(true)}>
-              <Icon name="Sparkles" size={17} /> Ask Pockit
             </button>
             <button
               className="avatar small"
@@ -793,7 +815,7 @@ export default function App() {
               data={data}
               month={month}
               setTab={setTab}
-              openCoach={() => setCoachOpen(true)}
+              onAddIncome={() => openNewTransaction('income', month)}
               update={update}
             />
           )}
@@ -803,12 +825,23 @@ export default function App() {
               month={month}
               update={update}
               quickAdd={quickAdd}
+              quickAddType={quickAddType}
+              quickAddDate={quickAddDate}
               onQuickAddConsumed={() => setQuickAdd(0)}
+              setMonth={setMonth}
             />
           )}
           {tab === 'Budget' && <BudgetScreen data={data} month={month} update={update} />}
           {tab === 'Calendar' && (
-            <CalendarScreen data={data} month={month} setMonth={setMonth} update={update} />
+            <CalendarScreen
+              data={data}
+              month={month}
+              setMonth={setMonth}
+              onAddIncome={(date) =>
+                openNewTransaction('income', date.slice(0, 7) as MonthKey, date)
+              }
+              update={update}
+            />
           )}
           {tab === 'Goals' && <GoalsScreen data={data} month={month} update={update} />}
           <div hidden={tab !== 'Compare'}>
@@ -849,11 +882,7 @@ export default function App() {
           className="quick-add-fab"
           aria-label="Quick add transaction"
           title="Quick add transaction"
-          onClick={() => {
-            setMonth(currentMonth())
-            setTab('Activity')
-            setQuickAdd((value) => value + 1)
-          }}
+          onClick={() => openNewTransaction('expense')}
         >
           <Icon name="Plus" size={24} />
         </button>

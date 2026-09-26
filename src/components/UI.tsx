@@ -31,6 +31,7 @@ import {
   Download,
   Dumbbell,
   Ellipsis,
+  Eye,
   Fingerprint,
   Flag,
   Folders,
@@ -137,6 +138,7 @@ export function Icon({
         Download,
         Dumbbell,
         Ellipsis,
+        Eye,
         Fingerprint,
         Flag,
         Folders,
@@ -255,7 +257,7 @@ export function SectionHead({
   }, [open])
   return (
     <div className="section-head">
-      <div className="section-title">
+      <h2 className="section-title">
         {title}
         {help && (
           <span className="help-wrap">
@@ -294,7 +296,7 @@ export function SectionHead({
               )}
           </span>
         )}
-      </div>
+      </h2>
       {aside}
     </div>
   )

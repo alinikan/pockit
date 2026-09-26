@@ -16,7 +16,7 @@ export const homeSections = [
   {
     id: 'trends',
     label: 'Income and expenses',
-    description: 'A short month comparison and insights',
+    description: 'A short monthly comparison',
   },
 ] as const
 
@@ -37,5 +37,20 @@ export function moveHomeSection(order: HomeSectionId[], id: HomeSectionId, direc
   const target = index + direction
   if (index < 0 || target < 0 || target >= next.length) return next
   ;[next[index], next[target]] = [next[target], next[index]]
+  return next
+}
+
+/** Place a section at the position of the section the user dragged onto. */
+export function reorderHomeSection(
+  order: HomeSectionId[],
+  moving: HomeSectionId,
+  target: HomeSectionId,
+) {
+  const from = order.indexOf(moving)
+  const to = order.indexOf(target)
+  if (from < 0 || to < 0 || from === to) return order
+  const next = [...order]
+  next.splice(from, 1)
+  next.splice(to, 0, moving)
   return next
 }

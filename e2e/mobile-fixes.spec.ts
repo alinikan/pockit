@@ -56,7 +56,7 @@ test('calendar month controls and insight messages stay usable on a phone', asyn
   await expect(page.locator('.calendar-month-nav strong')).not.toHaveText(label!)
   await page.getByRole('button', { name: 'Next calendar month' }).click()
   await expect(page.locator('.calendar-month-nav strong')).toHaveText(label!)
-  await page.getByRole('banner').getByRole('button', { name: 'Ask Pockit' }).click()
+  await page.getByRole('banner').getByRole('button', { name: 'Open Pockit Insights' }).click()
   const insights = page.getByRole('dialog', { name: 'Pockit Insights' })
   const input = insights.getByRole('textbox', { name: 'Ask Pockit Insights' })
   expect(
@@ -66,7 +66,7 @@ test('calendar month controls and insight messages stay usable on a phone', asyn
   await expect(insights.locator('.chat-bubble.user')).toHaveCount(1)
   await insights.getByRole('button', { name: 'Close coach' }).click()
   await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
-  await page.getByRole('button', { name: 'Ask Pockit' }).click()
+  await page.getByRole('banner').getByRole('button', { name: 'Open Pockit Insights' }).click()
   await expect(insights.locator('.chat-bubble.user')).toHaveCount(1)
   await insights.getByRole('button', { name: 'Clear chat' }).click()
   await expect(insights.locator('.chat-bubble.user')).toHaveCount(0)
@@ -119,7 +119,7 @@ test('Insights composer follows a shortened phone viewport while its messages sc
   page,
 }) => {
   await page.evaluate(() => window.scrollTo(0, 700))
-  await page.getByRole('banner').getByRole('button', { name: 'Ask Pockit' }).click()
+  await page.getByRole('banner').getByRole('button', { name: 'Open Pockit Insights' }).click()
   const dialog = page.getByRole('dialog', { name: 'Pockit Insights' })
   const input = dialog.getByRole('textbox', { name: 'Ask Pockit Insights' })
   await input.focus()

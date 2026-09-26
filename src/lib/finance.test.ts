@@ -7,6 +7,7 @@ import {
   budgetHealth,
   categorizePayee,
   categoryBudget,
+  categorySpendingEntries,
   categoryPolicy,
   monthKey,
   monthSummary,
@@ -107,6 +108,37 @@ describe('calendar setup hints', () => {
   })
 })
 describe('budgets and spending', () => {
+  it('matches a category total to its individual expenses, split shares, and refunds', () => {
+    const entries: Transaction[] = [
+      { ...tx('2026-09-03', 80), id: 'one', payee: 'Market' },
+      {
+        ...tx('2026-09-12', 90),
+        id: 'split',
+        payee: 'Superstore',
+        splits: [
+          { categoryId: 'food', amount: 20 },
+          { categoryId: 'other', amount: 50 },
+          { categoryId: 'food', amount: 20 },
+        ],
+      },
+      { ...tx('2026-09-15', 10), id: 'refund', payee: 'Market refund', refund: true },
+      { ...tx('2026-09-17', 30), id: 'excluded', excludedFromBudget: true },
+      { ...tx('2026-09-18', 120, 'income'), id: 'income' },
+      { ...tx('2026-08-29', 40), id: 'other-month' },
+    ]
+    const detail = categorySpendingEntries(entries, '2026-09', 'food')
+    expect(detail.map(({ transaction, amount, split }) => [transaction.id, amount, split])).toEqual(
+      [
+        ['refund', -10, false],
+        ['split', 40, true],
+        ['one', 80, false],
+      ],
+    )
+    expect(detail.reduce((total, item) => total + item.amount, 0)).toBe(
+      spendingByCategory(entries, '2026-09').food,
+    )
+    expect(categorySpendingEntries(entries, '2026-09', 'empty')).toEqual([])
+  })
   it('uses selected month overrides and excludes earlier months', () => {
     const c = category({ starts: '2026-03', overrides: { '2026-04': 600 } })
     expect(categoryBudget(c, '2026-02', 4000)).toBe(0)

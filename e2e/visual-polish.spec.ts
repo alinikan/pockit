@@ -35,12 +35,39 @@ test('phone header controls and goal charts are legible and inside their cards',
   )
   await page.getByRole('button', { name: 'Preview Pockit' }).click()
   const topbar = await page.locator('.topbar').boundingBox()
+  const headerControls = page.locator('.topbar-right > button')
+  expect(
+    await headerControls.evaluateAll((buttons) =>
+      buttons.map((button) => button.getAttribute('aria-label')),
+    ),
+  ).toEqual([
+    'Open Home guide',
+    'Search pages and actions',
+    'Open Pockit Insights',
+    'Hide money amounts',
+    'Switch to light mode',
+    'Open More and settings',
+  ])
   for (const button of await page.locator('.topbar button').all()) {
     if (!(await button.isVisible())) continue
     const box = await button.boundingBox()
     expect(box!.y).toBeGreaterThanOrEqual(topbar!.y)
     expect(box!.y + box!.height).toBeLessThanOrEqual(topbar!.y + topbar!.height + 1)
   }
+  const insight = headerControls.nth(2)
+  const insightBox = (await insight.boundingBox())!
+  const insightIcon = (await insight.locator('svg').boundingBox())!
+  expect(
+    Math.abs(insightIcon.x + insightIcon.width / 2 - (insightBox.x + insightBox.width / 2)),
+  ).toBeLessThan(1)
+  expect(
+    Math.abs(insightIcon.y + insightIcon.height / 2 - (insightBox.y + insightBox.height / 2)),
+  ).toBeLessThan(1)
+  const privacy = headerControls.nth(3)
+  await privacy.click()
+  await expect(privacy).toHaveAttribute('aria-pressed', 'true')
+  await privacy.click()
+  await expect(privacy).toHaveAttribute('aria-pressed', 'false')
   const help = page.locator('.help').first()
   expect(await help.evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe('0px')
   await page.getByRole('button', { name: 'Goals', exact: true }).click()

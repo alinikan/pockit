@@ -12,6 +12,57 @@ afterEach(() => {
 })
 
 describe('budget editor', () => {
+  it('focuses a chart slice or category row and shows its share of the planned total', () => {
+    const data = makeDemoData()
+    const { container } = render(
+      <BudgetScreen data={data} month={currentMonth()} update={() => {}} />,
+    )
+    const chart = container.querySelector('.budget-breakdown-panel') as HTMLElement
+    const segments = chart.querySelectorAll('.budget-donut-segment')
+    expect(segments.length).toBeGreaterThan(5)
+    expect(chart.querySelector('.budget-donut-center')?.textContent).toContain('TOTAL BUDGET')
+    const rentSlice = screen.getByRole('button', { name: /^Show Rent:/ })
+    fireEvent.click(rentSlice)
+    expect(rentSlice.getAttribute('aria-pressed')).toBe('true')
+    expect(chart.querySelectorAll('.budget-donut-segment.dimmed')).toHaveLength(segments.length - 1)
+    expect(chart.querySelector('.budget-donut-center')?.textContent).toContain('Rent')
+    expect(chart.querySelector('.budget-donut-center')?.textContent).toMatch(/% of total budget/)
+    const rentRow = screen.getByRole('button', { name: /^Highlight Rent,/ })
+    expect(rentRow.getAttribute('aria-pressed')).toBe('true')
+    expect(rentRow.querySelector('.budget-breakdown-percent')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /^Highlight Groceries,/ }))
+    expect(chart.querySelector('.budget-donut-center')?.textContent).toContain('Groceries')
+    fireEvent.click(screen.getByRole('button', { name: /^Highlight Groceries,/ }))
+    expect(chart.querySelector('.budget-donut-center')?.textContent).toContain('TOTAL BUDGET')
+    expect(chart.querySelectorAll('.budget-donut-segment.dimmed')).toHaveLength(0)
+  })
+
+  it('lets keyboard users focus a slice and recalculates after a category amount changes', () => {
+    const data = makeDemoData()
+    const month = currentMonth()
+    const { container, rerender } = render(
+      <BudgetScreen data={data} month={month} update={() => {}} />,
+    )
+    const rentSlice = screen.getByRole('button', { name: /^Show Rent:/ })
+    fireEvent.keyDown(rentSlice, { key: 'Enter' })
+    expect(rentSlice.getAttribute('aria-pressed')).toBe('true')
+    const before = container.querySelector('.budget-donut-center')?.textContent
+    data.categories.find((category) => category.name === 'Rent')!.baseAmount += 100
+    rerender(<BudgetScreen data={data} month={month} update={() => {}} />)
+    expect(container.querySelector('.budget-donut-center')?.textContent).not.toBe(before)
+  })
+
+  it('shows actual pay separately from the expected amount used for allocations', () => {
+    const data = makeDemoData()
+    const month = currentMonth()
+    data.transactions = [
+      { id: 'pay-1', type: 'income', date: `${month}-03`, payee: 'Job', amount: 1400 },
+      { id: 'pay-2', type: 'income', date: `${month}-17`, payee: 'Job', amount: 1750 },
+    ]
+    const { container } = render(<BudgetScreen data={data} month={month} update={() => {}} />)
+    expect(container.querySelector('.budget-actual-income')?.textContent).toContain('$3,150')
+    expect(screen.getByText('expected income')).toBeTruthy()
+  })
   it('explains saved rollover carryover and keeps old category history when removed', () => {
     let data = makeDemoData()
     const month = currentMonth()

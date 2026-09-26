@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeDemoData, makeInitialData } from './lib/defaults'
 import { writePending } from './lib/storage'
@@ -48,6 +48,27 @@ afterEach(() => {
 })
 
 describe('same-account setup sync', () => {
+  it('places the six header controls in the requested order and keeps privacy state in sync', async () => {
+    cloud.snapshot = { data: makeDemoData(), revision: 2 }
+    const { container } = render(<App />)
+    await screen.findByRole('button', { name: 'Open More and settings' })
+    const controls = within(container.querySelector('.topbar-right') as HTMLElement).getAllByRole(
+      'button',
+    )
+    expect(controls.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open Home guide',
+      'Search pages and actions',
+      'Open Pockit Insights',
+      'Hide money amounts',
+      'Switch to light mode',
+      'Open More and settings',
+    ])
+    fireEvent.click(controls[3])
+    expect(controls[3].getAttribute('aria-pressed')).toBe('true')
+    expect(controls[3].getAttribute('aria-label')).toBe('Show money amounts')
+    fireEvent.click(controls[3])
+    expect(controls[3].getAttribute('aria-pressed')).toBe('false')
+  })
   it('replaces an open setup step with newer cloud progress without re-saving the old step', async () => {
     render(<App />)
     await screen.findByRole('heading', { name: /what brings you to pockit/i })
