@@ -79,6 +79,7 @@ test('Home visuals and pay settings fit phone widths and explain planned versus 
     .getByRole('button', { name: 'Close' })
     .click()
   await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Paycheques' }).click()
   await expect(page.getByLabel(/Usual take-home pay per payday/)).toBeVisible()
   await expect(page.locator('.settings-income-preview')).toContainText('Received and recorded')
 })

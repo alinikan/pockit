@@ -67,6 +67,9 @@ function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' }) {
         onPointerMove={(event) => {
           if (event.buttons) inspect(event.clientX, event.currentTarget)
         }}
+        onPointerUp={() => setSelectedPoint(0)}
+        onPointerCancel={() => setSelectedPoint(0)}
+        onLostPointerCapture={() => setSelectedPoint(0)}
         onKeyDown={(event) => {
           if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
             event.preventDefault()

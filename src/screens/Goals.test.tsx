@@ -92,5 +92,9 @@ describe('goal input', () => {
     expect(
       screen.getByText(new RegExp(`Month ${Math.round(goalChartData(goal).months / 2)} ·`)),
     ).toBeTruthy()
+    fireEvent(chart, new MouseEvent('pointerup', { bubbles: true, clientX: 160 }))
+    expect(chart.parentElement?.querySelector('.goal-chart-readout')?.textContent).toContain(
+      'Today',
+    )
   })
 })

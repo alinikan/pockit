@@ -68,6 +68,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>(() =>
     new URLSearchParams(window.location.search).get('open') === 'calendar' ? 'Calendar' : 'Home',
   )
+  const [moreMenuVersion, setMoreMenuVersion] = useState(0)
   const [quickAdd, setQuickAdd] = useState(0)
   const [quickAddType, setQuickAddType] = useState<TransactionType>('expense')
   const [quickAddDate, setQuickAddDate] = useState<string | undefined>()
@@ -606,7 +607,10 @@ export default function App() {
             : `Open ${name.toLowerCase()}`,
       group: 'Pages',
       icon,
-      run: () => setTab(name),
+      run: () => {
+        if (name === 'More') setMoreMenuVersion((value) => value + 1)
+        setTab(name)
+      },
     })),
     {
       label: 'Add transaction',
@@ -634,7 +638,10 @@ export default function App() {
       description: 'Choose dark, light, and colour themes',
       group: 'Actions',
       icon: 'Palette',
-      run: () => setTab('More'),
+      run: () => {
+        setMoreMenuVersion((value) => value + 1)
+        setTab('More')
+      },
     },
   ]
   return (
@@ -650,7 +657,10 @@ export default function App() {
             <button
               key={name}
               className={tab === name ? 'active' : ''}
-              onClick={() => setTab(name)}
+              onClick={() => {
+                if (name === 'More') setMoreMenuVersion((value) => value + 1)
+                setTab(name)
+              }}
             >
               <Icon name={icon} size={20} />
               <span>{name}</span>
@@ -675,7 +685,13 @@ export default function App() {
               <strong>{data.profile.name || 'Your Pockit'}</strong>
               <small>{demo ? 'Preview mode' : session?.user.email}</small>
             </span>
-            <button aria-label="Settings" onClick={() => setTab('More')}>
+            <button
+              aria-label="Settings"
+              onClick={() => {
+                setMoreMenuVersion((value) => value + 1)
+                setTab('More')
+              }}
+            >
               <Icon name="Settings2" size={18} />
             </button>
           </div>
@@ -744,7 +760,10 @@ export default function App() {
               className="avatar small"
               aria-label="Open More and settings"
               title="More and settings"
-              onClick={() => setTab('More')}
+              onClick={() => {
+                setMoreMenuVersion((value) => value + 1)
+                setTab('More')
+              }}
             >
               {data.profile.name?.[0]?.toUpperCase() || 'P'}
             </button>
@@ -849,6 +868,7 @@ export default function App() {
           </div>
           {tab === 'More' && (
             <MoreScreen
+              key={moreMenuVersion}
               data={data}
               update={update}
               changeTheme={changeTheme}
@@ -865,14 +885,20 @@ export default function App() {
                 setTab('Home')
               }}
               demo={demo}
-              navigate={setTab}
             />
           )}
         </main>
       </div>
       <nav className="bottom-nav">
         {normalizedMobileTabs(data.settings.mobileTabs).map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
+          <button
+            key={name}
+            className={tab === name ? 'active' : ''}
+            onClick={() => {
+              if (name === 'More') setMoreMenuVersion((value) => value + 1)
+              setTab(name)
+            }}
+          >
             <Icon name={tabs.find(([label]) => label === name)?.[1] || 'Circle'} size={25} />
             <span>{name}</span>
           </button>

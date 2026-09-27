@@ -11,6 +11,7 @@ test('install help fits the phone, glossary expands, and More has no floating ad
 }) => {
   await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
   await expect(page.getByRole('button', { name: 'Quick add transaction' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Install Pockit' }).click()
   await page.getByRole('button', { name: 'About Put Pockit on your Home Screen' }).click()
   const explanation = page.getByRole('dialog', {
     name: 'Put Pockit on your Home Screen, explained',
@@ -24,9 +25,9 @@ test('install help fits the phone, glossary expands, and More has no floating ad
     .getByRole('button', { name: 'Close explanation for Put Pockit on your Home Screen' })
     .click()
   await expect(explanation).toHaveCount(0)
+  await page.getByRole('button', { name: 'Back to More' }).click()
+  await page.getByRole('button', { name: 'Help & terms' }).click()
   const terms = page.locator('.glossary')
-  await expect(terms).not.toHaveAttribute('open')
-  await terms.locator('summary').click()
   await expect(terms).toHaveAttribute('open')
   expect(await terms.locator('.glossary-terms > div').count()).toBeGreaterThan(10)
 })
@@ -107,6 +108,7 @@ test('payday help stays optional and explains the starting amount with an exampl
   page,
 }) => {
   await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
+  await page.getByRole('button', { name: 'Paycheques' }).click()
   const help = page.locator('.inline-help')
   await expect(help).not.toHaveAttribute('open')
   await help.locator('summary').click()

@@ -8,6 +8,7 @@ test('Waypoint ZIP preview and import stay usable on iPhone and connect the main
   await page.goto('/')
   await page.getByRole('button', { name: 'Preview Pockit' }).click()
   await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.getByRole('button', { name: 'Imports & data' }).click()
   const month = await page.evaluate(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -43,6 +44,8 @@ test('Waypoint ZIP preview and import stay usable on iPhone and connect the main
   expect(previewWidth.content).toBeLessThanOrEqual(previewWidth.viewport + 1)
   await page.getByRole('button', { name: 'Download backup and import' }).click()
   await expect(page.getByRole('status')).toContainText('Waypoint data imported')
+  await page.getByRole('button', { name: 'Back to More' }).click()
+  await page.getByRole('button', { name: 'Accounts' }).click()
   await expect(page.getByText('Daily', { exact: true })).toBeVisible()
   let widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
@@ -88,6 +91,7 @@ test('populated Waypoint months show their range and a reimbursement remains a p
   await page.goto('/')
   await page.getByRole('button', { name: 'Preview Pockit' }).click()
   await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.getByRole('button', { name: 'Imports & data' }).click()
   const { current, previous } = await page.evaluate(() => {
     const today = new Date()
     const month = (date: Date) =>

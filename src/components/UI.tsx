@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useBodyScrollLock } from '../lib/useBodyScrollLock'
 import {
   ArrowDown,
   ArrowDownLeft,
@@ -247,6 +248,7 @@ export function SectionHead({
   help?: string
 }) {
   const [open, setOpen] = useState(false)
+  useBodyScrollLock(open)
   useEffect(() => {
     if (!open) return
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -341,6 +343,7 @@ export function Modal({
   children: ReactNode
   wide?: boolean
 }) {
+  useBodyScrollLock(true)
   return (
     <div
       className="modal-backdrop"

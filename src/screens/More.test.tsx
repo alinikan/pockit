@@ -8,10 +8,7 @@ import { MoreScreen } from './More'
 afterEach(cleanup)
 
 describe('More menu', () => {
-  it('opens existing settings, reports, and help from clear tiles', () => {
-    const scroll = vi.fn()
-    HTMLElement.prototype.scrollIntoView = scroll
-    const navigate = vi.fn()
+  it('shows only menu choices, then only the selected settings', () => {
     const logout = vi.fn()
     render(
       <MoreScreen
@@ -20,23 +17,52 @@ describe('More menu', () => {
         logout={logout}
         onDeleted={vi.fn()}
         demo
-        navigate={navigate}
+      />,
+    )
+    const menu = screen.getByRole('region', { name: 'More menu' })
+    expect(within(menu).getAllByRole('button')).toHaveLength(10)
+    expect(within(menu).queryByRole('button', { name: 'Compare months' })).toBeNull()
+    expect(screen.queryByText('Your profile')).toBeNull()
+    fireEvent.click(within(menu).getByRole('button', { name: 'Profile' }))
+    expect(screen.getByRole('heading', { name: 'Your profile' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Your paycheque rhythm' })).toBeNull()
+    expect(
+      screen
+        .getByLabelText(/Usual take-home pay per payday/)
+        .closest('[data-more-section]')
+        ?.hasAttribute('hidden'),
+    ).toBe(true)
+    expect(screen.queryByRole('region', { name: 'More menu' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to More' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Help & terms' }))
+    expect((document.querySelector('[data-more-section="help"]') as HTMLDetailsElement).open).toBe(
+      true,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Back to More' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Exit preview' }))
+    expect(logout).toHaveBeenCalledOnce()
+  })
+
+  it('keeps imports and security in their own views for a signed-in account', () => {
+    render(
+      <MoreScreen
+        data={makeDemoData()}
+        update={vi.fn()}
+        logout={vi.fn()}
+        onDeleted={vi.fn()}
+        demo={false}
       />,
     )
     const menu = screen.getByRole('region', { name: 'More menu' })
     expect(within(menu).getAllByRole('button')).toHaveLength(11)
-    fireEvent.click(within(menu).getByRole('button', { name: 'Appearance' }))
-    expect(scroll).toHaveBeenCalled()
-    expect(document.activeElement).toBe(document.querySelector('[data-more-section="preferences"]'))
-    fireEvent.click(within(menu).getByRole('button', { name: 'Compare months' }))
-    expect(navigate).toHaveBeenCalledWith('Compare')
-    fireEvent.click(within(menu).getByRole('button', { name: 'Help & terms' }))
-    expect((document.querySelector('[data-more-section="help"]') as HTMLDetailsElement).open).toBe(
-      true,
-    )
-    fireEvent.click(within(menu).getByRole('button', { name: 'Exit preview' }))
-    expect(logout).toHaveBeenCalledOnce()
-    delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollIntoView
+    fireEvent.click(within(menu).getByRole('button', { name: 'Imports & data' }))
+    expect(screen.getByRole('heading', { name: 'Your data' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Preferences' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to More' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Security' }))
+    expect(screen.getByRole('heading', { name: 'Account security' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Delete account' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Your data' })).toBeNull()
   })
 })
 
@@ -57,6 +83,7 @@ describe('income plan settings', () => {
       />
     )
     const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Paycheques' }))
     const preview = screen.getByLabelText('Planned and recorded income')
     expect(screen.getByLabelText(/Usual take-home pay per payday/)).toBeTruthy()
     expect(preview.textContent).toContain(money(before.income, data.settings.currency, true))
@@ -98,6 +125,7 @@ describe('income plan settings', () => {
       />
     )
     const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Paycheques' }))
     expect(monthSummary(data, currentMonth()).income).toBe(5000)
     expect(
       screen.getByText(/imported monthly plan is used for months without dated paydays/),
@@ -123,6 +151,7 @@ describe('appearance settings', () => {
     const view = render(
       <MoreScreen data={data} update={update} logout={vi.fn()} onDeleted={vi.fn()} demo />,
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }))
     const themes = screen.getByRole('radiogroup', { name: 'Colour theme' })
     expect(within(themes).getAllByRole('radio')).toHaveLength(5)
     expect(within(themes).getByRole('radio', { name: /Pockit Garden/ })).toBeTruthy()
@@ -138,9 +167,9 @@ describe('appearance settings', () => {
     ).toBe('true')
     expect(screen.queryByText(/keeps you signed in when you close and reopen it/i)).toBeNull()
     expect(screen.queryByText(/website also works without installing it/i)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to More' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Help & terms' }))
     const glossary = screen.getByText('A few handy terms').closest('details')!
-    expect(glossary.open).toBe(false)
-    fireEvent.click(screen.getByText('A few handy terms'))
     expect(glossary.open).toBe(true)
     expect(glossary.querySelectorAll('.glossary-terms > div').length).toBeGreaterThan(10)
   })
@@ -156,6 +185,7 @@ describe('merchant rules', () => {
       <MoreScreen data={data} update={update} logout={vi.fn()} onDeleted={vi.fn()} demo />
     )
     const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }))
     fireEvent.click(screen.getByText('Merchant category rules'))
     fireEvent.change(screen.getByLabelText('Payee for new rule'), {
       target: { value: '  My Cafe  ' },
@@ -191,6 +221,7 @@ describe('iPhone navigation', () => {
       <MoreScreen data={data} update={update} logout={vi.fn()} onDeleted={vi.fn()} demo />
     )
     const { rerender } = render(view())
+    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }))
     fireEvent.click(screen.getByText('iPhone bottom tabs'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Compare' }))
     rerender(view())
