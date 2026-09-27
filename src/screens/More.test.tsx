@@ -2,9 +2,117 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { makeDemoData } from '../lib/defaults'
+import { currentMonth, monthSummary, money } from '../lib/finance'
 import { MoreScreen } from './More'
 
 afterEach(cleanup)
+
+describe('More menu', () => {
+  it('opens existing settings, reports, and help from clear tiles', () => {
+    const scroll = vi.fn()
+    HTMLElement.prototype.scrollIntoView = scroll
+    const navigate = vi.fn()
+    const logout = vi.fn()
+    render(
+      <MoreScreen
+        data={makeDemoData()}
+        update={vi.fn()}
+        logout={logout}
+        onDeleted={vi.fn()}
+        demo
+        navigate={navigate}
+      />,
+    )
+    const menu = screen.getByRole('region', { name: 'More menu' })
+    expect(within(menu).getAllByRole('button')).toHaveLength(11)
+    fireEvent.click(within(menu).getByRole('button', { name: 'Appearance' }))
+    expect(scroll).toHaveBeenCalled()
+    expect(document.activeElement).toBe(document.querySelector('[data-more-section="preferences"]'))
+    fireEvent.click(within(menu).getByRole('button', { name: 'Compare months' }))
+    expect(navigate).toHaveBeenCalledWith('Compare')
+    fireEvent.click(within(menu).getByRole('button', { name: 'Help & terms' }))
+    expect((document.querySelector('[data-more-section="help"]') as HTMLDetailsElement).open).toBe(
+      true,
+    )
+    fireEvent.click(within(menu).getByRole('button', { name: 'Exit preview' }))
+    expect(logout).toHaveBeenCalledOnce()
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollIntoView
+  })
+})
+
+describe('income plan settings', () => {
+  it('separates usual take-home pay from paycheques actually recorded', () => {
+    let data = makeDemoData()
+    const month = currentMonth()
+    const before = monthSummary(data, month)
+    const view = () => (
+      <MoreScreen
+        data={data}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+        logout={vi.fn()}
+        onDeleted={vi.fn()}
+        demo
+      />
+    )
+    const { rerender } = render(view())
+    const preview = screen.getByLabelText('Planned and recorded income')
+    expect(screen.getByLabelText(/Usual take-home pay per payday/)).toBeTruthy()
+    expect(preview.textContent).toContain(money(before.income, data.settings.currency, true))
+    data.transactions.push({
+      id: 'overtime',
+      date: `${month}-20`,
+      payee: 'Overtime pay',
+      amount: 175,
+      type: 'income',
+    })
+    rerender(view())
+    expect(preview.textContent).toContain(
+      money(before.actualIncome + 175, data.settings.currency, true),
+    )
+    expect(monthSummary(data, month).income).toBe(before.income)
+    fireEvent.change(screen.getByLabelText(/Usual take-home pay per payday/), {
+      target: { value: '4000' },
+    })
+    rerender(view())
+    expect(monthSummary(data, month).actualIncome).toBe(before.actualIncome + 175)
+    expect(screen.getByText(/Dated weekly or biweekly paydays count/)).toBeTruthy()
+  })
+
+  it('makes an imported monthly plan’s priority and removal clear', () => {
+    let data = makeDemoData()
+    data.profile.payFrequency = 'biweekly'
+    data.profile.paydayAnchor = undefined
+    data.profile.plannedMonthlyIncome = 5000
+    data.profile.plannedIncomeStarts = currentMonth()
+    const view = () => (
+      <MoreScreen
+        data={data}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+        logout={vi.fn()}
+        onDeleted={vi.fn()}
+        demo
+      />
+    )
+    const { rerender } = render(view())
+    expect(monthSummary(data, currentMonth()).income).toBe(5000)
+    expect(
+      screen.getByText(/imported monthly plan is used for months without dated paydays/),
+    ).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(/Usual take-home pay per payday/), {
+      target: { value: '1200' },
+    })
+    rerender(view())
+    expect(monthSummary(data, currentMonth()).income).toBe(5000)
+    fireEvent.click(screen.getByRole('button', { name: 'Use my pay details instead' }))
+    rerender(view())
+    expect(data.profile.plannedMonthlyIncome).toBeUndefined()
+    expect(monthSummary(data, currentMonth()).income).not.toBe(5000)
+  })
+})
 
 describe('appearance settings', () => {
   it('offers five named colour choices and keeps the chosen light or dark mode', () => {

@@ -136,7 +136,11 @@ test('all seven app tabs remain reachable without horizontal page overflow', asy
     await page.setViewportSize({ width, height: 800 })
     for (const name of ['Home', 'Activity', 'Budget', 'Calendar', 'Goals', 'Compare', 'More']) {
       await page.getByRole('button', { name, exact: true }).click()
-      await expect(page.locator('.page-heading h1')).toBeVisible()
+      if (name === 'More') {
+        await expect(page.getByRole('region', { name: 'More menu' })).toBeVisible()
+      } else {
+        await expect(page.locator('.page-heading h1')).toBeVisible()
+      }
       await noPageOverflow(page)
     }
   }

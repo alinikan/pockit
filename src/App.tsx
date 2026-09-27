@@ -785,16 +785,15 @@ export default function App() {
           </div>
         )}
         <main className="page-content">
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">
-                {tab === 'Home' ? 'YOUR OVERVIEW' : `YOUR ${tab.toUpperCase()}`}
-              </div>
-              <h1>
-                {tab === 'Home'
-                  ? `Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, ${data.profile.name || 'friend'}.`
-                  : tab === 'More'
-                    ? 'Make it yours.'
+          {tab !== 'More' && (
+            <div className="page-heading">
+              <div>
+                <div className="eyebrow">
+                  {tab === 'Home' ? 'YOUR OVERVIEW' : `YOUR ${tab.toUpperCase()}`}
+                </div>
+                <h1>
+                  {tab === 'Home'
+                    ? `Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, ${data.profile.name || 'friend'}.`
                     : tab === 'Goals'
                       ? 'Every step counts.'
                       : tab === 'Compare'
@@ -804,12 +803,13 @@ export default function App() {
                           : tab === 'Budget'
                             ? 'Give every dollar a direction.'
                             : 'See what’s ahead.'}
-              </h1>
+                </h1>
+              </div>
+              {tab !== 'Goals' && tab !== 'Compare' && tab !== 'Calendar' && (
+                <MonthPicker month={month} setMonth={setMonth} />
+              )}
             </div>
-            {tab !== 'More' && tab !== 'Goals' && tab !== 'Compare' && tab !== 'Calendar' && (
-              <MonthPicker month={month} setMonth={setMonth} />
-            )}
-          </div>
+          )}
           {tab === 'Home' && (
             <HomeScreen
               data={data}
@@ -865,6 +865,7 @@ export default function App() {
                 setTab('Home')
               }}
               demo={demo}
+              navigate={setTab}
             />
           )}
         </main>

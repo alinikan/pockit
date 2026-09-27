@@ -25,6 +25,7 @@ import {
   todayISO,
 } from '../lib/finance'
 import { paychequeForecast } from '../lib/payday'
+import { categoryPlanProgress, homeSpendingVisual } from '../lib/homeSpending'
 import { unreviewedTransactions } from '../lib/ledger'
 import { Empty, Icon, Modal, Progress, SectionHead } from '../components/UI'
 
@@ -42,6 +43,7 @@ export function HomeScreen({
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
   const [customizing, setCustomizing] = useState(false)
+  const [overviewHelp, setOverviewHelp] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'on-track' | 'off-track'>('all')
   const [detailCategoryId, setDetailCategoryId] = useState<string | null>(null)
   const homeOrder = normalizedHomeOrder(data.settings.homeOrder)
@@ -93,7 +95,6 @@ export function HomeScreen({
     beforeWaypointPlan(data, month) &&
     !data.categories.some((category) => categoryActiveInMonth(category, month))
   const chartIncome = historicalUnplanned ? actualIncome : actualIncome || income
-  const useActualCashFlow = actualIncome > 0
   const spend = spendingByCategory(data.transactions, month)
   const sorted = [...data.categories]
     .filter((c) => categoryBudget(c, month, income) > 0 || spend[c.id])
@@ -128,6 +129,15 @@ export function HomeScreen({
       nearLimit,
     }
   })
+  const spendingVisual = homeSpendingVisual(categoryRows, spent)
+  const hasExpenseEntries = data.transactions.some(
+    (transaction) => transaction.type === 'expense' && transaction.date.startsWith(month),
+  )
+  const ringCircumference = 2 * Math.PI * 48
+  const overviewMode =
+    !historicalUnplanned && income > 0 ? 'plan' : actualIncome > 0 ? 'recorded' : 'spent'
+  const overviewValue =
+    overviewMode === 'plan' ? remaining : overviewMode === 'recorded' ? actualIncome - spent : spent
   const offTrackCount = categoryRows.filter((row) => row.offTrack).length
   const filteredCategoryRows = categoryRows.filter((row) =>
     categoryFilter === 'all' ? true : categoryFilter === 'off-track' ? row.offTrack : !row.offTrack,
@@ -183,7 +193,7 @@ export function HomeScreen({
     !data.settings.lastPulseAt ||
     (new Date(today).valueOf() - new Date(data.settings.lastPulseAt).valueOf()) / 86400000 >= 7
   return (
-    <div className="screen-stack">
+    <div className="screen-stack home-screen">
       <div className="home-customize-bar" style={{ order: -2 }}>
         <span>Make this space work for you.</span>
         <button className="secondary-button compact" onClick={openCustomization}>
@@ -300,41 +310,58 @@ export function HomeScreen({
       )}
       {isVisible('overview') && (
         <div className="hero-grid" style={homeStyle('overview')}>
-          <div className="hero-card">
+          <div
+            className={`hero-card ${overviewValue < 0 && overviewMode !== 'spent' ? 'negative' : ''}`}
+          >
             <div className="hero-orb orb-one" />
             <div className="hero-orb orb-two" />
             <div className="hero-top">
-              <span>YOUR MONEY AT A GLANCE</span>
-              <Icon name="ArrowUpRight" size={19} />
+              <span>{overviewMode === 'plan' ? 'YOUR MONTHLY PLAN' : 'RECORDED THIS MONTH'}</span>
+              <button
+                type="button"
+                className="hero-info-button"
+                aria-label="How this Home number is calculated"
+                onClick={() => setOverviewHelp(true)}
+              >
+                <Icon name="Info" size={17} />
+              </button>
             </div>
             <div className="hero-big-label">
-              {useActualCashFlow
-                ? 'Recorded income less spending'
-                : historicalUnplanned
-                  ? 'Recorded spending'
-                  : 'Monthly plan after recorded spending'}
+              {overviewMode === 'plan'
+                ? overviewValue < 0
+                  ? 'Over your monthly plan'
+                  : 'Left in your monthly plan'
+                : overviewMode === 'recorded'
+                  ? 'Income recorded minus expenses'
+                  : 'Expenses recorded this month'}
             </div>
-            <div className="hero-number">
-              {money(
-                useActualCashFlow ? actualIncome - spent : historicalUnplanned ? spent : remaining,
-                data.settings.currency,
-                true,
-              )}
-            </div>
+            <div className="hero-number">{money(overviewValue, data.settings.currency, true)}</div>
+            {overviewMode !== 'spent' && (
+              <div className="hero-equation">
+                <span>
+                  {money(
+                    overviewMode === 'plan' ? income : actualIncome,
+                    data.settings.currency,
+                    true,
+                  )}{' '}
+                  {overviewMode === 'plan' ? 'planned income' : 'recorded income'}
+                </span>
+                <span aria-hidden="true">−</span>
+                <span>{money(spent, data.settings.currency, true)} recorded expenses</span>
+              </div>
+            )}
             <div className="hero-bottom">
               <span>
-                {useActualCashFlow
-                  ? 'Based on income and expenses recorded this month. Your planned income stays separate.'
-                  : historicalUnplanned
-                    ? 'Only spending recorded in the ZIP; no historical budget plan was exported.'
-                    : remaining >= 0
-                      ? 'Planned income minus spending entered for this month.'
-                      : 'Recorded spending has passed your planned income.'}
+                {overviewMode === 'plan'
+                  ? 'A planning comparison, not your bank balance.'
+                  : overviewMode === 'recorded'
+                    ? 'Only income and expenses you recorded are included.'
+                    : 'No monthly income plan is available for this month.'}
               </span>
             </div>
           </div>
           <div className="summary-stack">
-            <div className="summary-card">
+            <div className="summary-card income-summary">
               <div className="summary-icon income">
                 <Icon name="ArrowDownLeft" />
               </div>
@@ -435,43 +462,113 @@ export function HomeScreen({
         <div className="dashboard-grid spending-breakdown-grid" style={homeStyle('spending')}>
           <section className="panel actual-panel">
             <SectionHead
-              title="Actual spending"
-              help="The total of expense transactions entered for this month. Transfers are not counted as spending."
+              title="Actual Spending"
+              help="The ring divides recorded expenses by category. A category bar compares its recorded, budget-counted spending with that category’s monthly plan. A full bar means the plan is used; it does not mean the category is half of all expenses. Refunds lower net spending, and transfers are not expenses."
               aside={
                 <button className="link-button" onClick={() => setTab('Activity')}>
                   View activity <Icon name="ArrowRight" size={15} />
                 </button>
               }
             />
-            <p className="panel-subtitle">Where your money went this month</p>
+            <p className="panel-subtitle">
+              Ring: share of expenses · Bars: share of each category’s plan
+            </p>
             <div className="spending-chart">
-              <div className="spending-total">
-                <strong>{money(spent, data.settings.currency, true)}</strong>
-                <span>spent so far</span>
-              </div>
-              <div className="bar-list">
-                {sorted
-                  .filter((c) => (spend[c.id] || 0) > 0)
-                  .slice(0, 5)
-                  .map((c) => (
-                    <div className="bar-row" key={c.id}>
-                      <span>{c.name}</span>
-                      <div className="bar-track">
-                        <div
-                          style={{
-                            width: `${((spend[c.id] || 0) / Math.max(spent, 1)) * 100}%`,
-                            background: c.color,
-                          }}
-                        />
-                      </div>
-                      <strong>{money(spend[c.id] || 0, data.settings.currency, true)}</strong>
-                    </div>
+              <div className="spending-donut">
+                <svg
+                  viewBox="0 0 120 120"
+                  role="img"
+                  aria-label={`Spending by category: ${spendingVisual.segments.length ? spendingVisual.segments.map((segment) => `${segment.name} ${money(segment.amount, data.settings.currency)} (${Math.round(segment.share * 100)}%)`).join(', ') : hasExpenseEntries ? 'no net category spending after refunds' : 'no spending recorded'}`}
+                >
+                  <circle className="spending-ring-track" cx="60" cy="60" r="48" />
+                  {spendingVisual.segments.map((segment) => (
+                    <circle
+                      key={segment.id}
+                      className="spending-ring-segment"
+                      cx="60"
+                      cy="60"
+                      r="48"
+                      stroke={segment.color}
+                      strokeDasharray={`${segment.share * ringCircumference} ${ringCircumference}`}
+                      strokeDashoffset={-segment.start * ringCircumference}
+                    />
                   ))}
-                {spent === 0 && (
+                </svg>
+                <div className="spending-donut-center" aria-hidden="true">
+                  <strong>{money(spent, data.settings.currency, true)}</strong>
+                  <span>net spent</span>
+                </div>
+              </div>
+              <div className="spending-rows">
+                {spendingVisual.showing.map((row) => {
+                  const progress = categoryPlanProgress(row)
+                  return (
+                    <button
+                      className="spending-row"
+                      key={row.category.id}
+                      type="button"
+                      onClick={() => setDetailCategoryId(row.category.id)}
+                      aria-label={`View ${row.category.name} transactions. ${money(row.used, data.settings.currency)} spent${progress === null ? ', no plan set' : ` of ${money(row.availableToSpend, data.settings.currency)} planned, ${Math.round(progress)} percent used`}.`}
+                    >
+                      <span className="spending-row-top">
+                        <span
+                          className="spending-row-mark"
+                          style={{ background: row.category.color }}
+                        />
+                        <span className="spending-row-name">{row.category.name}</span>
+                        <strong>{money(row.used, data.settings.currency, true)}</strong>
+                        <Icon name="ChevronRight" size={16} />
+                      </span>
+                      {progress === null ? (
+                        <span className="spending-row-caption">No monthly plan set</span>
+                      ) : (
+                        <>
+                          <span className="spending-meter" aria-hidden="true">
+                            <span
+                              style={{
+                                width: `${Math.min(100, progress)}%`,
+                                background: row.offTrack ? 'var(--red)' : row.category.color,
+                              }}
+                            />
+                          </span>
+                          <span className={`spending-row-caption ${row.offTrack ? 'over' : ''}`}>
+                            {Math.round(progress)}% of{' '}
+                            {money(row.availableToSpend, data.settings.currency, true)} plan
+                            {' · '}
+                            {row.offTrack
+                              ? `${money(Math.abs(row.remaining), data.settings.currency, true)} over`
+                              : row.remaining <= 0.005
+                                ? 'plan used'
+                                : `${money(row.remaining, data.settings.currency, true)} left`}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  )
+                })}
+                {spendingVisual.other > 0.005 && (
+                  <div className="spending-other">
+                    <span className="spending-row-mark" />
+                    <span>Other spending</span>
+                    <strong>{money(spendingVisual.other, data.settings.currency, true)}</strong>
+                  </div>
+                )}
+                {spendingVisual.ringTotal > 0 && spendingVisual.refundOffset > 0.005 && (
+                  <p className="spending-refund-note">
+                    Refunds and adjustments reduced net spending by{' '}
+                    {money(spendingVisual.refundOffset, data.settings.currency, true)}. The ring
+                    shows positive category amounts.
+                  </p>
+                )}
+                {spendingVisual.ringTotal <= 0 && (
                   <Empty
                     icon="ReceiptText"
-                    title="Nothing spent yet"
-                    text="Add your first expense in Activity to see your month take shape."
+                    title={hasExpenseEntries ? 'No net spending' : 'Nothing spent yet'}
+                    text={
+                      hasExpenseEntries
+                        ? 'Recorded refunds have offset purchases this month.'
+                        : 'Add your first expense in Activity to see your month take shape.'
+                    }
                   />
                 )}
               </div>
@@ -728,6 +825,24 @@ export function HomeScreen({
             </p>
           </section>
         </div>
+      )}
+      {overviewHelp && (
+        <Modal title="This month’s number" onClose={() => setOverviewHelp(false)}>
+          <div className="modal-body hero-help-body">
+            <p>
+              {overviewMode === 'plan'
+                ? 'Pockit subtracts expenses you recorded this month from your expected monthly income. For example, a $5,000 income plan and $1,200 of recorded expenses leave $3,800 in the plan. This is not your bank balance or cash you can safely spend today.'
+                : overviewMode === 'recorded'
+                  ? 'Pockit subtracts expenses you recorded from income you recorded in this month. This can be incomplete if you have not entered every paycheque or expense.'
+                  : 'This month has no income plan or recorded income to compare with expenses, so Pockit shows the expenses you entered.'}
+            </p>
+            <p>
+              Your usual take-home pay in More builds the plan. Record each real paycheque in
+              Activity, including overtime or a smaller payment; that updates “Received so far”
+              without silently changing your plan.
+            </p>
+          </div>
+        </Modal>
       )}
       {detailRow && (
         <Modal

@@ -1,0 +1,46 @@
+import { expect, test } from '@playwright/test'
+
+for (const width of [320, 402]) {
+  test(`More menu is tappable and fits a ${width}px phone`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 874 })
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Preview Pockit' }).click()
+    await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
+    const menu = page.getByRole('region', { name: 'More menu' })
+    await expect(menu.getByRole('button')).toHaveCount(11)
+    const bounds = await menu.boundingBox()
+    expect(bounds!.x).toBeGreaterThanOrEqual(0)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width + 1)
+    await menu.getByRole('button', { name: 'Appearance' }).click()
+    await expect(page.getByRole('heading', { name: 'Preferences' })).toBeVisible()
+    await menu.getByRole('button', { name: 'Help & terms' }).click()
+    await expect(page.locator('.glossary')).toHaveAttribute('open')
+    await menu.getByRole('button', { name: 'Compare months' }).click()
+    await expect(
+      page.getByRole('heading', { name: 'Put your months in perspective.' }),
+    ).toBeVisible()
+  })
+}
+
+test('goal graph follows a drag and shows a dated projected balance', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Preview Pockit' }).click()
+  await page.locator('.bottom-nav').getByRole('button', { name: 'Goals' }).click()
+  const chart = page.getByRole('button', { name: /Inspect Credit card projection/i })
+  await chart.scrollIntoViewIfNeeded()
+  const box = await chart.boundingBox()
+  await page.mouse.move(box!.x + 4, box!.y + box!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box!.x + box!.width * 0.7, box!.y + box!.height / 2, { steps: 8 })
+  await page.mouse.up()
+  const graph = chart.locator('..')
+  await expect(graph.locator('.goal-chart-readout')).toContainText(/Month \d+ · .*20\d\d/)
+  await expect(graph.locator('.goal-chart-readout')).toContainText('projected balance')
+  await expect(graph.locator('.goal-chart-axis')).toContainText(/20\d\d/)
+  await expect(graph.getByRole('slider')).toHaveCount(0)
+  await chart.press('End')
+  await expect(graph.locator('.goal-chart-readout')).toContainText(/Month \d+ ·/)
+  await chart.press('Home')
+  await expect(graph.locator('.goal-chart-readout')).toContainText('Today')
+})

@@ -1,6 +1,7 @@
 import { num } from '../lib/numbers'
 import { WhatIfLab } from '../components/WhatIfLab'
 import { useId, useState } from 'react'
+import { goalChartData, pointFromPosition } from '../lib/goalChart'
 import type { Goal, MonthKey, PockitData } from '../types'
 import {
   money,
@@ -35,88 +36,130 @@ function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' }) {
         Add this debt’s interest rate to see a payoff chart. Waypoint did not provide one.
       </div>
     )
-  const projection = projectGoal(goal)
-  const months = Math.max(1, Math.min(projection.months || 24, 24))
-  let balance = goal.balance
-  const values = [balance]
-  for (let i = 0; i < months; i++) {
-    balance =
-      goal.kind === 'debt'
-        ? Math.max(0, balance * (1 + goal.annualInterest / 1200) - goal.monthly)
-        : balance * (1 + goal.annualInterest / 1200) + goal.monthly
-    values.push(balance)
-  }
-  const ceiling = Math.max(goal.target, goal.balance, ...values, 1)
-  const xy = (v: number, i: number) => `${12 + (i / months) * 296},${118 - (v / ceiling) * 90}`
-  const points = values.map(xy).join(' ')
-  const area = `12,118 ${points} 308,118`
+  const { months, values, labels, reachesGoal, completedNow } = goalChartData(goal)
   const point = Math.min(selectedPoint, months)
-  const [selectedX, selectedY] = xy(values[point], point).split(',').map(Number)
+  const ceiling = Math.max(goal.kind === 'saving' ? goal.target : 0, ...values, 1)
+  const x = (index: number) => 16 + (index / months) * 288
+  const y = (value: number) => 126 - (value / ceiling) * 100
+  const points = values.map((value, index) => `${x(index)},${y(value)}`).join(' ')
+  const area = `16,126 ${points} 304,126`
+  const tickMonths = [...new Set([0, Math.round(months / 2), months])]
+  const inspect = (clientX: number, element: SVGSVGElement) => {
+    const rect = element.getBoundingClientRect()
+    setSelectedPoint(pointFromPosition(clientX, rect.left, rect.width, months))
+  }
   return (
-    <div className="goal-chart">
+    <div className={`goal-chart ${goal.kind}`}>
+      <div className="goal-chart-readout" aria-live="polite">
+        <span>{point === 0 ? 'Today' : `Month ${point} · ${labels[point]}`}</span>
+        <strong>{money(values[point], currency)}</strong>
+        <small>{goal.kind === 'debt' ? 'projected balance' : 'projected savings'}</small>
+      </div>
       <svg
-        viewBox="0 0 320 140"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label={`${goal.name} projected balance from today to ${months} months`}
+        viewBox="0 0 320 154"
+        role="button"
+        tabIndex={0}
+        aria-label={`Inspect ${goal.name} projection. Drag or use arrow keys to choose a month.`}
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture?.(event.pointerId)
+          inspect(event.clientX, event.currentTarget)
+        }}
+        onPointerMove={(event) => {
+          if (event.buttons) inspect(event.clientX, event.currentTarget)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
+            event.preventDefault()
+            setSelectedPoint((current) =>
+              Math.max(0, Math.min(months, current + (event.key === 'ArrowRight' ? 1 : -1))),
+            )
+          } else if (event.key === 'Home' || event.key === 'End') {
+            event.preventDefault()
+            setSelectedPoint(event.key === 'Home' ? 0 : months)
+          }
+        }}
       >
         <defs>
           <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={goal.color} stopOpacity=".34" />
-            <stop offset="100%" stopColor={goal.color} stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--goal-chart-line)" stopOpacity=".22" />
+            <stop offset="100%" stopColor="var(--goal-chart-line)" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {[28, 73, 118].map((y) => (
+        {[26, 76, 126].map((lineY) => (
           <line
-            key={y}
-            x1="12"
-            y1={y}
-            x2="308"
-            y2={y}
+            key={lineY}
+            x1="16"
+            y1={lineY}
+            x2="304"
+            y2={lineY}
             stroke="currentColor"
-            opacity=".15"
+            opacity=".17"
             strokeWidth="1"
-            strokeDasharray={y === 118 ? undefined : '3 5'}
+            strokeDasharray={lineY === 126 ? undefined : '3 5'}
           />
         ))}
         <polygon points={area} fill={`url(#${fillId})`} />
         <polyline
           points={points}
           fill="none"
-          stroke={goal.color}
+          stroke="var(--goal-chart-line)"
           strokeWidth="3"
           vectorEffect="non-scaling-stroke"
           strokeLinecap="round"
           strokeLinejoin="round"
+          strokeDasharray="5 5"
+        />
+        <line
+          x1={x(point)}
+          y1="19"
+          x2={x(point)}
+          y2="126"
+          stroke="currentColor"
+          opacity=".5"
+          strokeDasharray="3 4"
         />
         <circle
-          cx={selectedX}
-          cy={selectedY}
-          r="5.5"
-          fill={goal.color}
+          cx={x(0)}
+          cy={y(values[0])}
+          r="4"
+          fill="var(--red)"
+          stroke="var(--surface)"
+          strokeWidth="2"
+        />
+        {reachesGoal && (
+          <circle
+            cx={x(months)}
+            cy={y(values[months])}
+            r="4"
+            fill="var(--green)"
+            stroke="var(--surface)"
+            strokeWidth="2"
+          />
+        )}
+        <circle
+          cx={x(point)}
+          cy={y(values[point])}
+          r="6"
+          fill="var(--goal-chart-line)"
           stroke="var(--surface)"
           strokeWidth="3"
         />
       </svg>
-      <div>
-        <span>Today</span>
-        <span>{months} months</span>
+      <div className="goal-chart-axis">
+        {tickMonths.map((month) => (
+          <span key={month}>{labels[month]}</span>
+        ))}
       </div>
-      <label className="goal-chart-inspector">
-        <span>Inspect projection</span>
-        <input
-          type="range"
-          min="0"
-          max={months}
-          step="1"
-          value={point}
-          aria-label={`Inspect ${goal.name} projection`}
-          onChange={(event) => setSelectedPoint(Number(event.target.value))}
-        />
-        <output aria-live="polite">
-          {point === 0 ? 'Today' : `Month ${point}`}: {money(values[point], currency)}
-        </output>
-      </label>
+      <p className="goal-chart-caption">
+        {completedNow
+          ? goal.kind === 'debt'
+            ? 'Already paid off'
+            : 'Goal already reached'
+          : reachesGoal
+            ? 'Projected finish'
+            : '24-month preview'}{' '}
+        · Hold and drag to inspect each month.
+      </p>
     </div>
   )
 }

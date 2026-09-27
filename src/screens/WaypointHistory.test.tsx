@@ -62,7 +62,7 @@ describe('historical Waypoint months in the app', () => {
         update={() => {}}
       />,
     )
-    expect(screen.getByText('Recorded income less spending')).toBeTruthy()
+    expect(screen.getByText('Income recorded minus expenses')).toBeTruthy()
     expect(screen.getByText('$445', { selector: '.hero-number' })).toBeTruthy()
     expect(screen.getByText('Not exported')).toBeTruthy()
     expect(screen.getByText(/no historical budget plan for it/i)).toBeTruthy()

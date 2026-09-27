@@ -43,7 +43,7 @@ test('recorded income uses its real date and amount on Home', async ({ page }) =
   await form.getByRole('button', { name: 'Save transaction' }).click()
   await expect(page.getByText('Overtime pay')).toBeVisible()
   await page.locator('.bottom-nav').getByRole('button', { name: 'Home' }).click()
-  await expect(page.getByText('Recorded income less spending')).toBeVisible()
+  await expect(page.getByText('Left in your monthly plan')).toBeVisible()
   await noOverflow(page)
 })
 
@@ -263,8 +263,14 @@ test('touch controls stay at least 44 pixels high and charts expose their values
   await preview(page)
   expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true)
   await page.getByRole('button', { name: 'Goals', exact: true }).click()
-  await page.getByRole('slider', { name: /Inspect Emergency fund projection/i }).fill('3')
-  await expect(page.getByText(/Month 3:/)).toBeVisible()
+  const chart = page.getByRole('button', { name: /Inspect Emergency fund projection/i })
+  const chartBox = await chart.boundingBox()
+  await page.touchscreen.tap(
+    chartBox!.x + chartBox!.width * 0.6,
+    chartBox!.y + chartBox!.height / 2,
+  )
+  await expect(chart.locator('..').getByText(/Month \d+ ·/)).toBeVisible()
+  await expect(chart.locator('..').locator('.goal-chart-axis')).toContainText(/20\d\d/)
   await page.getByRole('button', { name: 'Budget', exact: true }).click()
   const breakdown = page.getByRole('region', { name: 'Budget Breakdown' })
   await breakdown.getByRole('button', { name: /^Highlight Groceries,/ }).click()

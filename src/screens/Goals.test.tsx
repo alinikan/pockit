@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeDemoData } from '../lib/defaults'
 import { currentMonth } from '../lib/finance'
+import { goalChartData } from '../lib/goalChart'
 import type { PockitData } from '../types'
 import { GoalsScreen } from './Goals'
 
@@ -77,14 +78,19 @@ describe('goal input', () => {
   })
   it('lets a person inspect a projected balance by dragging the chart control', () => {
     setup()
-    const chart = screen.getByRole('img', { name: /Emergency fund projected balance/i })
+    const chart = screen.getByRole('button', { name: /Inspect Emergency fund projection/i })
     expect(chart.querySelector('linearGradient')).toBeTruthy()
     expect(chart.querySelector('polygon')).toBeTruthy()
-    const slider = screen.getByRole('slider', {
-      name: /Inspect Emergency fund projection/i,
-    }) as HTMLInputElement
-    expect(slider.value).toBe('0')
-    fireEvent.change(slider, { target: { value: '2' } })
-    expect(screen.getByText(/Month 2:/)).toBeTruthy()
+    expect(chart.querySelector('line[stroke-dasharray="3 4"]')).toBeTruthy()
+    fireEvent.keyDown(chart, { key: 'ArrowRight' })
+    expect(screen.getByText(/Month 1 ·/)).toBeTruthy()
+    Object.defineProperty(chart, 'getBoundingClientRect', {
+      value: () => ({ left: 0, width: 320 }),
+    })
+    fireEvent(chart, new MouseEvent('pointerdown', { bubbles: true, clientX: 160 }))
+    const goal = makeDemoData().goals.find((item) => item.name === 'Emergency fund')!
+    expect(
+      screen.getByText(new RegExp(`Month ${Math.round(goalChartData(goal).months / 2)} ·`)),
+    ).toBeTruthy()
   })
 })

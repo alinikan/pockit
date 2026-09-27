@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { makeDemoData } from '../lib/defaults'
 import type { PockitData } from '../types'
-import { currentMonth } from '../lib/finance'
+import { currentMonth, monthSummary, money } from '../lib/finance'
 import { HomeScreen } from './Home'
 
 afterEach(cleanup)
@@ -76,6 +76,128 @@ describe('Home customization', () => {
     rerender(view())
     expect(data.settings.homeOrder?.[0]).toBe('trends')
     document.elementFromPoint = original
+  })
+})
+
+describe('Home money picture', () => {
+  it('uses category limits for bars and category amounts for the ring', () => {
+    const data = makeDemoData()
+    const month = currentMonth()
+    const view = () => (
+      <HomeScreen
+        data={data}
+        month={month}
+        setTab={() => {}}
+        onAddIncome={() => {}}
+        update={() => {}}
+      />
+    )
+    const { container, rerender } = render(view())
+    const panel = container.querySelector('.actual-panel') as HTMLElement
+    const rent = within(panel).getByRole('button', { name: /View Rent transactions/ })
+    expect(rent.querySelector('.spending-meter > span')?.getAttribute('style')).toContain('100%')
+    expect(rent.textContent).toContain('100%')
+    expect(rent.textContent).toContain('plan used')
+    const ring = panel.querySelector('svg[aria-label^="Spending by category"]')!
+    expect(ring.querySelectorAll('.spending-ring-segment').length).toBeGreaterThan(1)
+    expect(ring.getAttribute('aria-label')).toContain('Rent $1,500')
+    fireEvent.click(rent)
+    expect(screen.getByRole('dialog', { name: 'Rent transactions' })).toBeTruthy()
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Rent transactions' })).getByRole('button', {
+        name: 'Close',
+      }),
+    )
+    data.transactions.push({
+      id: 'extra-rent',
+      date: `${month}-18`,
+      payee: 'Extra rent',
+      amount: 100,
+      type: 'expense',
+      categoryId: data.categories.find((category) => category.name === 'Rent')!.id,
+    })
+    rerender(view())
+    const updated = within(panel).getByRole('button', { name: /View Rent transactions/ })
+    expect(updated.textContent).toContain('107%')
+    expect(updated.textContent).toContain('$100 over')
+    expect(
+      within(container.querySelector('.breakdown-panel') as HTMLElement).getByText('$100.00 over'),
+    ).toBeTruthy()
+  })
+
+  it('keeps the monthly plan stable when an actual paycheque differs', () => {
+    const data = makeDemoData()
+    const month = currentMonth()
+    const before = monthSummary(data, month)
+    const view = () => (
+      <HomeScreen
+        data={data}
+        month={month}
+        setTab={() => {}}
+        onAddIncome={() => {}}
+        update={() => {}}
+      />
+    )
+    const { container, rerender } = render(view())
+    expect(container.querySelector('.hero-number')?.textContent).toBe(
+      money(before.remaining, data.settings.currency, true),
+    )
+    data.transactions.push({
+      id: 'extra-pay',
+      date: `${month}-19`,
+      payee: 'Overtime pay',
+      amount: 300,
+      type: 'income',
+    })
+    rerender(view())
+    expect(container.querySelector('.hero-number')?.textContent).toBe(
+      money(before.remaining, data.settings.currency, true),
+    )
+    expect(screen.getByText(/Received so far:/).textContent).toContain(
+      money(before.actualIncome + 300, data.settings.currency, true),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'How this Home number is calculated' }))
+    expect(screen.getByRole('dialog', { name: 'This month’s number' })).toBeTruthy()
+  })
+
+  it('does not call a refunded purchase a month with no activity', () => {
+    const data = makeDemoData()
+    const month = currentMonth()
+    const rent = data.categories.find((category) => category.name === 'Rent')!
+    data.transactions = [
+      {
+        id: 'charge',
+        date: `${month}-08`,
+        payee: 'Charge',
+        amount: 50,
+        type: 'expense',
+        categoryId: rent.id,
+      },
+      {
+        id: 'refund',
+        date: `${month}-09`,
+        payee: 'Refund',
+        amount: 50,
+        type: 'expense',
+        refund: true,
+        categoryId: rent.id,
+      },
+    ]
+    const { container } = render(
+      <HomeScreen
+        data={data}
+        month={month}
+        setTab={() => {}}
+        onAddIncome={() => {}}
+        update={() => {}}
+      />,
+    )
+    const panel = container.querySelector('.actual-panel') as HTMLElement
+    expect(within(panel).getByText('No net spending')).toBeTruthy()
+    expect(panel.querySelectorAll('.spending-ring-segment')).toHaveLength(0)
+    expect(panel.querySelector('.spending-donut svg')?.getAttribute('aria-label')).toContain(
+      'after refunds',
+    )
   })
 })
 
