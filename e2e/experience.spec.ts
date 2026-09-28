@@ -17,15 +17,18 @@ test('Home sections can be hidden, moved, and reset on an iPhone-sized screen', 
 }) => {
   await page.setViewportSize({ width: 402, height: 874 })
   await preview(page)
+  const monthlyPlan = (await page.getByText('YOUR MONTHLY PLAN', { exact: true }).boundingBox())!
+  const nextMove = (await page.getByLabel('Pockit Today').boundingBox())!
+  expect(monthlyPlan.y).toBeLessThan(nextMove.y)
   await page.getByRole('button', { name: 'Customize Home' }).click()
   const dialog = page.getByRole('dialog', { name: 'Customize Home' })
   await dialog.getByRole('checkbox', { name: /Weekly check-in/ }).uncheck()
   await expect(page.getByLabel('Pockit Pulse')).toHaveCount(0)
   await dialog.getByRole('button', { name: 'Drag Income and expenses to reorder' }).press('ArrowUp')
-  await expect(dialog.locator('.home-layout-row').nth(5)).toContainText('Income and expenses')
+  await expect(dialog.locator('.home-layout-row').nth(4)).toContainText('Income and expenses')
   await dialog
     .getByRole('button', { name: 'Drag Income and expenses to reorder' })
-    .dragTo(dialog.locator('[data-home-section="today"]'))
+    .dragTo(dialog.locator('[data-home-section="overview"]'))
   await expect(dialog.locator('.home-layout-row').first()).toContainText('Income and expenses')
   await dialog.getByRole('button', { name: 'Reset layout' }).click()
   await expect(page.getByLabel('Pockit Pulse')).toBeVisible()

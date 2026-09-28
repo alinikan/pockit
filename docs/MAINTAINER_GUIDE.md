@@ -39,6 +39,8 @@ Related guides: [account emails and alerts](ACCOUNT_EMAILS.md), [passkeys](PASSK
 
 On either system, run `npm test` for the unit and interaction tests and `npm run build` to type-check and make the production `dist/` folder. For the browser layout suite, run `npx playwright install chromium` once, then `npm run test:ui`. The browser suite starts its own local server, uses Preview mode, and needs no Supabase account. `npm run preview` serves the built version locally. Use `npm run format` before committing code changes; `npm run format:check` verifies formatting without changing files.
 
+For visual UI work, run `npm run storybook` and open `http://localhost:6006`. Budget stories show the plan card and interactive breakdown; screen stories show Home, Goals, and Compare with sample data. Use the toolbar to switch dark/light mode and palettes. `npm run build:storybook` checks that the component workspace still builds. Storybook stays local and is not part of the Vercel deployment.
+
 ## Cloud setup, in order
 
 ### 1. Create the GitHub repository

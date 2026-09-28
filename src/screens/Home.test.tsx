@@ -37,7 +37,7 @@ describe('Home customization', () => {
       { key: 'ArrowUp' },
     )
     rerender(view())
-    expect(data.settings.homeOrder?.at(-2)).toBe('trends')
+    expect(data.settings.homeOrder?.indexOf('trends')).toBe(4)
     const cards = [...container.querySelectorAll('.screen-stack > [style*="order:"]')]
     expect(cards.length).toBeGreaterThan(4)
     fireEvent.click(
@@ -66,7 +66,7 @@ describe('Home customization', () => {
     expect(screen.queryByText('A second set of eyes for your money.')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Customize Home' }))
     const grip = screen.getByRole('button', { name: 'Drag Income and expenses to reorder' })
-    const target = container.querySelector('[data-home-section="today"]')!
+    const target = container.querySelector('[data-home-section="overview"]')!
     const original = document.elementFromPoint
     document.elementFromPoint = vi.fn(() => target)
     grip.setPointerCapture = vi.fn()

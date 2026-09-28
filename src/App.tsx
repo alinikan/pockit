@@ -805,7 +805,7 @@ export default function App() {
         )}
         <main className="page-content">
           {tab !== 'More' && (
-            <div className="page-heading">
+            <div className={`page-heading${tab === 'Budget' ? ' page-heading-budget' : ''}`}>
               <div>
                 <div className="eyebrow">
                   {tab === 'Home' ? 'YOUR OVERVIEW' : `YOUR ${tab.toUpperCase()}`}
@@ -820,7 +820,7 @@ export default function App() {
                         : tab === 'Activity'
                           ? 'The full picture.'
                           : tab === 'Budget'
-                            ? 'Give every dollar a direction.'
+                            ? 'Your monthly budget.'
                             : 'See what’s ahead.'}
                 </h1>
               </div>

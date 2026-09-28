@@ -1,8 +1,6 @@
 export const homeSections = [
-  { id: 'today', label: 'Your next good move', description: 'Review, bills, and payday' },
-  { id: 'pulse', label: 'Weekly check-in', description: 'A short reset when you need it' },
   { id: 'overview', label: 'Money at a glance', description: 'Income, spending, and what remains' },
-  { id: 'paycheque', label: 'Until payday', description: 'Estimated money after upcoming bills' },
+  { id: 'today', label: 'Your next good move', description: 'Review, bills, and payday' },
   {
     id: 'spending',
     label: 'Spending and categories',
@@ -13,11 +11,13 @@ export const homeSections = [
     label: 'Trouble spots and bills',
     description: 'Items that may need attention',
   },
+  { id: 'paycheque', label: 'Until payday', description: 'Estimated money after upcoming bills' },
   {
     id: 'trends',
     label: 'Income and expenses',
     description: 'A short monthly comparison',
   },
+  { id: 'pulse', label: 'Weekly check-in', description: 'A short reset when you need it' },
 ] as const
 
 export type HomeSectionId = (typeof homeSections)[number]['id']

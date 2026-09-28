@@ -61,7 +61,7 @@ describe('budget editor', () => {
     ]
     const { container } = render(<BudgetScreen data={data} month={month} update={() => {}} />)
     expect(container.querySelector('.budget-actual-income')?.textContent).toContain('$3,150')
-    expect(screen.getByText('expected income')).toBeTruthy()
+    expect(screen.getByText('EXPECTED INCOME')).toBeTruthy()
   })
   it('explains saved rollover carryover and keeps old category history when removed', () => {
     let data = makeDemoData()

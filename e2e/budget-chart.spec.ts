@@ -1,5 +1,28 @@
 import { expect, test } from '@playwright/test'
 
+test('the phone budget shows its breakdown without making recorded pay a full card', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Preview Pockit' }).click()
+  await page.locator('.bottom-nav').getByRole('button', { name: 'Budget' }).click()
+
+  const plan = page.getByRole('region', { name: 'Monthly income and plan' })
+  const breakdown = page.getByRole('region', { name: 'Budget Breakdown' })
+  const planBox = (await plan.boundingBox())!
+  const breakdownBox = (await breakdown.boundingBox())!
+  expect(planBox.height).toBeLessThan(270)
+  expect(breakdownBox.y).toBeLessThan(874)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(403)
+
+  const details = plan.locator('details')
+  await expect(details).not.toHaveAttribute('open')
+  await details.locator('summary').click()
+  await expect(details).toHaveAttribute('open')
+  await expect(details).toContainText('If a paycheque is higher or lower than expected')
+})
+
 test('budget slices and rows focus the same category on iPhone', async ({ page }) => {
   await page.setViewportSize({ width: 402, height: 874 })
   await page.goto('/')

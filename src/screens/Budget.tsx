@@ -22,6 +22,7 @@ import { Empty, Field, Icon, Modal, Progress, SectionHead } from '../components/
 import { coverOverspend } from '../lib/budgetMoves'
 import { budgetChart } from '../lib/budgetChart'
 import { BudgetBreakdown } from '../components/BudgetBreakdown'
+import { BudgetPlanCard } from '../components/BudgetPlanCard'
 
 const groups = [
   'Food & Dining',
@@ -230,49 +231,16 @@ export function BudgetScreen({
       {!historicalUnplanned && summary.income === 0 && (
         <p className="soft-note" role="status">
           No monthly income is planned. If the Waypoint export says $0 but you receive pay, set the
-          expected amount in More → Your profile before planning with a percentage of income.
+          expected amount in More → Paycheques before planning with a percentage of income.
         </p>
       )}
       {!historicalUnplanned && (
-        <div className="budget-overview">
-          <div className="budget-info">
-            <div className="eyebrow">MONTHLY PLAN</div>
-            <h2>
-              {money(summary.income, data.settings.currency, true)} <span>expected income</span>
-            </h2>
-            <div className="budget-actual-income">
-              <Icon name="ArrowDownLeft" size={17} />
-              <span>Recorded income</span>
-              <strong>{money(summary.actualIncome, data.settings.currency, true)}</strong>
-            </div>
-            <p className="budget-income-explanation">
-              Actual pay can change. Record each deposit in Activity; your category limits stay as
-              planned until you adjust them.
-            </p>
-            <div className="budget-info-stat">
-              <span>Planned for categories</span>
-              <strong>
-                {money(allocated, data.settings.currency, true)} of{' '}
-                {money(summary.income, data.settings.currency, true)}
-              </strong>
-            </div>
-            <Progress
-              value={summary.income ? (allocated / summary.income) * 100 : 0}
-              color={allocated > summary.income ? 'var(--red)' : 'var(--lime)'}
-            />
-            <p>
-              {allocated > summary.income
-                ? `${money(allocated - summary.income, data.settings.currency, true)} over your income`
-                : `${money(summary.income - allocated, data.settings.currency, true)} not yet planned`}{' '}
-              ·{' '}
-              {Math.max(
-                0,
-                Math.round(((summary.income - allocated) / Math.max(summary.income, 1)) * 100),
-              )}
-              % not yet planned
-            </p>
-          </div>
-        </div>
+        <BudgetPlanCard
+          expectedIncome={summary.income}
+          recordedIncome={summary.actualIncome}
+          allocated={allocated}
+          currency={data.settings.currency}
+        />
       )}
       {!historicalUnplanned && (
         <BudgetBreakdown chart={chart} income={summary.income} currency={data.settings.currency} />

@@ -2431,53 +2431,121 @@ small {
 /* Budget */
 .budget-overview {
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 22px;
   background: var(--surface);
-  padding: 25px 35px;
+  padding: 22px 26px 0;
+  overflow: hidden;
 }
-.budget-info {
-  width: 100%;
+.budget-plan-topline,
+.budget-info-stat,
+.budget-plan-progress-row,
+.budget-income-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
 }
-.budget-info h2 {
-  font-size: 34px;
-  margin: 0 0 26px;
+.budget-plan-topline {
+  align-items: flex-start;
+  padding-bottom: 18px;
 }
-.budget-info h2 span {
-  font-family: 'DM Sans';
-  font-size: 14px;
+.budget-plan-topline h2 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 10px;
+  margin: 4px 0 0;
+  color: var(--green);
+  font-size: clamp(29px, 4vw, 38px);
+  letter-spacing: -0.045em;
+  line-height: 1.2;
+}
+.budget-plan-topline h2 span {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
   color: var(--muted);
   font-weight: 500;
   letter-spacing: 0;
 }
+.budget-plan-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 12%, var(--surface));
+}
+.budget-plan-allocation {
+  padding: 15px 0 17px;
+  border-top: 1px solid var(--line);
+}
+.budget-info-stat {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.budget-info-stat span strong {
+  color: var(--text);
+}
+.budget-info-stat > strong {
+  color: var(--lime);
+  font-family: Manrope, sans-serif;
+  font-size: 17px;
+}
+.budget-info-stat > strong.negative,
+.budget-plan-progress-row > strong.negative {
+  color: var(--red);
+}
+.budget-plan-progress-row .progress {
+  height: 8px;
+  flex: 1 1 auto;
+}
+.budget-plan-progress-row > strong {
+  flex: 0 0 auto;
+  color: var(--lime);
+  font-size: 13px;
+  text-align: right;
+}
+.budget-income-details {
+  margin: 0 -26px;
+  border-top: 1px solid var(--line);
+}
+.budget-income-details summary {
+  min-height: 49px;
+  padding: 10px 26px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+}
+.budget-income-details summary::-webkit-details-marker {
+  display: none;
+}
+.budget-income-details summary > svg {
+  transition: transform 0.2s ease;
+}
+.budget-income-details[open] summary > svg {
+  transform: rotate(180deg);
+}
 .budget-actual-income {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--green);
-  font-size: 12px;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 .budget-actual-income strong {
-  margin-left: auto;
-  font-size: 15px;
+  margin-left: 3px;
+  font-size: 13px;
   color: var(--text);
 }
-.budget-info .budget-income-explanation {
-  margin: 7px 0 20px;
-  font-size: 11px;
-}
-.budget-info-stat {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  margin-bottom: 11px;
-}
-.budget-info-stat span,
-.budget-info p {
+.budget-income-details p {
+  margin: 0;
+  padding: 0 26px 17px;
   color: var(--muted);
-}
-.budget-info p {
-  font-size: 11px;
-  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .budget-breakdown-panel {
   padding: 24px;
@@ -4046,6 +4114,10 @@ small {
     margin-bottom: 23px;
     gap: 16px;
   }
+  .page-heading-budget {
+    margin-bottom: 18px;
+    gap: 12px;
+  }
   .page-heading h1 {
     font-size: 29px;
   }
@@ -4111,10 +4183,29 @@ small {
     font-size: 19px;
   }
   .budget-overview {
-    padding: 20px;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 15px;
+    padding: 17px 18px 0;
+  }
+  .budget-income-details {
+    margin: 0 -18px;
+  }
+  .budget-income-details summary {
+    padding: 9px 18px;
+  }
+  .budget-income-details p {
+    padding: 0 18px 15px;
+  }
+  .budget-plan-progress-row {
+    flex-wrap: wrap;
+    row-gap: 7px;
+  }
+  .budget-plan-progress-row .progress {
+    flex-basis: 100%;
+    order: 2;
+  }
+  .budget-plan-progress-row > strong {
+    flex-basis: 100%;
+    order: 1;
+    text-align: left;
   }
   .allocation-main > div:first-child {
     min-width: 110px;
