@@ -806,7 +806,10 @@ export default function App() {
         )}
         <main className="page-content">
           {tab !== 'More' && (
-            <div className={`page-heading${tab === 'Budget' ? ' page-heading-budget' : ''}`}>
+            <div
+              key={tab}
+              className={`page-heading${tab === 'Budget' ? ' page-heading-budget' : ''}`}
+            >
               <div>
                 <div className="eyebrow">
                   {tab === 'Home' ? 'YOUR OVERVIEW' : `YOUR ${tab.toUpperCase()}`}
@@ -864,7 +867,7 @@ export default function App() {
             />
           )}
           {tab === 'Goals' && <GoalsScreen data={data} month={month} update={update} />}
-          <div hidden={tab !== 'Compare'}>
+          <div className="compare-stage" hidden={tab !== 'Compare'}>
             <CompareScreen data={data} month={month} />
           </div>
           {tab === 'More' && (

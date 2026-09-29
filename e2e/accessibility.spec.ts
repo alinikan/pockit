@@ -39,7 +39,10 @@ test('Activity list, filters, and transaction editor have no detected WCAG A/AA 
   await page.getByRole('button', { name: 'Filter & sort' }).click()
   await scan(page)
   await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'New transaction' })).toBeVisible()
+  const editor = page.getByRole('dialog', { name: 'New transaction' })
+  await expect(editor).toBeVisible()
+  await expect(page.locator('.modal-backdrop')).toHaveCSS('opacity', '1')
+  await expect(editor).toHaveCSS('opacity', '1')
   await scan(page)
 })
 

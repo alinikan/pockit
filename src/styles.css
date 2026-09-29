@@ -2627,7 +2627,9 @@ small {
   transition:
     opacity 0.22s ease,
     stroke-width 0.22s ease,
-    filter 0.22s ease;
+    filter 0.22s ease,
+    stroke-dasharray 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    stroke-dashoffset 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .budget-donut-segment.dimmed {
   opacity: 0.25;
@@ -6343,6 +6345,125 @@ small {
   }
   to {
     clip-path: circle(var(--theme-reveal-radius) at var(--theme-reveal-x) var(--theme-reveal-y));
+  }
+}
+
+/* Motion stays on the arriving surface; lists and charts remain responsive to live edits. */
+@media (prefers-reduced-motion: no-preference) {
+  .page-heading {
+    animation: pockit-heading-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .page-content > .screen-stack,
+  .page-content > .calendar-layout,
+  .page-content > .more-menu,
+  .page-content > .more-detail,
+  .page-content > .compare-stage:not([hidden]) {
+    animation: pockit-page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .modal-backdrop,
+  .coach-backdrop,
+  .help-overlay {
+    animation: pockit-overlay-in 0.18s ease-out backwards;
+  }
+  .modal {
+    animation: pockit-dialog-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .coach-panel {
+    animation: pockit-drawer-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .budget-breakdown-row {
+    transition:
+      border-color 0.2s ease,
+      border-radius 0.2s ease,
+      background-color 0.2s ease;
+  }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .bottom-nav button {
+    position: relative;
+    isolation: isolate;
+  }
+  .bottom-nav button::before {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    left: 50%;
+    width: 44px;
+    height: 36px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--lime) 13%, transparent);
+    opacity: 0;
+    transform: translateX(-50%) scale(0.86);
+    transition:
+      opacity 0.2s ease,
+      transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  .bottom-nav button > * {
+    position: relative;
+    z-index: 1;
+  }
+  .bottom-nav button.active::before {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  .coach-panel {
+    animation-name: pockit-sheet-in;
+  }
+}
+@keyframes pockit-heading-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pockit-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes pockit-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pockit-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes pockit-drawer-in {
+  from {
+    transform: translateX(16px);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes pockit-sheet-in {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: translateY(0);
   }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -41,6 +41,8 @@ On either system, run `npm test` for the unit and interaction tests and `npm run
 
 For visual UI work, run `npm run storybook` and open `http://localhost:6006`. Budget stories show the plan card and interactive breakdown; screen stories show Home, Activity, Goals, and Compare with sample data. Use the toolbar to switch dark/light mode and palettes. `npm run build:storybook` checks that the component workspace still builds. Storybook stays local and is not part of the Vercel deployment. The DM Sans and Manrope font files ship with Pockit, including its offline copy; no font CDN is needed.
 
+Interface motion is defined in `src/styles.css`: short page entrances, dialog and Insights transitions, chart changes, and a bottom-tab selection cue. Keep motion on opacity and transforms where possible, and let page transforms return to `none` after the entrance; a retained transform changes how nested fixed dialogs are positioned. The `prefers-reduced-motion` rules remove decorative motion. Run the browser motion and accessibility tests after changing these styles.
+
 ## Cloud setup, in order
 
 ### 1. Create the GitHub repository
