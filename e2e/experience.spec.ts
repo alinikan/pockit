@@ -196,6 +196,7 @@ test('quick add, recent merchant, undo, and CSV review work on a phone', async (
   await expect(
     page.locator('.transaction-row').filter({ hasText: 'Pockit Test Shop' }),
   ).toHaveCount(0)
+  await page.getByRole('button', { name: 'More ways to add' }).click()
   const recentMerchant = page.locator('.recent-merchants button').first()
   const merchantName = (await recentMerchant.innerText()).trim()
   await recentMerchant.click()

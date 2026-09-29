@@ -31,7 +31,7 @@ test('budget slices and rows focus the same category on iPhone', async ({ page }
   const panel = page.getByRole('region', { name: 'Budget Breakdown' })
   const chart = panel.locator('.budget-donut-chart')
   const segments = panel.locator('.budget-donut-segment')
-  expect(await segments.count()).toBeGreaterThan(5)
+  await expect.poll(() => segments.count()).toBeGreaterThan(5)
   await expect(panel.locator('.budget-donut-center')).toContainText('TOTAL BUDGET')
   const rent = panel.getByRole('button', { name: /^Show Rent:/ })
   const svgBox = (await chart.boundingBox())!

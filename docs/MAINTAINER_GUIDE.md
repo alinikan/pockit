@@ -2,7 +2,7 @@
 
 This guide covers local development, service setup, deployment, testing, and troubleshooting. Run terminal commands from the repository root unless a step says otherwise. The [project overview](../README.md) is written for people exploring Pockit.
 
-Related guides: [account emails and alerts](ACCOUNT_EMAILS.md), [passkeys](PASSKEYS.md), [future bank connection](BANK_CONNECTION.md), and [authentication email templates](../emails/README.md).
+Related guides: [release checks](RELEASE_CHECKLIST.md), [account emails and alerts](ACCOUNT_EMAILS.md), [passkeys](PASSKEYS.md), [future bank connection](BANK_CONNECTION.md), and [authentication email templates](../emails/README.md).
 
 ## Requirements
 
@@ -39,7 +39,7 @@ Related guides: [account emails and alerts](ACCOUNT_EMAILS.md), [passkeys](PASSK
 
 On either system, run `npm test` for the unit and interaction tests and `npm run build` to type-check and make the production `dist/` folder. For the browser layout suite, run `npx playwright install chromium` once, then `npm run test:ui`. The browser suite starts its own local server, uses Preview mode, and needs no Supabase account. `npm run preview` serves the built version locally. Use `npm run format` before committing code changes; `npm run format:check` verifies formatting without changing files.
 
-For visual UI work, run `npm run storybook` and open `http://localhost:6006`. Budget stories show the plan card and interactive breakdown; screen stories show Home, Goals, and Compare with sample data. Use the toolbar to switch dark/light mode and palettes. `npm run build:storybook` checks that the component workspace still builds. Storybook stays local and is not part of the Vercel deployment.
+For visual UI work, run `npm run storybook` and open `http://localhost:6006`. Budget stories show the plan card and interactive breakdown; screen stories show Home, Activity, Goals, and Compare with sample data. Use the toolbar to switch dark/light mode and palettes. `npm run build:storybook` checks that the component workspace still builds. Storybook stays local and is not part of the Vercel deployment. The DM Sans and Manrope font files ship with Pockit, including its offline copy; no font CDN is needed.
 
 ## Cloud setup, in order
 
@@ -139,6 +139,16 @@ For a short private test with no outgoing email, you can temporarily turn **Conf
 
 4. Deploy. Open the generated `https://...vercel.app` URL. Put that **exact** URL into Supabase's **Site URL** and redirect allow-list if you did not know it earlier. Redeploy if you added or changed Vercel environment variables after the first build.
 5. Sign up with one email, confirm it, finish onboarding, add a test transaction, sign out, sign in, and confirm the transaction remains. Test a second account to confirm it sees its own empty setup rather than the first account's budget.
+
+### Optional performance and error diagnostics
+
+These integrations are **off by default**. They are for maintainers and are not required for budgeting, sign-in, or offline use. Both are browser build variables, so never put an email key, Supabase secret key, or other private credential in a `VITE_` variable.
+
+**Vercel Speed Insights:** In the Vercel dashboard, open the Pockit project, choose **Speed Insights**, and click **Enable**. Then open **Settings → Environment Variables**, add `VITE_ENABLE_SPEED_INSIGHTS` with value `true` for Production, and redeploy. The app strips page paths, query strings, and fragments from events before sending them. View aggregate results in the project's Speed Insights page. To disable collection, remove the variable or set it to `false`, redeploy, and disable the product in Vercel if desired. Check Vercel's current usage limits before enabling it for a larger audience.
+
+**Sentry errors only:** Create a JavaScript project in Sentry and copy its **DSN** from the project setup or **Settings → Projects → Pockit → Client Keys (DSN)**. In Vercel **Settings → Environment Variables**, add `VITE_SENTRY_DSN` with that DSN for Production, then redeploy. A DSN is a public project identifier, not a server secret. With the variable absent, the Sentry SDK is not loaded. When present, Pockit sends unhandled error type and bundled JavaScript location only. It strips error messages, payees, balances, URLs, form values, user details, breadcrumbs, and other event context; it does not enable session replay or tracing. Check the Sentry project after a controlled test and its current pricing and retention settings. Remove the variable and redeploy to stop new reports.
+
+GitHub Actions runs formatting, unit tests, the production build, Storybook build, and Chromium browser tests on pushes to `main` and pull requests. The browser suite uses sample data and includes accessibility scans, phone-width checks, offline navigation, and a backup/restore drill. Before a live release, follow the [release checklist](RELEASE_CHECKLIST.md); sample-data tests cannot prove that your own Supabase settings and email provider are configured correctly.
 
 ### 4a. Enable deletion receipts and owner alerts
 

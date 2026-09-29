@@ -6,8 +6,9 @@ import type { PockitData } from '../types'
 import { HomeScreen } from './Home'
 import { GoalsScreen } from './Goals'
 import { CompareScreen } from './Compare'
+import { ActivityScreen } from './Activity'
 
-function ScreenPreview({ screen }: { screen: 'Home' | 'Goals' | 'Compare' }) {
+function ScreenPreview({ screen }: { screen: 'Home' | 'Activity' | 'Goals' | 'Compare' }) {
   const [data, setData] = useState<PockitData>(() => makeDemoData())
   const month = currentMonth()
   const update = (recipe: (value: PockitData) => PockitData) => setData(recipe)
@@ -23,6 +24,7 @@ function ScreenPreview({ screen }: { screen: 'Home' | 'Goals' | 'Compare' }) {
       />
     )
   if (screen === 'Goals') return <GoalsScreen data={data} month={month} update={update} />
+  if (screen === 'Activity') return <ActivityScreen data={data} month={month} update={update} />
   return <CompareScreen data={data} month={month} />
 }
 
@@ -36,5 +38,6 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Home: Story = { args: { screen: 'Home' } }
+export const Activity: Story = { args: { screen: 'Activity' } }
 export const Goals: Story = { args: { screen: 'Goals' } }
 export const Compare: Story = { args: { screen: 'Compare' } }

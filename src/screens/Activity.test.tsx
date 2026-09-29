@@ -185,6 +185,7 @@ describe('activity', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Transfer 1$/ }))
     expect(names()).toEqual(['Savings transfer'])
     fireEvent.click(screen.getByRole('button', { name: /^Expense 11$/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Filter & sort' }))
     fireEvent.change(screen.getByPlaceholderText('Search transactions'), {
       target: { value: 'market' },
     })
@@ -197,6 +198,18 @@ describe('activity', () => {
       target: { value: data.categories.find((c) => c.name === 'Groceries')!.id },
     })
     expect(names()).toEqual(['Costco', 'Superstore', 'Fresh Market'])
+  })
+
+  it('keeps the transaction list ahead of optional import and repeat tools', () => {
+    const { container } = render(
+      <ActivityScreen data={makeDemoData()} month={currentMonth()} update={() => {}} />,
+    )
+    const list = container.querySelector('.transaction-panel')!
+    const more = container.querySelector('.activity-more')!
+    expect(list.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Import transactions from a CSV file' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to add' }))
+    expect(screen.getByRole('button', { name: 'Import transactions from a CSV file' })).toBeTruthy()
   })
   it('records a refund and offers date shortcuts without requiring a second refund checkbox', () => {
     let data = makeDemoData()

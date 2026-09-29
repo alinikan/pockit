@@ -58,6 +58,8 @@ export function ActivityScreen({
   const [type, setType] = useState<'all' | TransactionType>('all')
   const [category, setCategory] = useState('all')
   const [sort, setSort] = useState('newest')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [moreWaysOpen, setMoreWaysOpen] = useState(false)
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [scanBusy, setScanBusy] = useState(false)
   const [scanError, setScanError] = useState('')
@@ -284,13 +286,6 @@ export function ActivityScreen({
         <div className="activity-actions">
           <button
             className="secondary-button"
-            aria-label="Import transactions from a CSV file"
-            onClick={() => setImportOpen(true)}
-          >
-            <Icon name="FileUp" size={17} /> <span>Import file</span>
-          </button>
-          <button
-            className="secondary-button"
             aria-label="Add transaction"
             onClick={() => setEditing(newTransaction('expense'))}
           >
@@ -305,27 +300,6 @@ export function ActivityScreen({
           </button>
         </div>
       </div>
-      {recent.length > 0 && (
-        <div className="recent-merchants">
-          <span>Quick repeat</span>
-          {recent.map((transaction) => (
-            <button
-              key={transaction.id}
-              onClick={() =>
-                setEditing({
-                  ...blank(),
-                  date: dateInMonth(month),
-                  payee: transaction.payee,
-                  amount: transaction.amount,
-                  categoryId: transaction.categoryId,
-                })
-              }
-            >
-              {transaction.payee}
-            </button>
-          ))}
-        </div>
-      )}
       {undo && (
         <div className="undo-strip" role="status">
           {undo.message} <button onClick={undoLast}>Undo</button>
@@ -405,7 +379,16 @@ export function ActivityScreen({
             </button>
           ))}
         </div>
-        <div className="filter-selects">
+        <button
+          className="activity-filter-toggle secondary-button compact"
+          aria-expanded={filtersOpen}
+          aria-controls="activity-extra-filters"
+          onClick={() => setFiltersOpen((open) => !open)}
+        >
+          <Icon name="SlidersHorizontal" size={17} />
+          <span>Filter & sort{category !== 'all' || sort !== 'newest' ? ' •' : ''}</span>
+        </button>
+        <div className="filter-selects" id="activity-extra-filters" hidden={!filtersOpen}>
           <select
             aria-label="Filter category"
             value={category}
@@ -443,58 +426,6 @@ export function ActivityScreen({
           </button>
         </div>
       </div>
-      {subscriptions.length > 0 && (
-        <div className="insight-strip">
-          <Icon name="Repeat2" size={20} />
-          <span>
-            <strong>Possible recurring charges:</strong>{' '}
-            {subscriptions.map((s) => s.replace(/\b\w/g, (c) => c.toUpperCase())).join(', ')}
-          </span>
-          <div className="subscription-actions">
-            {subscriptions
-              .filter((payee) => !data.bills.some((bill) => bill.name.toLowerCase() === payee))
-              .slice(0, 3)
-              .map((payee) => {
-                const latest = data.transactions
-                  .filter(
-                    (transaction) =>
-                      transaction.type === 'expense' &&
-                      transaction.payee.trim().toLowerCase() === payee,
-                  )
-                  .sort((a, b) => b.date.localeCompare(a.date))[0]
-                return (
-                  <button
-                    className="text-button"
-                    key={payee}
-                    onClick={() =>
-                      update((current) => ({
-                        ...current,
-                        bills: [
-                          ...current.bills,
-                          {
-                            id: crypto.randomUUID(),
-                            name: latest.payee,
-                            amount: latest.amount,
-                            day: Number(latest.date.slice(-2)),
-                            categoryId: latest.categoryId,
-                            frequency: 'monthly',
-                            starts: month,
-                            paidMonths: [],
-                          },
-                        ],
-                      }))
-                    }
-                  >
-                    Remind me about {latest.payee}
-                  </button>
-                )
-              })}
-          </div>
-          <span className="insight-hint">
-            These are suggestions from repeated amounts and dates. Check the reminder in Calendar.
-          </span>
-        </div>
-      )}
       <section className="panel transaction-panel">
         <SectionHead
           title="Transactions"
@@ -566,6 +497,101 @@ export function ActivityScreen({
           />
         )}
       </section>
+      <section className="activity-more">
+        <button
+          className="activity-more-toggle"
+          aria-expanded={moreWaysOpen}
+          aria-controls="activity-more-content"
+          onClick={() => setMoreWaysOpen((open) => !open)}
+        >
+          <span>
+            <Icon name="Sparkles" size={18} /> More ways to add
+          </span>
+          <Icon name={moreWaysOpen ? 'ChevronUp' : 'ChevronDown'} size={18} />
+        </button>
+        <div id="activity-more-content" className="activity-more-content" hidden={!moreWaysOpen}>
+          <button
+            className="secondary-button"
+            aria-label="Import transactions from a CSV file"
+            onClick={() => setImportOpen(true)}
+          >
+            <Icon name="FileUp" size={17} /> Import a CSV file
+          </button>
+          {recent.length > 0 && (
+            <div className="recent-merchants">
+              <span>Repeat a recent entry</span>
+              {recent.map((transaction) => (
+                <button
+                  key={transaction.id}
+                  onClick={() =>
+                    setEditing({
+                      ...blank(),
+                      date: dateInMonth(month),
+                      payee: transaction.payee,
+                      amount: transaction.amount,
+                      categoryId: transaction.categoryId,
+                    })
+                  }
+                >
+                  {transaction.payee}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+      {subscriptions.length > 0 && (
+        <div className="insight-strip">
+          <Icon name="Repeat2" size={20} />
+          <span>
+            <strong>Possible recurring charges:</strong>{' '}
+            {subscriptions.map((s) => s.replace(/\b\w/g, (c) => c.toUpperCase())).join(', ')}
+          </span>
+          <div className="subscription-actions">
+            {subscriptions
+              .filter((payee) => !data.bills.some((bill) => bill.name.toLowerCase() === payee))
+              .slice(0, 3)
+              .map((payee) => {
+                const latest = data.transactions
+                  .filter(
+                    (transaction) =>
+                      transaction.type === 'expense' &&
+                      transaction.payee.trim().toLowerCase() === payee,
+                  )
+                  .sort((a, b) => b.date.localeCompare(a.date))[0]
+                return (
+                  <button
+                    className="text-button"
+                    key={payee}
+                    onClick={() =>
+                      update((current) => ({
+                        ...current,
+                        bills: [
+                          ...current.bills,
+                          {
+                            id: crypto.randomUUID(),
+                            name: latest.payee,
+                            amount: latest.amount,
+                            day: Number(latest.date.slice(-2)),
+                            categoryId: latest.categoryId,
+                            frequency: 'monthly',
+                            starts: month,
+                            paidMonths: [],
+                          },
+                        ],
+                      }))
+                    }
+                  >
+                    Remind me about {latest.payee}
+                  </button>
+                )
+              })}
+          </div>
+          <span className="insight-hint">
+            These are suggestions from repeated amounts and dates. Check the reminder in Calendar.
+          </span>
+        </div>
+      )}
       {editing && (
         <Modal
           title={

@@ -1,7 +1,29 @@
-const CACHE = 'pockit-shell-v3'
+const CACHE = 'pockit-shell-v4'
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(['/', '/icon.svg', '/manifest.webmanifest'])),
+    fetch('/offline-assets.json', { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Offline asset list unavailable')
+        return response.json()
+      })
+      .then((assets) => {
+        if (
+          !Array.isArray(assets) ||
+          !assets.every((path) => /^\/assets\/[a-zA-Z0-9_./-]+$/.test(path))
+        )
+          throw new Error('Invalid offline asset list')
+        return caches
+          .open(CACHE)
+          .then((cache) =>
+            cache.addAll([
+              '/',
+              '/icon.svg',
+              '/manifest.webmanifest',
+              '/offline-assets.json',
+              ...assets,
+            ]),
+          )
+      }),
   )
   self.skipWaiting()
 })
@@ -10,7 +32,11 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))),
+        Promise.all(
+          keys
+            .filter((key) => key.startsWith('pockit-shell-') && key !== CACHE)
+            .map((key) => caches.delete(key)),
+        ),
       ),
   )
   self.clients.claim()
@@ -30,19 +56,27 @@ self.addEventListener('fetch', (event) => {
     ].includes(url.pathname)
   if (!shell && !asset) return
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response.ok) {
-          const copy = response.clone()
-          event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)))
-        }
-        return response
-      })
-      .catch(() =>
-        caches
-          .match(event.request)
-          .then((cached) => cached || (shell ? caches.match('/') : undefined)),
-      ),
+    asset
+      ? caches.match(event.request).then(
+          (cached) =>
+            cached ||
+            fetch(event.request).then((response) => {
+              if (response.ok) {
+                const copy = response.clone()
+                event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)))
+              }
+              return response
+            }),
+        )
+      : fetch(event.request)
+          .then((response) => {
+            if (response.ok) {
+              const copy = response.clone()
+              event.waitUntil(caches.open(CACHE).then((cache) => cache.put(event.request, copy)))
+            }
+            return response
+          })
+          .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/'))),
   )
 })
 self.addEventListener('push', (event) => {

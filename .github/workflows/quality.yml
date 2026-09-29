@@ -1,0 +1,27 @@
+name: Pockit quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:storybook
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
+        env:
+          CI: 'true'
+          POCKIT_PREVIEW: '1'

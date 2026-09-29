@@ -150,20 +150,6 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
 
   return (
     <div className="screen-stack compare-screen">
-      <section className="compare-intro">
-        <div>
-          <span className="eyebrow">A CLOSER LOOK</span>
-          <h2>See what changed. Know why.</h2>
-          <p>
-            Pick the months that matter to you. Every number comes from the transactions you
-            entered.
-          </p>
-        </div>
-        <div className="compare-intro-mark" aria-hidden="true">
-          <Icon name="GitCompareArrows" size={36} />
-        </div>
-      </section>
-
       <div className="compare-views" role="tablist" aria-label="Comparison views">
         {choices.map((choice) => (
           <button

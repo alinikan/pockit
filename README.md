@@ -48,7 +48,7 @@ Pockit Insights shows live signals from entered spending, bills, and debt, and a
 
 ## How it was built
 
-Pockit uses **React, TypeScript, and Vite** for the app; custom CSS, SVG, and Lucide for the interface; **Supabase Auth and Postgres** for accounts and saved budgets; and **Vercel Functions** for account emails and optional bill reminders. Receipt text recognition runs on the device with Tesseract.js. The project has calculation and interaction tests in **Vitest** and browser layout tests in **Playwright**. **Storybook** previews real UI components at phone width, with controls for theme and colour palette.
+Pockit uses **React, TypeScript, and Vite** for the app; custom CSS, SVG, Lucide, and locally served fonts for the interface; **Supabase Auth and Postgres** for accounts and saved budgets; and **Vercel Functions** for account emails and optional bill reminders. Receipt text recognition runs on the device with Tesseract.js. The project has calculation and interaction tests in **Vitest**, browser and accessibility tests in **Playwright**, and automated GitHub checks. **Storybook** previews real UI components at phone width, with controls for theme and colour palette.
 
 The repository is organized by responsibility: `src/screens` contains the main views, `src/components` holds shared UI, `src/lib` contains finance and storage logic, `server` and `api` contain server-side features, and `supabase` contains database setup. The app's design and code are original; Waypoint Budget Planner was one source of product inspiration, and Pockit is not affiliated with Waypoint Budget Inc.
 

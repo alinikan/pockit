@@ -1,6 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 :root {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'DM Sans Variable', system-ui, sans-serif;
   color-scheme: dark;
   --bg: #101323;
   --sidebar: #15192b;
@@ -23,9 +22,6 @@
   --hero-middle: #c0c2ff;
   --hero-end: #a8b8ff;
   --hero-ink: #202045;
-  transition:
-    background 0.35s,
-    color 0.35s;
 }
 :root[data-theme='light'] {
   color-scheme: light;
@@ -266,7 +262,7 @@ p {
 h1,
 h2,
 h3 {
-  font-family: Manrope, system-ui, sans-serif;
+  font-family: 'Manrope Variable', system-ui, sans-serif;
   letter-spacing: -0.045em;
 }
 h1 {
@@ -291,7 +287,7 @@ small {
   display: flex;
   align-items: center;
   gap: 11px;
-  font-family: Manrope, system-ui, sans-serif;
+  font-family: 'Manrope Variable', system-ui, sans-serif;
   font-weight: 800;
   letter-spacing: -0.055em;
 }
@@ -601,7 +597,7 @@ small {
 }
 .card-one strong {
   display: block;
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-size: 42px;
   letter-spacing: -0.07em;
   margin: 11px 0;
@@ -902,7 +898,7 @@ small {
 .money-input input {
   padding-left: 41px;
   font-size: 22px;
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-weight: 800;
 }
 .goal-setup-list {
@@ -1040,7 +1036,7 @@ small {
 .finish-card strong {
   display: block;
   font-size: clamp(20px, 3vw, 25px);
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
 }
 .finish-card p {
   max-width: 520px;
@@ -1180,7 +1176,7 @@ small {
   color: var(--on-accent);
   border-radius: 12px;
   font-weight: 800;
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   flex: none;
 }
 .account-mini > span {
@@ -1360,7 +1356,7 @@ small {
 }
 .section-title {
   margin: 0;
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-size: 17px;
   letter-spacing: -0.025em;
   font-weight: 800;
@@ -1543,7 +1539,7 @@ small {
   position: relative;
 }
 .hero-number {
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-size: clamp(42px, 5vw, 62px);
   font-weight: 800;
   letter-spacing: -0.075em;
@@ -1643,7 +1639,7 @@ small {
   font-size: 13px;
 }
 .summary-card strong {
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-size: 23px;
   letter-spacing: -0.05em;
   overflow-wrap: anywhere;
@@ -1728,7 +1724,7 @@ small {
   text-align: center;
 }
 .spending-donut-center strong {
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-size: clamp(18px, 2.5vw, 28px);
   letter-spacing: -0.04em;
   line-height: 1.15;
@@ -1793,7 +1789,7 @@ small {
   overflow-wrap: anywhere;
 }
 .spending-row-top strong {
-  font-family: Manrope, sans-serif;
+  font-family: 'Manrope Variable', sans-serif;
   font-size: 14px;
   text-align: right;
   min-width: 0;
@@ -1937,7 +1933,7 @@ small {
   font-variant-numeric: tabular-nums;
 }
 .category-line-totals strong {
-  font-family: Manrope, sans-serif;
+  font-family: 'Manrope Variable', sans-serif;
   font-size: 16px;
 }
 .category-line-totals span {
@@ -2016,7 +2012,7 @@ small {
 }
 .category-detail-summary strong {
   color: var(--text);
-  font-family: Manrope, sans-serif;
+  font-family: 'Manrope Variable', sans-serif;
   font-size: 15px;
   overflow-wrap: anywhere;
 }
@@ -2326,6 +2322,53 @@ small {
   gap: 7px;
   align-items: center;
 }
+.filter-selects[hidden] {
+  display: none;
+}
+.activity-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.activity-more {
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.activity-more-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 17px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+.activity-more-toggle span {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.activity-more-toggle span svg {
+  color: var(--lime);
+}
+.activity-more-content {
+  display: grid;
+  gap: 13px;
+  padding: 0 17px 17px;
+}
+.activity-more-content[hidden] {
+  display: none;
+}
+.activity-more-content > button {
+  justify-self: start;
+}
 .filter-selects select,
 .reset-button {
   background: var(--surface);
@@ -2461,7 +2504,7 @@ small {
   line-height: 1.2;
 }
 .budget-plan-topline h2 span {
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'DM Sans Variable', sans-serif;
   font-size: 13px;
   color: var(--muted);
   font-weight: 500;
@@ -2491,7 +2534,7 @@ small {
 }
 .budget-info-stat > strong {
   color: var(--lime);
-  font-family: Manrope, sans-serif;
+  font-family: 'Manrope Variable', sans-serif;
   font-size: 17px;
 }
 .budget-info-stat > strong.negative,
@@ -2637,7 +2680,7 @@ small {
 }
 .budget-donut-center strong {
   color: var(--text);
-  font-family: Manrope, sans-serif;
+  font-family: 'Manrope Variable', sans-serif;
   font-size: clamp(22px, 6vw, 30px);
   line-height: 1.15;
   letter-spacing: -0.04em;
@@ -2712,7 +2755,7 @@ small {
   font-size: 13px;
 }
 .budget-breakdown-value strong {
-  font-family: Manrope, sans-serif;
+  font-family: 'Manrope Variable', sans-serif;
   font-size: 16px;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -3096,7 +3139,7 @@ small {
   gap: 8px;
 }
 .goal-amount strong {
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-size: 27px;
   letter-spacing: -0.06em;
 }
@@ -3147,7 +3190,7 @@ small {
 }
 .goal-chart-readout strong {
   font:
-    700 19px Manrope,
+    700 19px 'Manrope Variable',
     sans-serif;
   color: var(--text);
 }
@@ -3268,7 +3311,7 @@ small {
   font-weight: 800;
 }
 .debt-summary strong {
-  font-family: Manrope;
+  font-family: 'Manrope Variable';
   font-size: 25px;
   letter-spacing: -0.05em;
 }
@@ -3365,7 +3408,7 @@ small {
 .more-menu-heading h2 {
   margin: 2px 0;
   font:
-    800 25px Manrope,
+    800 25px 'Manrope Variable',
     sans-serif;
   letter-spacing: -0.04em;
 }
@@ -3575,7 +3618,7 @@ small {
   font-size: 11px;
 }
 .settings-income-preview strong {
-  font-family: Manrope, sans-serif;
+  font-family: 'Manrope Variable', sans-serif;
   font-size: 18px;
   overflow-wrap: anywhere;
 }
@@ -4706,22 +4749,22 @@ small {
   }
   .activity-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .activity-actions button {
     min-width: 0;
-    min-height: 68px;
-    padding: 8px;
+    min-height: 48px;
+    padding: 8px 10px;
     font-size: 12px;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 7px;
   }
   .activity-actions button svg {
     flex: none;
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
   }
   .quick-add-fab {
     right: max(17px, env(safe-area-inset-right));
@@ -5534,7 +5577,7 @@ small {
 }
 .payday-summary > strong {
   font:
-    800 27px Manrope,
+    800 27px 'Manrope Variable',
     sans-serif;
   letter-spacing: -0.045em;
 }

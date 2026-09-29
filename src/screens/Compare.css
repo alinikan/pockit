@@ -2,49 +2,6 @@
 .compare-screen {
   min-width: 0;
 }
-.compare-intro {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  padding: 28px 31px;
-  border: 1px solid var(--line);
-  border-radius: 22px;
-  background:
-    radial-gradient(
-      circle at 86% 15%,
-      color-mix(in srgb, var(--lime) 16%, transparent),
-      transparent 36%
-    ),
-    var(--surface);
-}
-.compare-intro .eyebrow {
-  display: block;
-  margin-bottom: 8px;
-}
-.compare-intro h2 {
-  margin: 0 0 7px;
-  font-size: clamp(22px, 2.5vw, 29px);
-}
-.compare-intro p {
-  color: var(--muted);
-  margin: 0;
-  max-width: 550px;
-  font-size: 14px;
-}
-.compare-intro-mark {
-  flex: none;
-  width: 70px;
-  height: 70px;
-  display: grid;
-  place-items: center;
-  border-radius: 23px;
-  background: var(--lime);
-  color: #14231b;
-  transform: rotate(-8deg);
-}
 .compare-views {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -220,7 +177,7 @@
 }
 .compare-main-number {
   font:
-    800 clamp(22px, 2.6vw, 30px) Manrope,
+    800 clamp(22px, 2.6vw, 30px) 'Manrope Variable',
     sans-serif;
   letter-spacing: -0.05em;
   margin: 5px 0 15px;
@@ -520,7 +477,7 @@
 .compare-trend-summary strong {
   color: var(--text);
   font:
-    800 20px Manrope,
+    800 20px 'Manrope Variable',
     sans-serif;
 }
 .compare-trend-chart {
@@ -605,7 +562,7 @@
 }
 .compare-plan-summary strong {
   font:
-    800 20px Manrope,
+    800 20px 'Manrope Variable',
     sans-serif;
 }
 .compare-plan-row {
@@ -654,14 +611,6 @@
   }
 }
 @media (max-width: 760px) {
-  .compare-intro {
-    padding: 21px;
-  }
-  .compare-intro-mark {
-    width: 52px;
-    height: 52px;
-    border-radius: 17px;
-  }
   .compare-month-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -670,9 +619,6 @@
   }
 }
 @media (max-width: 440px) {
-  .compare-intro-mark {
-    display: none;
-  }
   .compare-views button {
     padding: 11px;
     gap: 8px;

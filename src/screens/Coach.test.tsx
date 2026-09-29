@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { makeInitialData } from '../lib/defaults'
-import { answer, Coach, insightCards, openingMessage, type InsightMessage } from './Coach'
+import { answer, Coach, insightCards } from './Coach'
+import { openingMessage, type InsightMessage } from '../lib/insightMessages'
 
 afterEach(cleanup)
 

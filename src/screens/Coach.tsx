@@ -14,6 +14,7 @@ import {
 } from '../lib/finance'
 import { monthSnapshot } from '../lib/compare'
 import { Icon } from '../components/UI'
+import { openingMessage, type InsightMessage } from '../lib/insightMessages'
 
 const suggestions = [
   'How am I doing this month?',
@@ -23,11 +24,6 @@ const suggestions = [
   'What bills are still due?',
   'Will my debt payments cover interest?',
 ]
-export type InsightMessage = { role: 'user' | 'coach'; text: string }
-export const openingMessage: InsightMessage = {
-  role: 'coach',
-  text: 'Ask about spending, bills, pay, or a goal. I’ll use your Pockit entries and say when there is not enough information yet.',
-}
 export function insightCards(data: PockitData, month: MonthKey) {
   const health = budgetHealth(data, month)
   const entries = data.transactions.filter(

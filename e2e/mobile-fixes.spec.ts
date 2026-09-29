@@ -95,13 +95,21 @@ test('phone logo, larger tabs, and labelled Activity actions are aligned', async
   ).toBeGreaterThanOrEqual(58)
   await nav.getByRole('button', { name: 'Activity' }).click()
   const actions = page.locator('.activity-actions')
-  for (const name of ['Add transaction', 'Import transactions from a CSV file']) {
+  for (const name of ['Add transaction', 'Record income']) {
     const button = actions.getByRole('button', { name })
     await expect(button.locator('span')).toBeVisible()
     const box = (await button.boundingBox())!
     const icon = (await button.locator('svg').boundingBox())!
-    expect(Math.abs(icon.x + icon.width / 2 - (box.x + box.width / 2))).toBeLessThan(2)
+    const label = (await button.locator('span').boundingBox())!
+    expect(Math.abs((icon.x + label.x + label.width) / 2 - (box.x + box.width / 2))).toBeLessThan(2)
   }
+  const firstEntry = (await page.locator('.transaction-row').first().boundingBox())!
+  const optionalTools = (await page.locator('.activity-more').boundingBox())!
+  expect(firstEntry.y).toBeLessThan(optionalTools.y)
+  await page.getByRole('button', { name: 'More ways to add' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Import transactions from a CSV file' }),
+  ).toBeVisible()
 })
 
 test('payday help stays optional and explains the starting amount with an example', async ({
