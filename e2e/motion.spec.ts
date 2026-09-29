@@ -24,12 +24,11 @@ test('tab, chart, and dialog motion is present without widening the phone layout
   await expect(page.locator('.page-content > .screen-stack')).toHaveCSS('transform', 'none')
 
   const chartSlice = page.locator('.budget-donut-segment').first()
-  if (await chartSlice.count()) {
-    const chartTransition = await chartSlice.evaluate(
-      (node) => getComputedStyle(node).transitionProperty,
-    )
-    expect(chartTransition).toContain('stroke-dasharray')
-  }
+  await expect(chartSlice).toBeVisible()
+  const chartTransition = await chartSlice.evaluate(
+    (node) => getComputedStyle(node).transitionProperty,
+  )
+  expect(chartTransition).toContain('stroke-dasharray')
 
   await nav.getByRole('button', { name: 'Compare' }).click()
   await expect(page.getByRole('heading', { name: 'Put your months in perspective.' })).toBeVisible()
