@@ -50,6 +50,25 @@ test('recorded income uses its real date and amount on Home', async ({ page }) =
   await noOverflow(page)
 })
 
+test('Activity filters have clear counts and room between controls on iPhone', async ({ page }) => {
+  await page.setViewportSize({ width: 402, height: 874 })
+  await preview(page)
+  await page.locator('.bottom-nav').getByRole('button', { name: 'Activity' }).click()
+  for (const width of [402, 440]) {
+    await page.setViewportSize({ width, height: 874 })
+    const tabs = page.locator('.filter-row .segmented')
+    const filter = page.getByRole('button', { name: 'Filter & sort' })
+    await expect(page.getByRole('button', { name: 'All (14)' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Income (2)' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Expense (11)' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Transfer (1)' })).toBeVisible()
+    const tabsBox = (await tabs.boundingBox())!
+    const filterBox = (await filter.boundingBox())!
+    expect(filterBox.y - (tabsBox.y + tabsBox.height)).toBeGreaterThanOrEqual(12)
+    await noOverflow(page)
+  }
+})
+
 test('Calendar opens manual income entry with the selected day', async ({ page }) => {
   await page.setViewportSize({ width: 402, height: 874 })
   await preview(page)

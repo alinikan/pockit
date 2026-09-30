@@ -375,7 +375,7 @@ export function ActivityScreen({
               className={type === item ? 'active' : ''}
               onClick={() => setType(item)}
             >
-              {item[0].toUpperCase() + item.slice(1)} <span>{counts[item]}</span>
+              {item[0].toUpperCase() + item.slice(1)} <span>({counts[item]})</span>
             </button>
           ))}
         </div>

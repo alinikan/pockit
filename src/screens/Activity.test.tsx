@@ -182,9 +182,11 @@ describe('activity', () => {
     )
     const names = () =>
       [...container.querySelectorAll('.transaction-name strong')].map((node) => node.textContent)
-    fireEvent.click(screen.getByRole('button', { name: /^Transfer 1$/ }))
+    expect(screen.getByRole('button', { name: 'All (14)' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Income (2)' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Transfer (1)' }))
     expect(names()).toEqual(['Savings transfer'])
-    fireEvent.click(screen.getByRole('button', { name: /^Expense 11$/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expense (11)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Filter & sort' }))
     fireEvent.change(screen.getByPlaceholderText('Search transactions'), {
       target: { value: 'market' },

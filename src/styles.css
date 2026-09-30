@@ -673,6 +673,25 @@ small {
 .auth-links button strong {
   color: var(--lime);
 }
+.auth-followup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.auth-followup-actions button {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+.auth-followup-actions button:first-child {
+  border-color: color-mix(in srgb, var(--lime) 50%, var(--line));
+  color: var(--lime);
+}
 .auth-divider {
   display: flex;
   align-items: center;
@@ -2316,6 +2335,9 @@ small {
   margin-left: 3px;
   color: var(--muted);
   font-size: 10px;
+}
+.filter-row .segmented button span {
+  font-variant-numeric: tabular-nums;
 }
 .filter-selects {
   display: flex;
@@ -4315,10 +4337,11 @@ small {
     font-size: initial;
   }
   .filter-row {
-    display: block;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
   }
   .filter-selects {
-    margin-top: 10px;
     flex-wrap: wrap;
   }
   .filter-selects select {

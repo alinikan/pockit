@@ -32,8 +32,71 @@ describe('email notices', () => {
     })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
     fireEvent.click(screen.getByRole('button', { name: /create my account/i }))
-    expect((await screen.findByRole('status')).className).toContain('success')
+    const notice = await screen.findByRole('status')
+    expect(notice.className).toContain('success')
+    expect(notice.textContent).toMatch(/if this email is new to pockit/i)
+    expect(screen.getByRole('button', { name: 'Sign in instead' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reset password' })).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('handles an obfuscated existing account without claiming an email was sent', async () => {
+    signUp.mockResolvedValue({
+      data: { user: { identities: [] }, session: null },
+      error: null,
+    })
+    render(<Auth onDemo={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Alex' } })
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'alex@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create my account' }))
+    expect((await screen.findByRole('status')).textContent).toMatch(/already have an account/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in instead' }))
+    expect(screen.getByRole('heading', { name: 'Welcome back.' })).toBeTruthy()
+    expect((screen.getByLabelText('Email address') as HTMLInputElement).value).toBe(
+      'alex@example.com',
+    )
+    expect((screen.getByLabelText('Password') as HTMLInputElement).value).toBe('')
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('offers reset for an explicit duplicate error without a second signup request', async () => {
+    signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { code: 'user_already_exists', message: 'User already registered' },
+    })
+    render(<Auth onDemo={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Alex' } })
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'alex@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create my account' }))
+    await screen.findByRole('status')
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }))
+    expect(screen.getByRole('heading', { name: 'Reset your password.' })).toBeTruthy()
+    expect((screen.getByLabelText('Email address') as HTMLInputElement).value).toBe(
+      'alex@example.com',
+    )
+    expect(signUp).toHaveBeenCalledOnce()
+  })
+
+  it('keeps unrelated signup failures visible as errors', async () => {
+    signUp.mockResolvedValue({
+      data: { user: null, session: null },
+      error: new Error('Please try again later.'),
+    })
+    render(<Auth onDemo={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Alex' } })
+    fireEvent.change(screen.getByLabelText('Email address'), {
+      target: { value: 'alex@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create my account' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/try again later/i)
+    expect(screen.queryByRole('button', { name: 'Sign in instead' })).toBeNull()
   })
 })
 

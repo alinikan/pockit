@@ -3,6 +3,16 @@ import { Brand, Icon } from './UI'
 import { supabase } from '../lib/storage'
 import { passkeysSupported } from '../lib/passkeys'
 
+function isDuplicateSignupError(error: unknown) {
+  if (!error || typeof error !== 'object') return false
+  const code = 'code' in error ? error.code : undefined
+  const message = 'message' in error ? error.message : undefined
+  return (
+    code === 'user_already_exists' ||
+    (typeof message === 'string' && /user already registered/i.test(message))
+  )
+}
+
 export function Auth({
   onDemo,
   recovery = false,
@@ -22,7 +32,21 @@ export function Auth({
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [messageTone, setMessageTone] = useState<'success' | 'error'>('error')
+  const [signupFollowup, setSignupFollowup] = useState(false)
   const canUsePasskeys = passkeysSupported()
+  function changeMode(next: 'signup' | 'signin' | 'reset') {
+    setMode(next)
+    setMessage('')
+    setSignupFollowup(false)
+    setPassword('')
+  }
+  function showSignupNextStep() {
+    setMessageTone('success')
+    setMessage(
+      'If this email is new to Pockit, check your inbox for a confirmation link. Already have an account? Sign in or reset your password.',
+    )
+    setSignupFollowup(true)
+  }
   async function signInWithPasskey() {
     if (!supabase || loading) return
     setLoading(true)
@@ -50,6 +74,7 @@ export function Auth({
     setLoading(true)
     setMessage('')
     setMessageTone('error')
+    setSignupFollowup(false)
     try {
       if (mode === 'recovery') {
         if (password !== confirmPassword) {
@@ -73,16 +98,17 @@ export function Auth({
           options: { data: { name }, emailRedirectTo: window.location.origin },
         })
         if (error) throw error
-        if (!data.session) {
-          setMessageTone('success')
-          setMessage('Check your email to confirm your account, then sign in.')
-        }
+        if (!data.session) showSignupNextStep()
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Something went wrong. Please try again.')
+      if (mode === 'signup' && isDuplicateSignupError(error)) showSignupNextStep()
+      else
+        setMessage(
+          error instanceof Error ? error.message : 'Something went wrong. Please try again.',
+        )
     } finally {
       setLoading(false)
     }
@@ -204,6 +230,16 @@ export function Auth({
                 {message}
               </div>
             )}
+            {mode === 'signup' && signupFollowup && (
+              <div className="auth-followup-actions">
+                <button type="button" onClick={() => changeMode('signin')}>
+                  Sign in instead
+                </button>
+                <button type="button" onClick={() => changeMode('reset')}>
+                  Reset password
+                </button>
+              </div>
+            )}
             <button className="primary-button full" disabled={loading}>
               {loading
                 ? 'One moment…'
@@ -239,8 +275,7 @@ export function Auth({
               {mode === 'signup' ? (
                 <button
                   onClick={() => {
-                    setMode('signin')
-                    setMessage('')
+                    changeMode('signin')
                   }}
                 >
                   Already have an account? <strong>Sign in</strong>
@@ -249,8 +284,7 @@ export function Auth({
                 <>
                   <button
                     onClick={() => {
-                      setMode('signup')
-                      setMessage('')
+                      changeMode('signup')
                     }}
                   >
                     Create an account
@@ -258,8 +292,7 @@ export function Auth({
                   {mode === 'signin' && (
                     <button
                       onClick={() => {
-                        setMode('reset')
-                        setMessage('')
+                        changeMode('reset')
                       }}
                     >
                       Forgot password?
