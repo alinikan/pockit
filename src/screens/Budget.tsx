@@ -16,8 +16,9 @@ import {
   rolloverBalance,
   rolloverMonth,
   shiftMonth,
-  spendingByCategory,
+  categoryPlanUsage,
 } from '../lib/finance'
+import { investmentContributionsByCategory } from '../lib/accounts'
 import { Empty, Field, Icon, Modal, Progress, SectionHead } from '../components/UI'
 import { coverOverspend } from '../lib/budgetMoves'
 import { budgetChart } from '../lib/budgetChart'
@@ -55,7 +56,8 @@ export function BudgetScreen({
   const historicalUnplanned =
     beforeWaypointPlan(data, month) &&
     !data.categories.some((category) => categoryActiveInMonth(category, month))
-  const spend = spendingByCategory(data.transactions, month)
+  const spend = categoryPlanUsage(data, month)
+  const invested = investmentContributionsByCategory(data, month)
   const active = data.categories.filter((c) => !c.archived || (!!c.ends && month <= c.ends))
   const overages = active
     .map((category) => ({
@@ -406,6 +408,7 @@ export function BudgetScreen({
                             ? ' · Example amount'
                             : ''}
                         {c.linkedGoalKind ? ' · Follows Goals' : ''}
+                        {invested[c.id] ? ` · ${money(invested[c.id])} net invested` : ''}
                       </small>
                     </div>
                     <div className="allocation-progress">

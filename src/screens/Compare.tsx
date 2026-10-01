@@ -20,6 +20,7 @@ import {
   transactionsBehind,
 } from '../lib/compare'
 import { Icon } from '../components/UI'
+import { investmentContributionsByCategory } from '../lib/accounts'
 
 type View = 'overview' | 'categories' | 'trend' | 'plan'
 const choices: { id: View; title: string; detail: string; icon: string }[] = [
@@ -109,6 +110,9 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
   const historicalUnplanned = isHistoricalUnplanned(last.month)
   const planned = plan.reduce((sum, row) => sum + row.planned, 0)
   const fullPlanSpent = monthSnapshot(data, last.month).spent
+  const investedByCategory = investmentContributionsByCategory(data, last.month)
+  const netInvested = Object.values(investedByCategory).reduce((total, amount) => total + amount, 0)
+  const fullPlanUsed = fullPlanSpent + netInvested
   const selectedRow = rows.find((row) => row.id === selectedCategory)
   const baselineTransactions = selectedCategory
     ? transactionsBehind(data, selectedCategory, first.month, throughDay)
@@ -172,7 +176,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
         <div className="compare-section-top">
           <div>
             <h3>Choose your months</h3>
-            <p>Read left to right. The first month is your baseline.</p>
+            <p>Compare each month with the first one.</p>
           </div>
           {months.length < 4 && (
             <button className="compare-add" onClick={addMonth}>
@@ -184,6 +188,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
           {months.map((key, index) => (
             <div className="compare-month-control" key={`${index}-${key}`}>
               <label htmlFor={`compare-month-${index}`}>
+                <Icon name="CalendarDays" size={16} />
                 {index === 0 ? 'BASELINE' : `MONTH ${index + 1}`}
               </label>
               <div>
@@ -215,9 +220,10 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
               onChange={(event) => setSameDays(event.target.checked)}
             />{' '}
             <span>
-              Compare through the same day of each month
+              <strong>Compare through the same day of each month</strong>
               <small>
-                For a month still in progress, compare day 1 through day {new Date().getDate()}.
+                Use days 1–{new Date().getDate()} in every month for a fair comparison with this
+                month.
               </small>
             </span>
           </label>
@@ -684,16 +690,22 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                 <strong>{money(planned, currency)}</strong>
               </div>
               <div>
-                <span>SPENT</span>
-                <strong>{money(fullPlanSpent, currency)}</strong>
+                <span>{netInvested ? 'PLAN USED' : 'SPENT'}</span>
+                <strong>{money(fullPlanUsed, currency)}</strong>
               </div>
               <div>
                 <span>THIS MONTH GAP</span>
-                <strong className={fullPlanSpent > planned ? 'compare-negative' : ''}>
-                  {money(planned - fullPlanSpent, currency)}
+                <strong className={fullPlanUsed > planned ? 'compare-negative' : ''}>
+                  {money(planned - fullPlanUsed, currency)}
                 </strong>
               </div>
             </div>
+          )}
+          {!!netInvested && (
+            <p className="compare-footnote">
+              Includes {money(netInvested, currency)} in net investment transfers. Expense
+              comparisons keep transfers separate.
+            </p>
           )}
           {historicalUnplanned && (
             <p className="soft-note" role="status">
@@ -722,7 +734,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                   <div className="compare-plan-track">
                     <div
                       style={{
-                        width: `${row.planUnavailable ? 0 : Math.min(100, row.planned ? (row.spent / row.planned) * 100 : row.spent ? 100 : 0)}%`,
+                        width: `${row.planUnavailable ? 0 : Math.max(0, Math.min(100, row.planned ? (row.spent / row.planned) * 100 : row.spent ? 100 : 0))}%`,
                         background: row.balance < 0 ? 'var(--red)' : row.color,
                       }}
                     />
@@ -743,6 +755,11 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
                           ? `${money(Math.abs(row.balance), currency)} over the planned amount`
                           : `${money(row.balance, currency)} left in the plan`}
                 </small>
+                {!!investedByCategory[row.id] && (
+                  <p className="compare-footnote">
+                    {money(investedByCategory[row.id], currency)} net invested
+                  </p>
+                )}
               </div>
             ))}
             {!plan.length && (

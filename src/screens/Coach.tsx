@@ -172,7 +172,7 @@ export function answer(question: string, data: PockitData, month: MonthKey) {
   }
   if (/how am i|this month|overview|summary|doing/.test(q))
     return expenseCount
-      ? `For ${month}, expected pay is ${money(health.income, currency, true)} and recorded spending is ${money(health.spent, currency, true)} across ${expenseCount} entries. Your plan has ${money(health.remaining, currency, true)} remaining.${health.trouble.length ? ` ${health.trouble.length} ${health.trouble.length === 1 ? 'category is' : 'categories are'} past plan; ask where you can cut spending to inspect them.` : ' No category is past plan.'} This is a budget estimate, not a bank balance.`
+      ? `For ${month}, expected pay is ${money(health.income, currency, true)} and recorded spending is ${money(health.spent, currency, true)} across ${expenseCount} entries.${health.netInvested ? ` You also recorded ${money(health.netInvested, currency, true)} in net investment transfers, which are separate from spending.` : ''} Your plan has ${money(health.remaining, currency, true)} remaining.${health.trouble.length ? ` ${health.trouble.length} ${health.trouble.length === 1 ? 'category is' : 'categories are'} past plan; ask where you can cut spending to inspect them.` : ' No category is past plan.'} This is a budget estimate, not a bank balance.`
       : `For ${month}, you have no recorded expenses yet. Your expected pay is ${money(health.income, currency, true)}. Add transactions in Activity to get a meaningful spending picture.`
   return `I can check spending, income, bills, or a named goal for ${month}. Try a suggestion below or ask “Where can I cut spending?”`
 }

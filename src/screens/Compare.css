@@ -89,23 +89,31 @@
 }
 .compare-month-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
 }
 .compare-month-control {
   min-width: 0;
-  background: var(--surface-2);
+  background: var(--input);
   border: 1px solid var(--line);
   border-radius: 13px;
-  padding: 12px;
+  padding: 14px;
 }
 .compare-month-control label {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   color: var(--muted);
   letter-spacing: 0.12em;
   font-size: 10px;
   font-weight: 800;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+}
+.compare-month-control:first-child {
+  border-color: color-mix(in srgb, var(--lime) 45%, var(--line));
+}
+.compare-month-control:first-child label {
+  color: var(--lime);
 }
 .compare-month-control > div {
   display: flex;
@@ -115,12 +123,30 @@
 .compare-month-control input {
   min-width: 0;
   width: 100%;
-  padding: 7px 5px;
+  padding: 8px 0;
   color: var(--text);
-  background: var(--input);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  font-size: 11px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  min-height: 44px;
+  max-width: 100%;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 700;
+}
+.compare-month-control input::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
+}
+.compare-selector .compare-section-top > div {
+  min-width: 0;
+}
+.compare-selector .compare-section-top {
+  align-items: center;
+}
+.compare-selector .compare-add {
+  min-height: 44px;
+  flex-shrink: 0;
 }
 .compare-month-control button {
   flex: none;
@@ -619,6 +645,17 @@
   }
 }
 @media (max-width: 440px) {
+  .compare-selector .compare-section-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .compare-selector .compare-add {
+    align-self: flex-start;
+  }
+  .compare-month-control {
+    padding: 12px;
+  }
   .compare-views button {
     padding: 11px;
     gap: 8px;
@@ -670,6 +707,11 @@
   }
   .compare-trend-item span {
     font-size: 8px;
+  }
+}
+@media (max-width: 550px) {
+  .compare-month-grid {
+    grid-template-columns: 1fr;
   }
 }
 .compare-category-button {

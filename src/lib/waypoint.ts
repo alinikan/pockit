@@ -225,6 +225,7 @@ const iconMap: Record<string, string> = {
 }
 function accountKind(value: string): Account['kind'] {
   const normalized = key(value)
+  if (/tfsa|rrsp|fhsa/.test(normalized)) return 'investment'
   if (/chequ|check/.test(normalized)) return 'chequing'
   if (/sav/.test(normalized)) return 'savings'
   if (/credit|card|loan|line of credit/.test(normalized)) return 'credit'
@@ -674,7 +675,7 @@ export function importWaypoint(
       waypointKey: waypointId('account', identity),
       bank: row.Bank || undefined,
       lastFour: row['Account Last 4'] || undefined,
-      subtype: row.Subtype || undefined,
+      subtype: row.Subtype || (/tfsa/i.test(row.Type) ? 'TFSA' : undefined),
       availableBalance: number(row['Available Balance'], 'accounts.csv', index + 2, true),
       creditLimit: nonnegative(row['Credit Limit'], 'accounts.csv', index + 2, true),
       connection: row.Connection || undefined,

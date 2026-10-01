@@ -11,6 +11,7 @@ import {
   beforeWaypointPlan,
   budgetHealth,
   categorySpendingEntries,
+  categoryPlanUsage,
   categoryBudget,
   categoryPolicy,
   categoryActiveInMonth,
@@ -27,6 +28,7 @@ import {
 import { paychequeForecast } from '../lib/payday'
 import { categoryPlanProgress, homeSpendingVisual } from '../lib/homeSpending'
 import { unreviewedTransactions } from '../lib/ledger'
+import { investmentContributionsByCategory } from '../lib/accounts'
 import { Empty, Icon, Modal, Progress, SectionHead } from '../components/UI'
 
 export function HomeScreen({
@@ -90,17 +92,19 @@ export function HomeScreen({
       else next.add(id)
       return { ...current, settings: { ...current.settings, hiddenHomeSections: [...next] } }
     })
-  const { income, actualIncome, spent, remaining, trouble } = budgetHealth(data, month)
+  const { income, actualIncome, spent, remaining, trouble, netInvested } = budgetHealth(data, month)
   const historicalUnplanned =
     beforeWaypointPlan(data, month) &&
     !data.categories.some((category) => categoryActiveInMonth(category, month))
   const chartIncome = historicalUnplanned ? actualIncome : actualIncome || income
   const spend = spendingByCategory(data.transactions, month)
+  const usage = categoryPlanUsage(data, month)
+  const invested = investmentContributionsByCategory(data, month)
   const sorted = [...data.categories]
-    .filter((c) => categoryBudget(c, month, income) > 0 || spend[c.id])
-    .sort((a, b) => (spend[b.id] || 0) - (spend[a.id] || 0))
+    .filter((c) => categoryBudget(c, month, income) > 0 || usage[c.id])
+    .sort((a, b) => (usage[b.id] || 0) - (usage[a.id] || 0))
   const categoryRows = sorted.map((category) => {
-    const used = spend[category.id] || 0
+    const used = usage[category.id] || 0
     const planned = categoryBudget(category, month, income)
     const active = categoryActiveInMonth(category, month)
     const rollover =
@@ -120,6 +124,7 @@ export function HomeScreen({
     return {
       category,
       used,
+      invested: invested[category.id] || 0,
       planned,
       rollover,
       availableToSpend,
@@ -129,7 +134,10 @@ export function HomeScreen({
       nearLimit,
     }
   })
-  const spendingVisual = homeSpendingVisual(categoryRows, spent)
+  const spendingVisual = homeSpendingVisual(
+    categoryRows.map((row) => ({ ...row, used: spend[row.category.id] || 0 })),
+    spent,
+  )
   const hasExpenseEntries = data.transactions.some(
     (transaction) => transaction.type === 'expense' && transaction.date.startsWith(month),
   )
@@ -348,6 +356,15 @@ export function HomeScreen({
                 </span>
                 <span aria-hidden="true">−</span>
                 <span>{money(spent, data.settings.currency, true)} recorded expenses</span>
+                {overviewMode === 'plan' && !!netInvested && (
+                  <>
+                    <span aria-hidden="true">{netInvested > 0 ? '−' : '+'}</span>
+                    <span>
+                      {money(Math.abs(netInvested), data.settings.currency, true)}{' '}
+                      {netInvested > 0 ? 'net invested' : 'net withdrawn from investments'}
+                    </span>
+                  </>
+                )}
               </div>
             )}
             <div className="hero-bottom">
@@ -577,7 +594,7 @@ export function HomeScreen({
           <section className="panel breakdown-panel">
             <SectionHead
               title="Category Breakdown"
-              help="Compare what you spent with each category's plan for this month. Tap the eye to see every recorded expense and refund included in a total. Split transactions show only the amount assigned to that category."
+              help="Compare recorded expenses and investment contributions with each category's monthly plan. Tap the eye to see expenses, refunds, and related transfers. Investment transfers use the plan but stay out of expense charts. Split expenses show only the amount assigned here."
               aside={
                 <button className="link-button" onClick={() => setTab('Budget')}>
                   Full budget <Icon name="ArrowRight" size={15} />
@@ -630,6 +647,7 @@ export function HomeScreen({
                           {money(used, data.settings.currency)} /{' '}
                           {hasPlan ? money(availableToSpend, data.settings.currency) : 'No plan'}
                           {rollover && hasPlan ? ' with carryover' : ''}
+                          {row.invested ? ` · ${money(row.invested)} net invested` : ''}
                         </span>
                       </div>
                       <div className="category-line-totals">
@@ -692,7 +710,7 @@ export function HomeScreen({
           <section className="panel">
             <SectionHead
               title="Trouble spots"
-              help="Categories where expense transactions exceed the amount planned for this month."
+              help="Categories where spending or investment contributions exceed the amount available in the plan."
             />
             <p className="panel-subtitle">A gentle heads-up, never a judgement.</p>
             {trouble.length ? (
@@ -706,7 +724,7 @@ export function HomeScreen({
                       <strong>{c.name}</strong>
                       <small>
                         {money(
-                          (spend[c.id] || 0) - categoryBudget(c, month, income),
+                          (usage[c.id] || 0) - categoryBudget(c, month, income),
                           data.settings.currency,
                         )}{' '}
                         over budget
@@ -831,7 +849,7 @@ export function HomeScreen({
           <div className="modal-body hero-help-body">
             <p>
               {overviewMode === 'plan'
-                ? 'Pockit subtracts expenses you recorded this month from your expected monthly income. For example, a $5,000 income plan and $1,200 of recorded expenses leave $3,800 in the plan. This is not your bank balance or cash you can safely spend today.'
+                ? 'Pockit subtracts expenses and categorized investment contributions recorded this month from your expected monthly income. For example, a $5,000 income plan, $1,200 of expenses, and a $200 transfer to your TFSA leave $3,600 in the plan. The TFSA transfer stays out of expense charts. This is not your bank balance or cash you can safely spend today.'
                 : overviewMode === 'recorded'
                   ? 'Pockit subtracts expenses you recorded from income you recorded in this month. This can be incomplete if you have not entered every paycheque or expense.'
                   : 'This month has no income plan or recorded income to compare with expenses, so Pockit shows the expenses you entered.'}
@@ -871,7 +889,7 @@ export function HomeScreen({
             </div>
             <div className="category-detail-summary">
               <div>
-                <span>Net spent</span>
+                <span>{detailRow.invested ? 'Plan used' : 'Net spent'}</span>
                 <strong>{money(detailRow.used, data.settings.currency)}</strong>
               </div>
               <div>
@@ -893,6 +911,12 @@ export function HomeScreen({
                 </strong>
               </div>
             </div>
+            {!!detailRow.invested && (
+              <p className="category-detail-note">
+                Includes {money(detailRow.invested)} in net investment transfers. These use your
+                category plan and do not count as spending.
+              </p>
+            )}
             {detailRow.rollover && detailRow.hasPlan && (
               <p className="category-detail-note">
                 Available to spend includes money carried over and added this month.

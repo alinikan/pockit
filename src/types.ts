@@ -97,6 +97,8 @@ export interface Account {
   bank?: string
   lastFour?: string
   subtype?: string
+  /** Suggested budget category for contributions into this investment account. */
+  contributionCategoryId?: string
   availableBalance?: number
   creditLimit?: number
   connection?: string

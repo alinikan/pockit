@@ -183,6 +183,8 @@ export function parseBackup(text: string): PockitData {
           typeof account.name !== 'string' ||
           !validISODate(String(account.asOf)) ||
           !Number.isFinite(account.openingBalance) ||
+          (account.contributionCategoryId !== undefined &&
+            typeof account.contributionCategoryId !== 'string') ||
           !['chequing', 'savings', 'credit', 'investment', 'cash'].includes(String(account.kind)),
       ))
   )

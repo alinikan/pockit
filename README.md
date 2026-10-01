@@ -31,6 +31,8 @@ Pockit starts with a short setup about pay, housing, spending, savings, and debt
 
 Pockit Insights shows live signals from entered spending, bills, and debt, and answers guided questions using those numbers. Its conversation stays in place while you move between tabs until you clear it or leave the app. It explains when there is too little information and does not send financial data to a language model or require a paid AI service.
 
+Manual accounts include chequing, savings, credit cards, cash, investments, and TFSA investments. Record a transfer once to update both account balances. TFSA contributions can track progress against an investment allocation while staying separate from expense charts.
+
 ## Details that matter
 
 - **Built for a phone:** an installable web app with customizable bottom tabs, five colour palettes in dark and light modes, a circular appearance switch on supported browsers, large touch targets, reduced-motion support, and charts that can be explored by touch. The default Pockit Iris palette uses navy and periwinkle; the original green design is available as Pockit Garden.

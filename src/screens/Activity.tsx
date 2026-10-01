@@ -20,6 +20,11 @@ import { Empty, Field, Icon, Modal, SectionHead } from '../components/UI'
 import { changeTransaction } from '../lib/linked'
 import { inferCSVMapping, parseCSV, previewCSV, type CSVMapping, type CSVPreview } from '../lib/csv'
 import { unreviewedTransactions } from '../lib/ledger'
+import {
+  accountTypeLabel,
+  investmentTransferCategory,
+  investmentTransferDirection,
+} from '../lib/accounts'
 
 const blank = (): Transaction => ({
   id: crypto.randomUUID(),
@@ -84,7 +89,8 @@ export function ActivityScreen({
     ...blank(),
     type: kind,
     date: dateInMonth(month),
-    accountId: data.accounts?.find((account) => account.kind === 'chequing')?.id,
+    accountId: data.accounts?.find((account) => !account.archived && account.kind === 'chequing')
+      ?.id,
   })
   useEffect(() => {
     if (quickAdd > 0) {
@@ -620,6 +626,8 @@ export function ActivityScreen({
                     setDraft({
                       type: item === 'refund' ? 'expense' : item,
                       refund: item === 'refund',
+                      splits: item === 'expense' || item === 'refund' ? editing.splits : undefined,
+                      toAccountId: item === 'transfer' ? editing.toAccountId : undefined,
                     })
                   }
                 >
@@ -805,14 +813,27 @@ export function ActivityScreen({
                 <Field label={editing.type === 'transfer' ? 'From account' : 'Account'}>
                   <select
                     value={editing.accountId || ''}
-                    onChange={(e) => setDraft({ accountId: e.target.value || undefined })}
+                    onChange={(e) => {
+                      const accountId = e.target.value || undefined
+                      const toAccountId =
+                        accountId === editing.toAccountId ? undefined : editing.toAccountId
+                      setDraft({
+                        accountId,
+                        toAccountId,
+                        categoryId:
+                          editing.type === 'transfer'
+                            ? investmentTransferCategory(data, accountId, toAccountId) ||
+                              editing.categoryId
+                            : editing.categoryId,
+                      })
+                    }}
                   >
                     <option value="">Not assigned</option>
                     {data.accounts
                       .filter((account) => !account.archived)
                       .map((account) => (
                         <option key={account.id} value={account.id}>
-                          {account.name}
+                          {account.name} · {accountTypeLabel(account)}
                         </option>
                       ))}
                   </select>
@@ -821,14 +842,22 @@ export function ActivityScreen({
                   <Field label="To account">
                     <select
                       value={editing.toAccountId || ''}
-                      onChange={(e) => setDraft({ toAccountId: e.target.value || undefined })}
+                      onChange={(e) => {
+                        const toAccountId = e.target.value || undefined
+                        setDraft({
+                          toAccountId,
+                          categoryId:
+                            investmentTransferCategory(data, editing.accountId, toAccountId) ||
+                            editing.categoryId,
+                        })
+                      }}
                     >
                       <option value="">Outside Pockit / goal</option>
                       {data.accounts
                         .filter((account) => !account.archived && account.id !== editing.accountId)
                         .map((account) => (
                           <option key={account.id} value={account.id}>
-                            {account.name}
+                            {account.name} · {accountTypeLabel(account)}
                           </option>
                         ))}
                     </select>
@@ -839,6 +868,15 @@ export function ActivityScreen({
               <div className="soft-note">
                 Add a manual account in More to track balances and check them against your bank.
               </div>
+            )}
+            {editing.type === 'transfer' && (
+              <p className="soft-note">
+                {investmentTransferDirection(data, editing) === 1
+                  ? 'An investment contribution. Choose a category below to count it toward your monthly plan. It updates both account balances without counting as income or spending.'
+                  : investmentTransferDirection(data, editing) === -1
+                    ? 'An investment withdrawal. Use the same contribution category to reduce net invested this month. It updates both balances without counting as income or spending.'
+                    : 'A transfer moves money between your accounts. Record it once; Pockit updates both balances without adding income or spending.'}
+              </p>
             )}
             {data.bills.length > 0 && (
               <Field

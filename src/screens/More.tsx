@@ -35,7 +35,7 @@ const moneyTerms = [
   ],
   [
     'Remaining',
-    'Your plan or category amount minus recorded spending. It is not your bank balance.',
+    'Your plan or category amount minus spending and categorized net investment transfers. It is not your bank balance.',
   ],
   ['Category limit', 'The amount you intend to spend in one category during a month.'],
   ['Rollover', 'Unspent category money carries forward, like a jar you keep filling.'],

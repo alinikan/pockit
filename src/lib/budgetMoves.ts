@@ -4,7 +4,7 @@ import {
   categoryPolicy,
   monthSummary,
   rolloverBalance,
-  spendingByCategory,
+  categoryPlanUsage,
 } from './finance'
 
 export function coverOverspend(
@@ -19,7 +19,7 @@ export function coverOverspend(
   const target = data.categories.find((category) => category.id === targetId && !category.archived)
   if (!target || sourceId === targetId) throw new Error('Choose a valid category.')
   const summary = monthSummary(data, month)
-  const spending = spendingByCategory(data.transactions, month)
+  const spending = categoryPlanUsage(data, month)
   const targetAvailable =
     categoryPolicy(target, month).mode === 'rollover'
       ? rolloverBalance(target, data, month)

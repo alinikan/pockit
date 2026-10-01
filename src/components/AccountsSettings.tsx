@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Account, PockitData } from '../types'
 import { money, todayISO } from '../lib/finance'
 import { accountBalance, reconcileAccount } from '../lib/ledger'
+import { accountTypeLabel } from '../lib/accounts'
 import { Field, Icon, SectionHead } from './UI'
 
 export function AccountsSettings({
@@ -12,14 +13,15 @@ export function AccountsSettings({
   update: (recipe: (current: PockitData) => PockitData) => void
 }) {
   const [name, setName] = useState('')
-  const [kind, setKind] = useState<Account['kind']>('chequing')
+  const [kind, setKind] = useState<Account['kind'] | 'tfsa'>('chequing')
+  const [contributionCategory, setContributionCategory] = useState<string | undefined>()
   const [balance, setBalance] = useState('')
   const [reconciling, setReconciling] = useState<string | null>(null)
   const [actual, setActual] = useState('')
   const [message, setMessage] = useState('')
   function addAccount() {
     const amount = Number(balance)
-    if (!name.trim() || !Number.isFinite(amount)) return
+    if (!name.trim() || !balance.trim() || !Number.isFinite(amount)) return
     const now = new Date().toISOString()
     update((current) => ({
       ...current,
@@ -28,7 +30,15 @@ export function AccountsSettings({
         {
           id: crypto.randomUUID(),
           name: name.trim(),
-          kind,
+          kind: kind === 'tfsa' ? 'investment' : kind,
+          subtype: kind === 'tfsa' ? 'TFSA' : undefined,
+          contributionCategoryId:
+            kind === 'tfsa' || kind === 'investment'
+              ? (contributionCategory ??
+                data.categories.find(
+                  (category) => !category.archived && /invest|tfsa|rrsp/i.test(category.name),
+                )?.id)
+              : undefined,
           openingBalance: kind === 'credit' ? -Math.abs(amount) : amount,
           asOf: todayISO(),
           asOfTime: now,
@@ -71,11 +81,10 @@ export function AccountsSettings({
     <section className="panel settings-panel" id="accounts">
       <SectionHead
         title="Manual accounts"
-        help="Add the balance shown today in each account. Assign new transactions to an account so Pockit can estimate its balance. Reconcile when the bank and Pockit differ; no bank is connected."
+        help="Start with the balance shown today in each account. In Activity, record a Transfer with a From account and a To account to move money between them. Example: moving $200 from chequing to a TFSA reduces chequing by $200 and adds $200 to the TFSA. Choose your investment category to track it against your monthly plan. Transfers are not income or spending. Check investment balances as their market value changes; Pockit does not calculate TFSA contribution room."
       />
       <p className="panel-subtitle">
-        Keep chequing, savings, credit cards, and cash distinct. Credit-card purchases are expenses;
-        paying the card is a transfer.
+        Track your balances separately. Move money between accounts with a transfer in Activity.
       </p>
       {(data.accounts || []).map((account) => (
         <div className="account-card" key={account.id}>
@@ -91,11 +100,14 @@ export function AccountsSettings({
               size={21}
             />
           </div>
-          <div>
+          <div className="account-summary">
             <strong>{account.name}</strong>
             <small>
-              {account.kind} {account.bank ? `· ${account.bank}` : ''}{' '}
-              {account.lastFour ? `· ••••${account.lastFour}` : ''} ·{' '}
+              {accountTypeLabel(account)} {account.bank ? `· ${account.bank}` : ''}{' '}
+              {account.lastFour ? `· ••••${account.lastFour}` : ''}
+              {account.archived ? ' · Archived' : ''}
+            </small>
+            <small>
               {account.waypointKey ? 'Waypoint snapshot' : 'starting balance checked'}{' '}
               {account.reconciledAt?.slice(0, 10) || account.asOf}
             </small>
@@ -121,35 +133,40 @@ export function AccountsSettings({
                 </small>
               )}
           </div>
-          <strong>
-            {account.kind === 'credit'
-              ? accountBalance(account, data.transactions) > 0
-                ? `${money(accountBalance(account, data.transactions))} credit`
-                : `${money(Math.abs(accountBalance(account, data.transactions)))} owed`
-              : money(accountBalance(account, data.transactions))}
-          </strong>
-          <button
-            className="secondary-button compact"
-            onClick={() => {
-              setReconciling(account.id)
-              setActual('')
-            }}
-          >
-            Check balance
-          </button>
-          <button
-            className="text-button"
-            onClick={() =>
-              update((current) => ({
-                ...current,
-                accounts: current.accounts?.map((item) =>
-                  item.id === account.id ? { ...item, archived: !item.archived } : item,
-                ),
-              }))
-            }
-          >
-            {account.archived ? 'Restore' : 'Archive'}
-          </button>
+          <div className="account-balance">
+            <small>Estimated balance</small>
+            <strong>
+              {account.kind === 'credit'
+                ? accountBalance(account, data.transactions, todayISO()) > 0
+                  ? `${money(accountBalance(account, data.transactions, todayISO()))} credit`
+                  : `${money(Math.abs(accountBalance(account, data.transactions, todayISO())))} owed`
+                : money(accountBalance(account, data.transactions, todayISO()))}
+            </strong>
+          </div>
+          <div className="account-actions">
+            <button
+              className="secondary-button compact"
+              onClick={() => {
+                setReconciling(account.id)
+                setActual('')
+              }}
+            >
+              Check balance
+            </button>
+            <button
+              className="text-button"
+              onClick={() =>
+                update((current) => ({
+                  ...current,
+                  accounts: current.accounts?.map((item) =>
+                    item.id === account.id ? { ...item, archived: !item.archived } : item,
+                  ),
+                }))
+              }
+            >
+              {account.archived ? 'Restore' : 'Archive'}
+            </button>
+          </div>
           {reconciling === account.id && (
             <div className="reconcile-form">
               <Field
@@ -196,15 +213,43 @@ export function AccountsSettings({
           <Field label="Type">
             <select
               value={kind}
-              onChange={(event) => setKind(event.target.value as Account['kind'])}
+              onChange={(event) => setKind(event.target.value as Account['kind'] | 'tfsa')}
             >
               <option value="chequing">Chequing</option>
               <option value="savings">Savings</option>
               <option value="credit">Credit card</option>
               <option value="investment">Investment</option>
+              <option value="tfsa">TFSA (investment)</option>
               <option value="cash">Cash</option>
             </select>
           </Field>
+          {(kind === 'tfsa' || kind === 'investment') && (
+            <Field
+              label="Contribution category"
+              hint="Transfers into this account can count toward this category's monthly plan without becoming expenses."
+            >
+              <select
+                aria-label="Contribution category"
+                value={
+                  contributionCategory ??
+                  data.categories.find(
+                    (category) => !category.archived && /invest|tfsa|rrsp/i.test(category.name),
+                  )?.id ??
+                  ''
+                }
+                onChange={(event) => setContributionCategory(event.target.value)}
+              >
+                <option value="">Choose later in Activity</option>
+                {data.categories
+                  .filter((category) => !category.archived)
+                  .map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          )}
           <Field label={kind === 'credit' ? 'Amount owed today in CAD' : 'Balance today in CAD'}>
             <input
               type="number"

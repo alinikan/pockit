@@ -4,6 +4,7 @@ import {
   categoryActiveInMonth,
   categoryBudget,
   categoryPolicy,
+  categoryPlanUsage,
   money,
   monthSummary,
   rolloverBalance,
@@ -187,9 +188,10 @@ export function categoryComparison(
 export function budgetComparison(data: PockitData, month: MonthKey) {
   const snapshot = monthSnapshot(data, month)
   const income = monthSummary(data, month).income
+  const usage = categoryPlanUsage(data, month)
   const rows = data.categories.map((category) => {
     const planned = categoryBudget(category, month, income)
-    const spent = snapshot.categorySpend[category.id] || 0
+    const spent = usage[category.id] || 0
     const planUnavailable = month < category.starts
     return {
       id: category.id,

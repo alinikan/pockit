@@ -9,6 +9,7 @@ import type {
   Transaction,
 } from '../types'
 import { scheduledIncome } from './paySchedule'
+import { investmentContributionsByCategory, isInvestmentTransfer } from './accounts'
 
 export const monthKey = (date: Date): MonthKey =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` as MonthKey
@@ -105,6 +106,13 @@ export const spendingByCategory = (transactions: Transaction[], month: MonthKey)
   }
   return totals
 }
+/** Investment contributions use the monthly plan but are still transfers, never expenses. */
+export const categoryPlanUsage = (data: PockitData, month: MonthKey) => {
+  const totals = spendingByCategory(data.transactions, month)
+  for (const [id, amount] of Object.entries(investmentContributionsByCategory(data, month)))
+    totals[id] = (totals[id] || 0) + amount
+  return totals
+}
 /** Entries behind one category total, including the allocated share of split expenses. */
 export const categorySpendingEntries = (
   transactions: Transaction[],
@@ -149,6 +157,10 @@ export const monthSummary = (data: PockitData, month: MonthKey) => {
   const spent = txs
     .filter((t) => t.type === 'expense')
     .reduce((sum, t) => sum + (t.refund ? -t.amount : t.amount), 0)
+  const netInvested = Object.values(investmentContributionsByCategory(data, month)).reduce(
+    (sum, amount) => sum + amount,
+    0,
+  )
   const allocated = data.categories.reduce(
     (sum, c) => sum + categoryBudget(c, month, plannedIncome),
     0,
@@ -158,7 +170,8 @@ export const monthSummary = (data: PockitData, month: MonthKey) => {
     plannedIncome,
     actualIncome,
     spent,
-    remaining: plannedIncome - spent,
+    netInvested,
+    remaining: plannedIncome - spent - netInvested,
     recordedNet: actualIncome - spent,
     allocated,
     unallocated: plannedIncome - allocated,
@@ -168,7 +181,7 @@ export const rolloverBalance = (category: Category, data: PockitData, month: Mon
   if (categoryPolicy(category, month).mode !== 'rollover')
     return (
       categoryBudget(category, month, monthSummary(data, month).income) -
-      (spendingByCategory(data.transactions, month)[category.id] || 0)
+      (categoryPlanUsage(data, month)[category.id] || 0)
     )
   let total = 0
   let cursor = category.starts
@@ -188,11 +201,14 @@ export const rolloverBalance = (category: Category, data: PockitData, month: Mon
       policy.funding === 'manual'
         ? transactionsInMonth(data.transactions, cursor)
             .filter(
-              (t) => t.categoryId === category.id && (t.type === 'transfer' || t.type === 'income'),
+              (t) =>
+                t.categoryId === category.id &&
+                !t.excludedFromBudget &&
+                (t.type === 'income' || (t.type === 'transfer' && !isInvestmentTransfer(data, t))),
             )
             .reduce((n, t) => n + t.amount, 0)
         : categoryBudget(category, cursor, income)
-    total -= spendingByCategory(data.transactions, cursor)[category.id] || 0
+    total -= categoryPlanUsage(data, cursor)[category.id] || 0
     priorMode = policy.mode
     cursor = shiftMonth(cursor, 1)
   }
@@ -210,11 +226,14 @@ export const rolloverMonth = (category: Category, data: PockitData, month: Month
     categoryPolicy(category, month).funding === 'manual'
       ? transactionsInMonth(data.transactions, month)
           .filter(
-            (t) => t.categoryId === category.id && (t.type === 'transfer' || t.type === 'income'),
+            (t) =>
+              t.categoryId === category.id &&
+              !t.excludedFromBudget &&
+              (t.type === 'income' || (t.type === 'transfer' && !isInvestmentTransfer(data, t))),
           )
           .reduce((sum, t) => sum + t.amount, 0)
       : planned
-  const spent = spendingByCategory(data.transactions, month)[category.id] || 0
+  const spent = categoryPlanUsage(data, month)[category.id] || 0
   return { carried, planned, added, spent, available: carried + added - spent }
 }
 export interface Projection {
@@ -265,7 +284,7 @@ export const projectionText = (goal: Goal, extra = 0) => {
 }
 export const budgetHealth = (data: PockitData, month: MonthKey) => {
   const summary = monthSummary(data, month)
-  const spend = spendingByCategory(data.transactions, month)
+  const spend = categoryPlanUsage(data, month)
   const trouble = data.categories.filter(
     (c) =>
       categoryActiveInMonth(c, month) &&

@@ -9,6 +9,54 @@ import { ActivityScreen } from './Activity'
 afterEach(cleanup)
 
 describe('activity', () => {
+  it('suggests the TFSA contribution category and records one transfer instead of an expense', () => {
+    let data = makeDemoData()
+    const investment = data.categories.find((category) => category.name === 'Investments')!
+    data.accounts = [
+      {
+        id: 'chequing',
+        name: 'Chequing',
+        kind: 'chequing',
+        openingBalance: 1000,
+        asOf: '2026-08-31',
+      },
+      {
+        id: 'tfsa',
+        name: 'Wealthsimple TFSA',
+        kind: 'investment',
+        subtype: 'TFSA',
+        openingBalance: 500,
+        asOf: '2026-08-31',
+        contributionCategoryId: investment.id,
+      },
+    ]
+    render(
+      <ActivityScreen
+        data={data}
+        month={currentMonth()}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Transfer' }))
+    fireEvent.change(screen.getByLabelText('To account'), { target: { value: 'tfsa' } })
+    expect((screen.getByLabelText('Category') as HTMLSelectElement).value).toBe(investment.id)
+    expect(screen.getByText(/An investment contribution/)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Payee or description'), {
+      target: { value: 'TFSA contribution' },
+    })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '200' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
+    expect(data.transactions.at(-1)).toMatchObject({
+      type: 'transfer',
+      accountId: 'chequing',
+      toAccountId: 'tfsa',
+      categoryId: investment.id,
+      amount: 200,
+    })
+  })
   it('records the real amount and date of income independently of the pay schedule', () => {
     let data = makeDemoData()
     const before = data.transactions.filter((item) => item.type === 'income').length

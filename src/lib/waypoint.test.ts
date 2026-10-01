@@ -246,6 +246,19 @@ describe('Waypoint full ZIP import', () => {
     ).toBe('weekly')
   })
 
+  it('accepts an exported TFSA account without losing its type or starting balance', () => {
+    const full = archive({
+      'accounts.csv': `${headers['accounts.csv']}\nWealthsimple,My TFSA,TFSA,,1234,1250.63,50,,Manual,2026-09-30`,
+    })
+    const result = importWaypoint(full, makeInitialData(), options)
+    expect(result.data.accounts![0]).toMatchObject({
+      name: 'My TFSA',
+      kind: 'investment',
+      subtype: 'TFSA',
+      openingBalance: 1250.63,
+    })
+  })
+
   it('keeps account snapshots, transaction details and month-wide figures connected', () => {
     const full = archive({
       'accounts.csv': `${headers['accounts.csv']}\nExample Bank,Daily,Chequing,Everyday,1234,1000,950,,Manual,2026-09-15`,
