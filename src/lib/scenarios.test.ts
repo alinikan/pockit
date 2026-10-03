@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { makeDemoData } from './defaults'
-import { currentMonth, monthSummary, shiftMonth } from './finance'
+import { categoryBudget, currentMonth, monthSummary, shiftMonth } from './finance'
+import { syncGoalPlans } from './goalPlans'
 import { applyScenario, calculateScenario, requiredMonthlySaving } from './scenarios'
 
 describe('What-if Lab', () => {
@@ -74,5 +75,159 @@ describe('What-if Lab', () => {
     })
     expect(result.expenseChange).toBe(-category.baseAmount)
     expect(result.roomAfter).toBe(before + category.baseAmount)
+  })
+  it.each(['weekly', 'biweekly', 'twice-monthly', 'monthly'] as const)(
+    'applies monthly changes correctly to %s categories',
+    (frequency) => {
+      const data = makeDemoData()
+      data.profile.payAmount = 10000
+      const month = currentMonth()
+      const id = data.categories[0].id
+      data.categories[0] = { ...data.categories[0], frequency, baseAmount: 100 }
+      const input = { extraDebt: 0, extraSaving: 0, expenseChange: 50, goalId: '', categoryId: id }
+      const applied = applyScenario(data, month, input)
+      for (const key of [month, shiftMonth(month, 1)])
+        expect(
+          categoryBudget(applied.categories[0], key, 20000) -
+            categoryBudget(data.categories[0], key, 20000),
+        ).toBeCloseTo(50)
+      expect(categoryBudget(applied.categories[0], shiftMonth(month, -1), 20000)).toBe(
+        categoryBudget(data.categories[0], shiftMonth(month, -1), 20000),
+      )
+    },
+  )
+  it('uses current recurring frequency rules instead of the original frequency', () => {
+    const data = makeDemoData()
+    data.profile.payAmount = 10000
+    const month = currentMonth()
+    data.categories[0].policyChanges = {
+      [month]: {
+        frequency: 'weekly',
+        mode: 'fresh',
+        targetType: 'fixed',
+        targetValue: 100,
+        funding: 'auto',
+      },
+    }
+    const applied = applyScenario(data, month, {
+      extraDebt: 0,
+      extraSaving: 0,
+      expenseChange: 100,
+      goalId: '',
+      categoryId: data.categories[0].id,
+    })
+    expect(
+      monthSummary(applied, month).allocated - monthSummary(data, month).allocated,
+    ).toBeCloseTo(100)
+  })
+  it('updates an overridden month while preserving earlier plans and applying the future change', () => {
+    const data = makeDemoData()
+    data.profile.payAmount = 10000
+    const month = currentMonth()
+    data.categories[0].overrides[month] = 1234
+    const applied = applyScenario(data, month, {
+      extraDebt: 0,
+      extraSaving: 0,
+      expenseChange: -50,
+      goalId: '',
+      categoryId: data.categories[0].id,
+    })
+    expect(applied.categories[0].overrides[month]).toBe(1184)
+    expect(categoryBudget(applied.categories[0], shiftMonth(month, 1), 20000)).toBe(
+      data.categories[0].baseAmount - 50,
+    )
+    expect(data.categories[0].overrides[month]).toBe(1234)
+  })
+  it('respects a frequency override for this month without changing its ongoing schedule', () => {
+    const data = makeDemoData()
+    data.profile.payAmount = 10000
+    const month = currentMonth()
+    data.categories[0].policyOverrides = {
+      [month]: {
+        frequency: 'weekly',
+        mode: 'fresh',
+        targetType: 'fixed',
+        targetValue: 100,
+        funding: 'auto',
+      },
+    }
+    const applied = applyScenario(data, month, {
+      extraDebt: 0,
+      extraSaving: 0,
+      expenseChange: 50,
+      goalId: '',
+      categoryId: data.categories[0].id,
+    })
+    expect(
+      monthSummary(applied, month).allocated - monthSummary(data, month).allocated,
+    ).toBeCloseTo(50)
+    expect(
+      monthSummary(applied, shiftMonth(month, 1)).allocated -
+        monthSummary(data, shiftMonth(month, 1)).allocated,
+    ).toBeCloseTo(50)
+  })
+  it('does not double-count extra savings when the starter budget follows goals', () => {
+    const data = makeDemoData()
+    data.profile.payAmount = 10000
+    const month = currentMonth()
+    const goal = data.goals.find((item) => item.kind === 'saving')!
+    data.categories[0] = {
+      ...data.categories[0],
+      baseAmount: goal.monthly,
+      linkedGoalKind: 'saving',
+    }
+    const input = { extraDebt: 0, extraSaving: 50, expenseChange: 0, goalId: goal.id }
+    const applied = applyScenario(data, month, input)
+    const viaApp = syncGoalPlans(data, applied)
+    expect(monthSummary(viaApp, month).allocated - monthSummary(data, month).allocated).toBeCloseTo(
+      50,
+    )
+    expect(applied.categories.some((item) => item.name.startsWith('Extra savings:'))).toBe(false)
+    expect(viaApp.goals.find((item) => item.id === goal.id)?.monthly).toBe(goal.monthly + 50)
+  })
+  it('keeps linked savings monthly overrides in step with the preview', () => {
+    const data = makeDemoData()
+    data.profile.payAmount = 10000
+    const month = currentMonth()
+    const goal = data.goals.find((item) => item.kind === 'saving')!
+    data.categories[0] = {
+      ...data.categories[0],
+      baseAmount: goal.monthly,
+      linkedGoalKind: 'saving',
+      overrides: { [month]: 500 },
+    }
+    const applied = applyScenario(data, month, {
+      extraDebt: 0,
+      extraSaving: 50,
+      expenseChange: 0,
+      goalId: goal.id,
+    })
+    expect(
+      monthSummary(applied, month).allocated - monthSummary(data, month).allocated,
+    ).toBeCloseTo(50)
+  })
+  it('rejects invalid optional amounts, missing targets, empty changes and archived categories', () => {
+    const data = makeDemoData()
+    data.profile.payAmount = 10000
+    const month = currentMonth()
+    const input = { extraDebt: 0, extraSaving: 0, expenseChange: 0, goalId: '' }
+    for (const oneTimeExpense of [NaN, Infinity])
+      expect(() => applyScenario(data, month, { ...input, oneTimeExpense })).toThrow(
+        /valid amounts/,
+      )
+    expect(() => applyScenario(data, month, input)).toThrow(/recurring change/)
+    expect(() => applyScenario(data, month, { ...input, extraSaving: 50 })).toThrow(
+      /Choose a savings goal/,
+    )
+    data.categories[0].archived = true
+    expect(() =>
+      applyScenario(data, month, {
+        ...input,
+        expenseChange: 50,
+        categoryId: data.categories[0].id,
+      }),
+    ).toThrow(/Choose a category/)
+    data.goals = []
+    expect(() => applyScenario(data, month, { ...input, extraDebt: 50 })).toThrow(/Add a debt/)
   })
 })

@@ -377,9 +377,7 @@ describe('Waypoint full ZIP import', () => {
     })
     expect(linked.goals.find((item) => item.id === goal.id)?.balance).toBe(5000)
     expect(linked.goals.find((item) => item.id === goal.id)?.history).toHaveLength(1)
-    expect(linked.goals.find((item) => item.id === goal.id)?.history[0].note).toBe(
-      'Withdrawal or payment',
-    )
+    expect(linked.goals.find((item) => item.id === goal.id)?.history[0].note).toBe('Debt payment')
     const changed = changeTransaction(linked, linked.transactions[0], {
       ...linked.transactions[0],
       amount: 120,

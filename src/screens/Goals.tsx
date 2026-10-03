@@ -1,17 +1,11 @@
-import { num } from '../lib/numbers'
+import { validISODate, num } from '../lib/numbers'
 import { WhatIfLab } from '../components/WhatIfLab'
 import { useId, useState } from 'react'
 import { goalChartData, pointFromPosition } from '../lib/goalChart'
 import type { Goal, MonthKey, PockitData } from '../types'
-import {
-  money,
-  monthSummary,
-  projectGoal,
-  projectionText,
-  simulateDebtPlan,
-  todayISO,
-} from '../lib/finance'
+import { money, monthSummary, projectGoal, simulateDebtPlan, todayISO } from '../lib/finance'
 import { changeTransaction } from '../lib/linked'
+import { investmentTransferCategory } from '../lib/accounts'
 import { emergencyMilestones } from '../lib/emergency'
 import { Empty, Field, Icon, Modal, Progress, SectionHead } from '../components/UI'
 
@@ -179,6 +173,8 @@ export function GoalsScreen({
   const [activity, setActivity] = useState<Goal | null>(null)
   const [activityAmount, setActivityAmount] = useState('')
   const [activityNote, setActivityNote] = useState('')
+  const [activityDate, setActivityDate] = useState(todayISO())
+  const [spendingCategoryId, setSpendingCategoryId] = useState('')
   const [recordTransaction, setRecordTransaction] = useState(true)
   const [activityMode, setActivityMode] = useState<'add' | 'withdraw'>('add')
   const [sourceAccountId, setSourceAccountId] = useState('')
@@ -192,6 +188,10 @@ export function GoalsScreen({
   const debtTotal = debts.reduce((n, g) => n + g.balance, 0)
   const plan = data.debtPlan ? simulateDebtPlan(data.goals, data.debtPlan) : null
   const activeAccounts = (data.accounts || []).filter((account) => !account.archived)
+  const activityAmountValid =
+    num(activityAmount) >= 0.01 &&
+    Math.abs(num(activityAmount) * 100 - Math.round(num(activityAmount) * 100)) < 0.000001
+  const activityBalance = data.goals.find((goal) => goal.id === activity?.id)?.balance ?? 0
   const availablePlanRoom = monthSummary(data, month).unallocated
   const emergency = emergencyMilestones(data, month)
   function saveGoal() {
@@ -211,21 +211,38 @@ export function GoalsScreen({
     setEditing(null)
   }
   function recordActivity() {
-    const change = num(activityAmount)
+    const change = Math.round(num(activityAmount) * 100) / 100
     if (
       !activity ||
-      change <= 0 ||
-      ((activity.kind === 'debt' || activityMode === 'withdraw') && change > activity.balance)
+      !activityAmountValid ||
+      !validISODate(activityDate) ||
+      activityDate > todayISO() ||
+      (recordTransaction &&
+        sourceAccountId !== '' &&
+        sourceAccountId === destinationAccountId &&
+        activityMode !== 'withdraw') ||
+      ((activity.kind === 'debt' || activityMode === 'withdraw') && change > activityBalance)
     )
       return
     const transactionId = recordTransaction ? crypto.randomUUID() : undefined
-    const date = todayISO()
+    const date = activityDate
     update((d) => {
+      const liveGoal = d.goals.find((goal) => goal.id === activity.id)
+      if (
+        !liveGoal ||
+        ((liveGoal.kind === 'debt' || activityMode === 'withdraw') && change > liveGoal.balance)
+      )
+        return d
       if (transactionId)
         return changeTransaction(d, null, {
           id: transactionId,
           date,
-          payee: activity.name,
+          payee:
+            activityMode === 'withdraw'
+              ? `Spending from ${activity.name}`
+              : activity.kind === 'debt'
+                ? `Payment to ${activity.name}`
+                : `Savings for ${activity.name}`,
           amount: change,
           createdAt: new Date().toISOString(),
           type: activityMode === 'withdraw' ? 'expense' : 'transfer',
@@ -233,8 +250,8 @@ export function GoalsScreen({
           toAccountId: activityMode === 'withdraw' ? undefined : destinationAccountId || undefined,
           categoryId:
             activityMode === 'withdraw'
-              ? d.categories.find((category) => category.name === 'Emergency')?.id
-              : undefined,
+              ? spendingCategoryId || undefined
+              : investmentTransferCategory(d, sourceAccountId, destinationAccountId),
           goalId: activity.id,
           note: activityNote || undefined,
         })
@@ -251,7 +268,7 @@ export function GoalsScreen({
                 history: [
                   {
                     date,
-                    amount: change,
+                    amount: activityMode === 'withdraw' ? -change : change,
                     note:
                       activityNote ||
                       (activityMode === 'withdraw'
@@ -314,42 +331,64 @@ export function GoalsScreen({
         )}
         {goal.kind === 'saving' && <Progress value={progress} color={goal.color} />}
         <GoalChart goal={goal} currency={data.settings.currency} />
-        <div className="goal-card-footer">
-          <div>
-            <Icon name="CalendarClock" size={16} />
-            <span>{projectionText(goal)}</span>
-          </div>
+        <div className="goal-plan-line">
+          <Icon name="CalendarClock" size={17} />
+          <span>
+            {goal.monthly > 0
+              ? `${money(goal.monthly)}/month planned`
+              : 'No monthly amount planned'}
+          </span>
+          <button className="text-button" onClick={() => setEditing({ ...goal })}>
+            {goal.monthly > 0 ? 'Edit plan' : 'Set monthly amount'}
+          </button>
+        </div>
+        <div className="goal-money-actions">
           <button
+            className="goal-money-action"
             onClick={() => {
               setActivity(goal)
               setActivityAmount('')
               setActivityNote('')
+              setActivityDate(todayISO())
               setRecordTransaction(true)
               setActivityMode('add')
               setSourceAccountId('')
               setDestinationAccountId('')
             }}
           >
-            {goal.kind === 'saving' ? 'Add progress' : 'Record payment'}{' '}
-            <Icon name="ArrowRight" size={15} />
+            <Icon name={goal.kind === 'saving' ? 'Plus' : 'CreditCard'} size={20} />
+            <span>
+              <strong>{goal.kind === 'saving' ? 'Save money' : 'Record payment'}</strong>
+              <small>
+                {goal.kind === 'saving'
+                  ? 'Record money added to this goal'
+                  : 'Record a payment you made'}
+              </small>
+            </span>
           </button>
+          {goal.kind === 'saving' && goal.balance > 0 && (
+            <button
+              className="goal-money-action goal-spend-action"
+              onClick={() => {
+                setActivity(goal)
+                setActivityMode('withdraw')
+                setActivityAmount('')
+                setActivityNote('')
+                setActivityDate(todayISO())
+                setSpendingCategoryId('')
+                setRecordTransaction(true)
+                setSourceAccountId('')
+                setDestinationAccountId('')
+              }}
+            >
+              <Icon name="ArrowUpRight" size={20} />
+              <span>
+                <strong>Spend saved money</strong>
+                <small>Record a purchase paid from this goal</small>
+              </span>
+            </button>
+          )}
         </div>
-        {goal.kind === 'saving' && goal.balance > 0 && (
-          <button
-            className="text-button"
-            onClick={() => {
-              setActivity(goal)
-              setActivityMode('withdraw')
-              setActivityAmount('')
-              setActivityNote('')
-              setRecordTransaction(true)
-              setSourceAccountId('')
-              setDestinationAccountId('')
-            }}
-          >
-            <Icon name="ArrowUpRight" size={16} /> Use money from this goal
-          </button>
-        )}
         {goal.kind === 'debt' && (
           <div className="debt-details">
             <span>
@@ -404,7 +443,7 @@ export function GoalsScreen({
       <section>
         <SectionHead
           title="Savings goals"
-          help="A goal forecast uses your saved balance, monthly contribution, and annual interest rate. It is an estimate, not a guarantee."
+          help="Save money records a contribution you already made: for example, $50 from Chequing to TFSA. Spend saved money records a purchase paid from that goal. Set monthly amount changes your forecast, not your real savings. If a movement is already in Activity, edit it and link the goal instead of adding it again. Forecasts are estimates."
           aside={
             <button
               className="primary-button compact"
@@ -646,17 +685,37 @@ export function GoalsScreen({
             activity.kind === 'debt'
               ? 'Record a payment'
               : activityMode === 'withdraw'
-                ? 'Use goal money'
-                : 'Add goal progress'
+                ? 'Spend saved money'
+                : 'Save money toward your goal'
           }
           onClose={() => setActivity(null)}
         >
           <div className="modal-body">
-            <p className="modal-description">
-              This updates {activity.name} and its history. Record the movement in Activity so your
-              account balance and spending stay in step. A debt payment moves money to your lender;
-              the card purchases were counted when you made them. For debt, refresh the balance from
-              your lender’s statement when interest or fees post.
+            <div className="goal-movement-summary">
+              <Icon
+                name={
+                  activity.kind === 'debt'
+                    ? 'CreditCard'
+                    : activityMode === 'withdraw'
+                      ? 'ArrowUpRight'
+                      : 'PiggyBank'
+                }
+                size={24}
+              />
+              <div>
+                <strong>{activity.name}</strong>
+                <p>
+                  {activity.kind === 'debt'
+                    ? 'Record a payment you have made. This reduces your debt and adds a linked transfer in Activity.'
+                    : activityMode === 'withdraw'
+                      ? 'Record a purchase using these savings. This reduces your goal and adds one expense in Activity.'
+                      : 'Record money you have set aside. This increases your goal and adds one transfer in Activity.'}
+                </p>
+              </div>
+            </div>
+            <p className="goal-form-note">
+              Pockit records what happened; it does not move money at your bank. Already entered
+              this in Activity? Edit that transaction and link this goal instead.
             </p>
             <Field label="Amount">
               <input
@@ -669,30 +728,78 @@ export function GoalsScreen({
                 placeholder="0.00"
               />
             </Field>
+            {activityAmount !== '' && !activityAmountValid && (
+              <p className="form-message" role="alert">
+                Enter an amount of at least $0.01, with no more than two decimal places.
+              </p>
+            )}
             {(activity.kind === 'debt' || activityMode === 'withdraw') &&
-              num(activityAmount) > activity.balance && (
+              num(activityAmount) > activityBalance && (
                 <div className="form-message" role="alert">
                   The amount cannot exceed the current balance. Update the balance first if it has
                   changed.
                 </div>
               )}
+            <Field label="Date">
+              <input
+                type="date"
+                value={activityDate}
+                max={todayISO()}
+                onChange={(event) => setActivityDate(event.target.value)}
+              />
+            </Field>
+            {(!validISODate(activityDate) || activityDate > todayISO()) && (
+              <p className="form-message" role="alert">
+                Choose today or an earlier date for a movement that already happened.
+              </p>
+            )}
+            {activityMode === 'withdraw' && recordTransaction && (
+              <Field label="Spending category">
+                <select
+                  value={spendingCategoryId}
+                  onChange={(event) => setSpendingCategoryId(event.target.value)}
+                >
+                  <option value="">Uncategorized — choose later</option>
+                  {data.categories
+                    .filter((category) => !category.archived)
+                    .map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            )}
             <Field label="Note (optional)">
               <input
                 value={activityNote}
                 onChange={(e) => setActivityNote(e.target.value)}
-                placeholder="e.g. Extra payment"
+                placeholder={
+                  activityMode === 'withdraw'
+                    ? 'e.g. Car repair'
+                    : activity.kind === 'debt'
+                      ? 'e.g. Extra payment'
+                      : 'e.g. October savings'
+                }
               />
             </Field>
             {recordTransaction && activeAccounts.length > 0 && (
-              <div className="form-grid">
-                <Field
-                  label={activityMode === 'withdraw' ? 'Spend from account' : 'Pay from account'}
-                >
+              <div className="goal-account-route">
+                <p className="goal-form-note">
+                  {activityMode === 'withdraw'
+                    ? 'Which account paid for this purchase?'
+                    : 'A transfer has two sides: money leaves From and arrives in To. For example, Chequing → TFSA.'}
+                </p>
+                <Field label={activityMode === 'withdraw' ? 'Paid from account' : 'From account'}>
                   <select
+                    aria-label={activityMode === 'withdraw' ? 'Paid from account' : 'From account'}
                     value={sourceAccountId}
-                    onChange={(event) => setSourceAccountId(event.target.value)}
+                    onChange={(event) => {
+                      setSourceAccountId(event.target.value)
+                      if (event.target.value === destinationAccountId) setDestinationAccountId('')
+                    }}
                   >
-                    <option value="">Choose later</option>
+                    <option value="">Not tracked in Pockit</option>
                     {activeAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
                         {account.name}
@@ -701,12 +808,18 @@ export function GoalsScreen({
                   </select>
                 </Field>
                 {activityMode !== 'withdraw' && (
-                  <Field label={activity.kind === 'debt' ? 'Debt account' : 'Savings account'}>
+                  <div className="goal-route-arrow" aria-hidden="true">
+                    <Icon name="ArrowDown" size={20} />
+                  </div>
+                )}
+                {activityMode !== 'withdraw' && (
+                  <Field label="To account">
                     <select
+                      aria-label="To account"
                       value={destinationAccountId}
                       onChange={(event) => setDestinationAccountId(event.target.value)}
                     >
-                      <option value="">Choose later</option>
+                      <option value="">Not tracked in Pockit</option>
                       {activeAccounts
                         .filter((account) => account.id !== sourceAccountId)
                         .map((account) => (
@@ -719,25 +832,43 @@ export function GoalsScreen({
                 )}
               </div>
             )}
-            <label className="linked-action">
-              <input
-                type="checkbox"
-                checked={recordTransaction}
-                onChange={(e) => setRecordTransaction(e.target.checked)}
-              />{' '}
-              Also record in Activity as {activityMode === 'withdraw' ? 'an expense' : 'a transfer'}
-            </label>
+            <details className="goal-record-options">
+              <summary>Recording options</summary>
+              <label className="linked-action">
+                <input
+                  type="checkbox"
+                  checked={recordTransaction}
+                  onChange={(event) => setRecordTransaction(event.target.checked)}
+                />
+                Save a linked {activityMode === 'withdraw' ? 'expense' : 'transfer'} in Activity
+              </label>
+              <p className="goal-form-note">
+                Leave this on to update your goal and tracked accounts together. Turn it off only to
+                adjust goal progress without an Activity entry; account balances will stay
+                unchanged.
+              </p>
+            </details>
             <div className="modal-actions">
               <button
                 className="primary-button"
                 onClick={recordActivity}
                 disabled={
-                  num(activityAmount) <= 0 ||
+                  !activityAmountValid ||
+                  !validISODate(activityDate) ||
+                  activityDate > todayISO() ||
+                  (recordTransaction &&
+                    sourceAccountId !== '' &&
+                    sourceAccountId === destinationAccountId &&
+                    activityMode !== 'withdraw') ||
                   ((activity.kind === 'debt' || activityMode === 'withdraw') &&
-                    num(activityAmount) > activity.balance)
+                    num(activityAmount) > activityBalance)
                 }
               >
-                Save progress
+                {activity.kind === 'debt'
+                  ? 'Save payment'
+                  : activityMode === 'withdraw'
+                    ? 'Save expense'
+                    : 'Save contribution'}
               </button>
             </div>
           </div>

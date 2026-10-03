@@ -37,6 +37,7 @@ test('What-if changes remain a preview until applied and can be undone', async (
   await page.getByRole('button', { name: 'Preview Pockit' }).click()
   await page.getByRole('button', { name: 'Goals', exact: true }).click()
   const lab = page.getByRole('region', { name: 'What-if Lab' })
+  await lab.getByRole('button', { name: /Pay debt sooner/ }).click()
   await lab.getByRole('spinbutton', { name: 'Extra debt payment each month' }).fill('50')
   const preview = await lab.locator('.whatif-results').innerText()
   await expect(lab.getByRole('button', { name: /Review recurring changes/ })).toBeEnabled()

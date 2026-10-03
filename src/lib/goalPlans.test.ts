@@ -107,3 +107,24 @@ describe('goal payments and the starter plan', () => {
     expect(changed.categories.find((category) => category.name === 'Savings')?.baseAmount).toBe(65)
   })
 })
+
+describe('reviewed future goal plans', () => {
+  it('retains earlier linked allocations when the selected month is in the future', () => {
+    const before = starting()
+    const month = shiftMonth(currentMonth(), 2)
+    const updated = {
+      ...before,
+      goals: before.goals.map((goal) =>
+        goal.id === 'trip' ? { ...goal, monthly: goal.monthly + 50 } : goal,
+      ),
+    }
+    const after = syncGoalPlans(before, updated, month)
+    const savingBefore = before.categories.find((category) => category.linkedGoalKind === 'saving')!
+    const savingAfter = after.categories.find((category) => category.id === savingBefore.id)!
+    expect(categoryBudget(savingAfter, currentMonth(), 6000)).toBe(
+      categoryBudget(savingBefore, currentMonth(), 6000),
+    )
+    expect(categoryBudget(savingAfter, month, 6000)).toBe(150)
+    expect(categoryBudget(savingAfter, shiftMonth(month, 1), 6000)).toBe(150)
+  })
+})

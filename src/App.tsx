@@ -397,7 +397,7 @@ export default function App() {
     setData(readDemo() || makeDemoData())
   }
   function update(recipe: (current: PockitData) => PockitData) {
-    setData((current) => (current ? syncGoalPlans(current, recipe(current)) : current))
+    setData((current) => (current ? syncGoalPlans(current, recipe(current), month) : current))
   }
   function changeTheme(theme: 'light' | 'dark', origin?: Element | null) {
     animateThemeChange(() => {

@@ -1,5 +1,6 @@
-import type { MonthKey, PockitData } from '../types'
+import type { Category, MonthKey, PockitData } from '../types'
 import {
+  categoryActiveInMonth,
   categoryBudget,
   categoryPeriodAmount,
   categoryPolicy,
@@ -9,6 +10,7 @@ import {
   simulateDebtPlan,
 } from './finance'
 import { newCategory } from './defaults'
+import { syncGoalPlans } from './goalPlans'
 
 export interface ScenarioInput {
   extraDebt: number
@@ -45,7 +47,9 @@ export function calculateScenario(data: PockitData, month: MonthKey, input: Scen
   )
   const rateRise = Math.max(0, Number.isFinite(input.rateRise) ? input.rateRise! : 0)
   const summary = monthSummary(data, month)
-  const category = data.categories.find((item) => item.id === input.categoryId)
+  const category = data.categories.find(
+    (item) => item.id === input.categoryId && !item.archived && categoryActiveInMonth(item, month),
+  )
   const expenseChange =
     category && requestedExpenseChange < 0
       ? Math.max(requestedExpenseChange, -categoryBudget(category, month, summary.income))
@@ -90,8 +94,8 @@ export function applyScenario(data: PockitData, month: MonthKey, input: Scenario
       input.extraDebt,
       input.extraSaving,
       input.expenseChange,
-      input.oneTimeExpense || 0,
-      input.rateRise || 0,
+      input.oneTimeExpense ?? 0,
+      input.rateRise ?? 0,
     ].every(Number.isFinite)
   )
     throw new Error('Enter valid amounts before applying this plan.')
@@ -103,22 +107,38 @@ export function applyScenario(data: PockitData, month: MonthKey, input: Scenario
     )
   const result = calculateScenario(data, month, input)
   if (result.roomAfter < -0.001) throw new Error('This plan exceeds your planned monthly income.')
+  if (input.extraDebt === 0 && input.extraSaving === 0 && result.expenseChange === 0)
+    throw new Error('Enter a recurring change before applying this plan.')
   const next = { ...data, categories: [...data.categories] }
+  const changeMonthlyAmount = (category: Category, amount: number): Category => {
+    const ongoingPolicy = categoryPolicy({ ...category, policyOverrides: {} }, month)
+    const overrides = { ...category.overrides }
+    // Keep this month's special amount/rules while applying the recurring change to future periods.
+    if (Object.hasOwn(overrides, month) || category.policyOverrides?.[month])
+      overrides[month] = Math.max(
+        0,
+        categoryBudget(category, month, monthSummary(data, month).income) + amount,
+      )
+    return {
+      ...category,
+      overrides,
+      changes: {
+        ...category.changes,
+        [month]: Math.max(
+          0,
+          categoryPeriodAmount(category, month) + amount / monthlyPay(1, ongoingPolicy.frequency),
+        ),
+      },
+    }
+  }
   const reserve = (name: string, amount: number, icon: string, color: string) => {
     const existing = next.categories.find(
-      (category) => category.name === name && !category.archived,
+      (category) =>
+        category.name === name && !category.archived && categoryActiveInMonth(category, month),
     )
     if (existing)
       next.categories = next.categories.map((category) =>
-        category.id === existing.id
-          ? {
-              ...category,
-              changes: {
-                ...category.changes,
-                [month]: categoryPeriodAmount(category, month) + amount,
-              },
-            }
-          : category,
+        category.id === existing.id ? changeMonthlyAmount(category, amount) : category,
       )
     else next.categories.push(newCategory(name, icon, 'Savings & Goals', color, amount, month))
   }
@@ -139,15 +159,26 @@ export function applyScenario(data: PockitData, month: MonthKey, input: Scenario
         ? { ...goal, monthly: goal.monthly + input.extraSaving }
         : goal,
     )
-    reserve(
-      `Extra savings: ${data.goals.find((goal) => goal.id === input.goalId)!.name}`,
-      input.extraSaving,
-      'PiggyBank',
-      '#91d9c0',
+    if (
+      !data.categories.some(
+        (category) =>
+          !category.archived &&
+          categoryActiveInMonth(category, month) &&
+          category.linkedGoalKind === 'saving',
+      )
     )
+      reserve(
+        `Extra savings: ${data.goals.find((goal) => goal.id === input.goalId)!.name}`,
+        input.extraSaving,
+        'PiggyBank',
+        '#91d9c0',
+      )
   }
   if (input.expenseChange !== 0) {
-    const category = data.categories.find((item) => item.id === input.categoryId)
+    const category = data.categories.find(
+      (item) =>
+        item.id === input.categoryId && !item.archived && categoryActiveInMonth(item, month),
+    )
     if (!category) throw new Error('Choose a category for the recurring expense change.')
     if (
       categoryPolicy(category, month).mode === 'rollover' &&
@@ -155,20 +186,32 @@ export function applyScenario(data: PockitData, month: MonthKey, input: Scenario
     )
       throw new Error('Edit this percentage or no-target category directly in Budget.')
     next.categories = next.categories.map((item) =>
-      item.id === category.id
-        ? {
-            ...item,
-            changes: {
-              ...item.changes,
-              [month]: Math.max(
-                0,
-                categoryPeriodAmount(item, month) +
-                  result.expenseChange / monthlyPay(1, item.frequency),
-              ),
-            },
-          }
-        : item,
+      item.id === category.id ? changeMonthlyAmount(item, result.expenseChange) : item,
     )
   }
-  return next
+  const synced = syncGoalPlans(data, next, month)
+  if (input.extraSaving > 0) {
+    synced.categories = synced.categories.map((category) => {
+      const before = data.categories.find((item) => item.id === category.id)
+      if (
+        !before ||
+        before.archived ||
+        !categoryActiveInMonth(before, month) ||
+        before.linkedGoalKind !== 'saving'
+      )
+        return category
+      if (Object.hasOwn(before.overrides, month))
+        return {
+          ...category,
+          overrides: {
+            ...category.overrides,
+            [month]: before.overrides[month] + input.extraSaving,
+          },
+        }
+      return category
+    })
+  }
+  if (monthSummary(synced, month).unallocated < -0.001)
+    throw new Error('This plan exceeds your planned monthly income.')
+  return synced
 }

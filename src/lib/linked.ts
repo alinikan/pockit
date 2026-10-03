@@ -24,11 +24,16 @@ export function changeTransaction(
     if (after?.goalId === goal.id)
       history.unshift({
         date: after!.date,
-        amount: after!.amount,
+        amount:
+          goal.kind === 'saving' && after!.type === 'expense' && !after!.refund
+            ? -after!.amount
+            : after!.amount,
         note:
           after!.note ||
           (goal.kind === 'debt' || (after!.type === 'expense' && !after!.refund)
-            ? 'Withdrawal or payment'
+            ? goal.kind === 'debt'
+              ? 'Debt payment'
+              : 'Spending from savings'
             : 'Contribution'),
         transactionId: after!.id,
       })
