@@ -1,3 +1,4 @@
+import { GoalFunding } from '../components/GoalFunding'
 import { validISODate, num } from '../lib/numbers'
 import { WhatIfLab } from '../components/WhatIfLab'
 import { useId, useState } from 'react'
@@ -331,6 +332,7 @@ export function GoalsScreen({
         )}
         {goal.kind === 'saving' && <Progress value={progress} color={goal.color} />}
         <GoalChart goal={goal} currency={data.settings.currency} />
+        {goal.kind === 'saving' && <GoalFunding data={data} goalId={goal.id} update={update} />}
         <div className="goal-plan-line">
           <Icon name="CalendarClock" size={17} />
           <span>

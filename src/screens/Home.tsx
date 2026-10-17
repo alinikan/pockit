@@ -1,3 +1,6 @@
+import { MoneyTools } from '../components/MoneyTools'
+import { PulseReview } from '../components/PulseReview'
+import { monthCoverage } from '../lib/experience'
 import type { MonthKey, PockitData } from '../types'
 import { useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
@@ -208,6 +211,7 @@ export function HomeScreen({
           <Icon name="SlidersHorizontal" size={16} /> Customize Home
         </button>
       </div>
+      <MoneyTools data={data} month={month} update={update} />
       {historicalUnplanned && (
         <p className="soft-note" role="status" style={{ order: -1 }}>
           This month’s transactions are available, but the Waypoint ZIP had no historical budget
@@ -295,24 +299,22 @@ export function HomeScreen({
             </span>
           </div>
           {pulseDue ? (
-            <div className="pulse-actions">
-              <button onClick={() => setTab('Activity')}>1 · Review activity</button>
-              <button onClick={() => setTab('Calendar')}>2 · Check bills</button>
-              <button onClick={() => setTab('Budget')}>3 · Adjust plan</button>
+            <PulseReview data={data} month={month} update={update} setTab={setTab} />
+          ) : (
+            <div>
+              <p>Nice work. Your next review opens in a week.</p>
               <button
-                className="pulse-done"
+                className="text-button"
                 onClick={() =>
                   update((current) => ({
                     ...current,
-                    settings: { ...current.settings, lastPulseAt: today },
+                    settings: { ...current.settings, lastPulseAt: undefined },
                   }))
                 }
               >
-                <Icon name="Check" size={16} /> Done for now
+                Review again
               </button>
             </div>
-          ) : (
-            <p>Nice work. Your next review opens in a week.</p>
           )}
         </section>
       )}
@@ -378,7 +380,7 @@ export function HomeScreen({
             </div>
           </div>
           <div className="summary-stack">
-            <div className="summary-card income-summary">
+            <div className="summary-card income-summary" aria-label="Monthly income summary">
               <div className="summary-icon income">
                 <Icon name="ArrowDownLeft" />
               </div>
@@ -469,7 +471,9 @@ export function HomeScreen({
               <p className="payday-disclaimer">
                 Estimate from {paycheque.source || 'your starting amount'} checked on{' '}
                 {paycheque.asOf}, later income and expenses, and unpaid bills. Transfers and
-                unrecorded spending are excluded. This is not your bank balance.
+                unrecorded spending are excluded. This is not your bank balance. Money assigned to
+                goals can still be inside this estimate; use Can I afford this? to check a purchase
+                against reservations.
               </p>
             </>
           )}
@@ -837,9 +841,9 @@ export function HomeScreen({
               </div>
             </div>
             <p className="compare-foot">
-              {prevSpent > 0
+              {prevSpent > 0 && monthCoverage(data, month).canCompare
                 ? `You spent ${money(Math.abs(spent - prevSpent), data.settings.currency, true)} ${spent > prevSpent ? 'more' : 'less'} than last month.`
-                : 'Last month’s comparison will appear once you have transactions.'}
+                : 'Check that both months have complete entries before comparing spending.'}
             </p>
           </section>
         </div>

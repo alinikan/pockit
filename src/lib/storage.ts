@@ -1,3 +1,4 @@
+import { limitChangeHistory } from './changeHistory'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import type { PockitData } from '../types'
 
@@ -123,6 +124,18 @@ export function mergeSnapshots(
     ),
     goals: records('goals', base.goals, local.goals, remote.goals),
     bills: records('bills', base.bills, local.bills, remote.bills),
+    projects: records('projects', base.projects, local.projects, remote.projects),
+    subscriptions: records(
+      'subscriptions',
+      base.subscriptions,
+      local.subscriptions,
+      remote.subscriptions,
+    ),
+    changeLog: limitChangeHistory(
+      records('changeLog', base.changeLog, local.changeLog, remote.changeLog).sort((a, b) =>
+        b.time.localeCompare(a.time),
+      ),
+    ),
   }
   return { data, conflicts }
 }

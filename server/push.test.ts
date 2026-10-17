@@ -28,3 +28,23 @@ describe('private bill reminders', () => {
     expect(localDate(new Date('2026-12-31T23:55:00Z'), 'Not/A-Timezone')).toBe('2026-12-31')
   })
 })
+
+describe('subscription decision reminders', () => {
+  it('counts a trial ending and cancellation deadline once per subscription', () => {
+    const data = makeDemoData()
+    data.bills = []
+    data.subscriptions = [
+      {
+        id: 'trial',
+        name: 'Trial',
+        amount: 10,
+        period: 'monthly',
+        renewalDate: '2026-10-18',
+        trialEnd: '2026-10-17',
+        cancelBy: '2026-10-17',
+      },
+    ]
+    expect(dueBillCount(data, '2026-10-17')).toBe(1)
+    expect(dueBillCount(data, '2026-10-18')).toBe(1)
+  })
+})

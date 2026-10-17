@@ -7,7 +7,7 @@ for (const width of [320, 402]) {
     await page.getByRole('button', { name: 'Preview Pockit' }).click()
     await page.locator('.bottom-nav').getByRole('button', { name: 'More' }).click()
     const menu = page.getByRole('region', { name: 'More menu' })
-    await expect(menu.getByRole('button')).toHaveCount(10)
+    await expect(menu.getByRole('button')).toHaveCount(13)
     await expect(menu.getByRole('button', { name: 'Compare months' })).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'Your profile' })).toHaveCount(0)
     const bounds = await menu.boundingBox()

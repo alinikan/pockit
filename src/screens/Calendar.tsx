@@ -1,3 +1,4 @@
+import { subscriptionDates } from '../lib/forecast'
 import { num } from '../lib/numbers'
 import { useState } from 'react'
 import type { Bill, Frequency, MonthKey, PockitData } from '../types'
@@ -38,6 +39,41 @@ export function CalendarScreen({
   const days = new Date(year, number, 0).getDate()
   const txs = transactionsInMonth(data.transactions, month)
   const repeats = expectedTransactions(data, month)
+  const subscriptionEvents = (data.subscriptions || [])
+    .flatMap((item) => [
+      ...subscriptionDates(item, `${month}-01`, `${month}-${String(days).padStart(2, '0')}`).map(
+        (date) => ({
+          id: `${item.id}:renewal:${date}`,
+          name: item.name,
+          date,
+          label: 'Renewal',
+          amount: item.amount,
+        }),
+      ),
+      ...(item.trialEnd?.startsWith(month)
+        ? [
+            {
+              id: `${item.id}:trial`,
+              name: item.name,
+              date: item.trialEnd,
+              label: 'Trial ends',
+              amount: undefined,
+            },
+          ]
+        : []),
+      ...(item.cancelBy?.startsWith(month)
+        ? [
+            {
+              id: `${item.id}:cancel`,
+              name: item.name,
+              date: item.cancelBy,
+              label: 'Cancel-by deadline',
+              amount: undefined,
+            },
+          ]
+        : []),
+    ])
+    .sort((a, b) => a.date.localeCompare(b.date))
   const bills = billsForMonth(data.bills, month)
   const plannedDates = categoryDueDates(data, month)
   const paydays = paydaysInMonth(data.profile, month)
@@ -317,12 +353,19 @@ export function CalendarScreen({
                   {dayRepeat.length > 0 && <i className="repeat-dot" />}
                   {dayBill.length > 0 && <i className="bill-dot" />}
                   {dayPlan.length > 0 && <i className="plan-dot" />}
+                  {subscriptionEvents.some((item) => Number(item.date.slice(-2)) === day) && (
+                    <i className="subscription-dot" />
+                  )}
                 </div>
               </button>
             )
           })}
         </div>
         <div className="calendar-key">
+          <span>
+            <i className="subscription-dot" />
+            Subscription decision
+          </span>
           <span>
             <i className="payday-dot" /> Expected pay
           </span>
@@ -344,6 +387,28 @@ export function CalendarScreen({
         </div>
       </section>
       <div className="calendar-side">
+        {subscriptionEvents.length > 0 && (
+          <section className="panel">
+            <SectionHead
+              title="Subscription decisions"
+              help="Renewals, trial endings and cancellation deadlines entered in More → Subscriptions & trials. These do not record payments or cancel services."
+            />
+            {subscriptionEvents
+              .filter((item) => selectedDay === null || Number(item.date.slice(-2)) === chosen)
+              .map((item) => (
+                <div className="tool-list-row" key={item.id}>
+                  <span>
+                    {item.name}
+                    <small>
+                      {item.date} · {item.label}
+                    </small>
+                  </span>
+                  {item.amount !== undefined && <strong>{money(item.amount)}</strong>}
+                </div>
+              ))}
+          </section>
+        )}
+
         <section className="panel payday-panel">
           <SectionHead
             title="Your paydays"

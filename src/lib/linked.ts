@@ -37,7 +37,29 @@ export function changeTransaction(
             : 'Contribution'),
         transactionId: after!.id,
       })
-    return { ...goal, balance: Math.max(0, balance), history }
+    let funding = goal.funding
+    if (funding && goal.kind === 'saving') {
+      funding = funding.map((item) => ({ ...item }))
+      for (const [transaction, direction] of [
+        [before, -1],
+        [after, 1],
+      ] as const) {
+        if (!transaction || transaction.goalId !== goal.id) continue
+        const accountId =
+          transaction.type === 'expense' && !transaction.refund
+            ? transaction.accountId
+            : transaction.toAccountId ||
+              (transaction.type === 'income' || transaction.refund
+                ? transaction.accountId
+                : undefined)
+        if (!accountId) continue
+        const delta = goalImpact('saving', transaction) * direction
+        const entry = funding.find((item) => item.accountId === accountId)
+        if (entry) entry.amount = Math.max(0, Math.round((entry.amount + delta) * 100) / 100)
+        else if (delta > 0) funding.push({ accountId, amount: delta })
+      }
+    }
+    return { ...goal, balance: Math.max(0, balance), history, ...(funding ? { funding } : {}) }
   })
   const bills = data.bills.map((bill) => {
     const affected = [before, after].some((entry) => entry?.billId === bill.id)

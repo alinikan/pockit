@@ -1,3 +1,6 @@
+import { clearEntryDraft, readEntryDraft, writeEntryDraft } from '../lib/entryDraft'
+import { parseQuickEntry } from '../lib/experience'
+import { previewTransactionChange } from '../lib/changeHistory'
 import { num, validISODate } from '../lib/numbers'
 import { useEffect, useMemo, useState } from 'react'
 import type {
@@ -49,6 +52,8 @@ export function ActivityScreen({
   quickAddDate,
   onQuickAddConsumed,
   setMonth,
+  draftScope = 'preview',
+  quickAddDraft,
 }: {
   data: PockitData
   month: MonthKey
@@ -58,7 +63,15 @@ export function ActivityScreen({
   quickAddDate?: string
   onQuickAddConsumed?: () => void
   setMonth?: (month: MonthKey) => void
+  draftScope?: string
+  quickAddDraft?: Partial<Transaction>
 }) {
+  const [savedDraft, setSavedDraft] = useState(() => readEntryDraft(draftScope))
+  const [quickText, setQuickText] = useState('')
+  const [captureError, setCaptureError] = useState('')
+  const [templateMessage, setTemplateMessage] = useState('')
+  const [keepTemplateAmount, setKeepTemplateAmount] = useState(false)
+  const [draftWarning, setDraftWarning] = useState('')
   const [search, setSearch] = useState('')
   const [type, setType] = useState<'all' | TransactionType>('all')
   const [category, setCategory] = useState('all')
@@ -96,6 +109,7 @@ export function ActivityScreen({
     if (quickAdd > 0) {
       setEditing({
         ...newTransaction(quickAddType),
+        ...quickAddDraft,
         date: quickAddDate && validISODate(quickAddDate) ? quickAddDate : dateInMonth(month),
       })
       onQuickAddConsumed?.()
@@ -104,6 +118,19 @@ export function ActivityScreen({
   useEffect(() => {
     setTagText(editing?.waypointTagsRaw || (editing?.tags || []).join(', '))
   }, [editing?.id])
+  useEffect(() => {
+    if (
+      editing &&
+      !data.transactions.some((item) => item.id === editing.id) &&
+      (editing.payee.trim() || editing.amount > 0 || editing.note?.trim())
+    ) {
+      const saved = writeEntryDraft(draftScope, editing)
+      setSavedDraft(editing)
+      setDraftWarning(
+        saved ? '' : 'This browser could not keep a draft. Save the entry before leaving.',
+      )
+    }
+  }, [editing, draftScope])
   const monthTxs = transactionsInMonth(data.transactions, month)
   const counts = {
     all: monthTxs.length,
@@ -151,7 +178,7 @@ export function ActivityScreen({
     )
     .slice(0, 4)
   const setDraft = (patch: Partial<Transaction>) => setEditing((d) => (d ? { ...d, ...patch } : d))
-  function save() {
+  function save(keepOpen = false) {
     if (
       !editing?.payee.trim() ||
       editing.amount <= 0 ||
@@ -207,7 +234,9 @@ export function ActivityScreen({
       after: value,
       message: before ? 'Transaction updated.' : 'Transaction added.',
     })
-    setEditing(null)
+    clearEntryDraft(draftScope)
+    setSavedDraft(null)
+    setEditing(keepOpen ? newTransaction(value.type) : null)
     setRememberMerchant(false)
     if (value.date.slice(0, 7) !== month) setMonth?.(value.date.slice(0, 7) as MonthKey)
   }
@@ -280,6 +309,107 @@ export function ActivityScreen({
   }
   return (
     <div className="screen-stack">
+      <div className="entry-shortcuts">
+        {(data.settings.entryTemplates || []).map((template) => (
+          <button
+            key={template.id}
+            className="entry-template"
+            onClick={() =>
+              setEditing({
+                ...newTransaction(template.type),
+                payee: template.payee,
+                amount: template.amount || 0,
+                categoryId: data.categories.some(
+                  (item) => item.id === template.categoryId && !item.archived,
+                )
+                  ? template.categoryId
+                  : undefined,
+                accountId: data.accounts?.some(
+                  (item) => item.id === template.accountId && !item.archived,
+                )
+                  ? template.accountId
+                  : undefined,
+                toAccountId: data.accounts?.some(
+                  (item) =>
+                    item.id === template.toAccountId &&
+                    !item.archived &&
+                    item.id !== template.accountId,
+                )
+                  ? template.toAccountId
+                  : undefined,
+              })
+            }
+          >
+            <Icon name="Pin" size={16} />
+            {template.name}
+          </button>
+        ))}
+        {savedDraft && (
+          <button
+            className="secondary-button compact"
+            onClick={() =>
+              setEditing({
+                ...savedDraft,
+                accountId: data.accounts?.some(
+                  (item) => item.id === savedDraft.accountId && !item.archived,
+                )
+                  ? savedDraft.accountId
+                  : undefined,
+                toAccountId: data.accounts?.some(
+                  (item) => item.id === savedDraft.toAccountId && !item.archived,
+                )
+                  ? savedDraft.toAccountId
+                  : undefined,
+                goalId: data.goals.some((item) => item.id === savedDraft.goalId)
+                  ? savedDraft.goalId
+                  : undefined,
+                billId: data.bills.some((item) => item.id === savedDraft.billId)
+                  ? savedDraft.billId
+                  : undefined,
+              })
+            }
+          >
+            <Icon name="FilePenLine" size={16} />
+            Resume saved draft
+          </button>
+        )}
+      </div>
+      <details className="quick-capture">
+        <summary>
+          <Icon name="Zap" size={18} />
+          Quick text entry
+        </summary>
+        <p className="goal-form-note">
+          Try “Coffee 6.50 yesterday”. Review the interpreted fields before saving. Dates and
+          amounts are parsed on this device.
+        </p>
+        <div className="quick-capture-row">
+          <input
+            aria-label="Quick entry text"
+            value={quickText}
+            onChange={(event) => setQuickText(event.target.value)}
+            placeholder="Groceries 42.10"
+          />
+          <button
+            className="secondary-button"
+            onClick={() => {
+              try {
+                setEditing({ ...newTransaction('expense'), ...parseQuickEntry(quickText, data) })
+                setCaptureError('')
+              } catch (cause) {
+                setCaptureError((cause as Error).message)
+              }
+            }}
+          >
+            Review entry
+          </button>
+        </div>
+        {captureError && (
+          <p className="form-message" role="alert">
+            {captureError}
+          </p>
+        )}
+      </details>
       <div className="activity-toolbar">
         <div className="search-box">
           <Icon name="Search" size={19} />
@@ -642,95 +772,10 @@ export function ActivityScreen({
                 cash flow.
               </p>
             )}
-            <Field label={editing.type === 'income' ? 'Income from' : 'Payee or description'}>
-              <input
-                autoFocus
-                value={editing.payee}
-                onChange={(e) => {
-                  const payee = e.target.value
-                  setDraft({
-                    payee,
-                    categoryId:
-                      data.settings.merchantRules?.find(
-                        (rule) => rule.payee === payee.trim().toLowerCase(),
-                      )?.categoryId ||
-                      data.transactions.find(
-                        (transaction) =>
-                          transaction.payee.trim().toLowerCase() === payee.trim().toLowerCase() &&
-                          transaction.categoryId,
-                      )?.categoryId ||
-                      (data.settings.smart && !editing.categoryId
-                        ? categorizePayee(payee, data.categories)
-                        : editing.categoryId),
-                  })
-                }}
-                placeholder={
-                  editing.type === 'income'
-                    ? 'e.g. Paycheque or freelance work'
-                    : 'e.g. Fresh Market'
-                }
-              />
-            </Field>
-            {editing.goalId && (
-              <div className="soft-note">
-                Linked to a goal. Changing its amount or date also updates goal progress. Deleting
-                this transaction undoes the linked progress.
-              </div>
-            )}
-            {data.goals.length > 0 && (
-              <Field
-                label="Related goal (optional)"
-                hint="Link a payment or contribution so Goals updates when you edit this transaction."
-              >
-                <select
-                  value={editing.goalId || ''}
-                  onChange={(event) => {
-                    const goal = data.goals.find((item) => item.id === event.target.value)
-                    setDraft({
-                      goalId: goal?.id,
-                      goalBaselineImpact:
-                        goal && editing.source === 'waypoint'
-                          ? goal.kind === 'debt' || (editing.type === 'expense' && !editing.refund)
-                            ? -editing.amount
-                            : editing.amount
-                          : undefined,
-                      splits: undefined,
-                    })
-                  }}
-                >
-                  <option value="">No goal</option>
-                  {data.goals.map((goal) => (
-                    <option key={goal.id} value={goal.id}>
-                      {goal.name} · {goal.kind === 'debt' ? 'debt' : 'saving'}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-            {editing.goalId && editing.source === 'waypoint' && (
-              <label className="check-line">
-                <input
-                  type="checkbox"
-                  checked={editing.goalBaselineImpact !== undefined}
-                  onChange={(event) => {
-                    const goal = data.goals.find((item) => item.id === editing.goalId)
-                    setDraft({
-                      goalBaselineImpact:
-                        event.target.checked && goal
-                          ? goal.kind === 'debt' || (editing.type === 'expense' && !editing.refund)
-                            ? -editing.amount
-                            : editing.amount
-                          : undefined,
-                    })
-                  }}
-                />{' '}
-                Already included in the imported goal balance. Changes from this amount will update
-                the goal.
-              </label>
-            )}
             <div className="form-grid">
               <Field label="Amount">
                 <input
+                  autoFocus
                   type="number"
                   min="0.01"
                   step="0.01"
@@ -770,134 +815,34 @@ export function ActivityScreen({
                 Record this income after it arrives. Future paydays stay on Calendar as estimates.
               </p>
             )}
-            {!editing.goalId && !editing.billId && (
-              <>
-                <Field
-                  label="Repeat on Calendar"
-                  hint="Future repeats appear as planned activity. They do not count as spending or income until you record them."
-                >
-                  <select
-                    value={editing.recurrence || ''}
-                    onChange={(event) =>
-                      setDraft({
-                        recurrence: (event.target.value || undefined) as
-                          TransactionRepeat | undefined,
-                        recurrenceEnd: event.target.value ? editing.recurrenceEnd : undefined,
-                      })
-                    }
-                  >
-                    <option value="">Does not repeat</option>
-                    <option value="weekly">Every week</option>
-                    <option value="biweekly">Every two weeks</option>
-                    <option value="monthly">Every month</option>
-                    <option value="quarterly">Every three months</option>
-                    <option value="yearly">Every year</option>
-                  </select>
-                </Field>
-                {editing.recurrence && (
-                  <Field label="Stop repeating after (optional)">
-                    <input
-                      type="date"
-                      value={editing.recurrenceEnd || ''}
-                      min={editing.date}
-                      onChange={(event) =>
-                        setDraft({ recurrenceEnd: event.target.value || undefined })
-                      }
-                    />
-                  </Field>
-                )}
-              </>
-            )}
-            {data.accounts?.length ? (
-              <div className="form-grid">
-                <Field label={editing.type === 'transfer' ? 'From account' : 'Account'}>
-                  <select
-                    value={editing.accountId || ''}
-                    onChange={(e) => {
-                      const accountId = e.target.value || undefined
-                      const toAccountId =
-                        accountId === editing.toAccountId ? undefined : editing.toAccountId
-                      setDraft({
-                        accountId,
-                        toAccountId,
-                        categoryId:
-                          editing.type === 'transfer'
-                            ? investmentTransferCategory(data, accountId, toAccountId) ||
-                              editing.categoryId
-                            : editing.categoryId,
-                      })
-                    }}
-                  >
-                    <option value="">Not assigned</option>
-                    {data.accounts
-                      .filter((account) => !account.archived)
-                      .map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.name} · {accountTypeLabel(account)}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-                {editing.type === 'transfer' && (
-                  <Field label="To account">
-                    <select
-                      value={editing.toAccountId || ''}
-                      onChange={(e) => {
-                        const toAccountId = e.target.value || undefined
-                        setDraft({
-                          toAccountId,
-                          categoryId:
-                            investmentTransferCategory(data, editing.accountId, toAccountId) ||
-                            editing.categoryId,
-                        })
-                      }}
-                    >
-                      <option value="">Outside Pockit / goal</option>
-                      {data.accounts
-                        .filter((account) => !account.archived && account.id !== editing.accountId)
-                        .map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {account.name} · {accountTypeLabel(account)}
-                          </option>
-                        ))}
-                    </select>
-                  </Field>
-                )}
-              </div>
-            ) : (
-              <div className="soft-note">
-                Add a manual account in More to track balances and check them against your bank.
-              </div>
-            )}
-            {editing.type === 'transfer' && (
-              <p className="soft-note">
-                {investmentTransferDirection(data, editing) === 1
-                  ? 'An investment contribution. Choose a category below to count it toward your monthly plan. It updates both account balances without counting as income or spending.'
-                  : investmentTransferDirection(data, editing) === -1
-                    ? 'An investment withdrawal. Use the same contribution category to reduce net invested this month. It updates both balances without counting as income or spending.'
-                    : 'A transfer moves money between your accounts. Record it once; Pockit updates both balances without adding income or spending.'}
-              </p>
-            )}
-            {data.bills.length > 0 && (
-              <Field
-                label="Related bill (optional)"
-                hint="Link a payment so Calendar and upcoming bills mark the matching month paid."
-              >
-                <select
-                  value={editing.billId || ''}
-                  onChange={(event) =>
-                    setDraft({ billId: event.target.value || undefined, splits: undefined })
-                  }
-                >
-                  <option value="">No bill</option>
-                  {data.bills.map((bill) => (
-                    <option key={bill.id} value={bill.id}>
-                      {bill.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
+            <Field label={editing.type === 'income' ? 'Income from' : 'Payee or description'}>
+              <input
+                value={editing.payee}
+                onChange={(e) => {
+                  const payee = e.target.value
+                  setDraft({
+                    payee,
+                    categoryId:
+                      data.settings.merchantRules?.find(
+                        (rule) => rule.payee === payee.trim().toLowerCase(),
+                      )?.categoryId ||
+                      data.transactions.find(
+                        (transaction) =>
+                          transaction.payee.trim().toLowerCase() === payee.trim().toLowerCase() &&
+                          transaction.categoryId,
+                      )?.categoryId ||
+                      (data.settings.smart && !editing.categoryId
+                        ? categorizePayee(payee, data.categories)
+                        : editing.categoryId),
+                  })
+                }}
+                placeholder={
+                  editing.type === 'income'
+                    ? 'e.g. Paycheque or freelance work'
+                    : 'e.g. Fresh Market'
+                }
+              />
+            </Field>
             <Field label="Category">
               <select
                 value={editing.categoryId || ''}
@@ -999,91 +944,379 @@ export function ActivityScreen({
                 )}
               </>
             )}
-            {editing.type === 'expense' && editing.categoryId && (
-              <label className="check-line">
-                <input
-                  type="checkbox"
-                  checked={rememberMerchant}
-                  onChange={(e) => setRememberMerchant(e.target.checked)}
-                />{' '}
-                Remember this category for this payee
-              </label>
-            )}
-            {editing.reviewed === false && (
+            {data.accounts?.length ? (
+              <div className="form-grid">
+                <Field label={editing.type === 'transfer' ? 'From account' : 'Account'}>
+                  <select
+                    value={editing.accountId || ''}
+                    onChange={(e) => {
+                      const accountId = e.target.value || undefined
+                      const toAccountId =
+                        accountId === editing.toAccountId ? undefined : editing.toAccountId
+                      setDraft({
+                        accountId,
+                        toAccountId,
+                        categoryId:
+                          editing.type === 'transfer'
+                            ? investmentTransferCategory(data, accountId, toAccountId) ||
+                              editing.categoryId
+                            : editing.categoryId,
+                      })
+                    }}
+                  >
+                    <option value="">Not assigned</option>
+                    {data.accounts
+                      .filter((account) => !account.archived)
+                      .map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} · {accountTypeLabel(account)}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+                {editing.type === 'transfer' && (
+                  <Field label="To account">
+                    <select
+                      value={editing.toAccountId || ''}
+                      onChange={(e) => {
+                        const toAccountId = e.target.value || undefined
+                        setDraft({
+                          toAccountId,
+                          categoryId:
+                            investmentTransferCategory(data, editing.accountId, toAccountId) ||
+                            editing.categoryId,
+                        })
+                      }}
+                    >
+                      <option value="">Outside Pockit / goal</option>
+                      {data.accounts
+                        .filter((account) => !account.archived && account.id !== editing.accountId)
+                        .map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name} · {accountTypeLabel(account)}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                )}
+              </div>
+            ) : (
               <div className="soft-note">
-                Imported transaction awaiting review. Saving confirms its details.
+                Add a manual account in More to track balances and check them against your bank.
               </div>
             )}
-            {editing.source === 'waypoint' && (
-              <div className="soft-note">
-                Imported from Waypoint. Editing this entry updates spending, the budget,
-                comparisons, account estimates, and any goal or bill you link above.
-              </div>
+            {editing.type === 'transfer' && (
+              <p className="soft-note">
+                {investmentTransferDirection(data, editing) === 1
+                  ? 'An investment contribution. Choose a category below to count it toward your monthly plan. It updates both account balances without counting as income or spending.'
+                  : investmentTransferDirection(data, editing) === -1
+                    ? 'An investment withdrawal. Use the same contribution category to reduce net invested this month. It updates both balances without counting as income or spending.'
+                    : 'A transfer moves money between your accounts. Record it once; Pockit updates both balances without adding income or spending.'}
+              </p>
             )}
-            <Field
-              label="Tags (optional)"
-              hint="Separate tags with commas. Use them to find this transaction later. Tags do not change your budget."
+            <details
+              className="entry-more-details"
+              open={
+                data.transactions.some((item) => item.id === editing.id) ||
+                !!editing.goalId ||
+                !!editing.billId ||
+                !!editing.recurrence
+              }
             >
-              <input
-                value={tagText}
-                onChange={(event) => {
-                  setTagText(event.target.value)
-                  setDraft({
-                    waypointTagsRaw:
-                      editing.source === 'waypoint' ? event.target.value : editing.waypointTagsRaw,
-                    tags: [
-                      ...new Set(
-                        event.target.value
-                          .split(/[;,]/)
-                          .map((tag) => tag.trim())
-                          .filter(Boolean),
-                      ),
-                    ],
-                  })
-                }}
-                placeholder="e.g. work, reimbursable"
-              />
-            </Field>
-            {editing.type === 'expense' && (
-              <label className="check-line">
+              <summary>More details</summary>
+              {editing.goalId && (
+                <div className="soft-note">
+                  Linked to a goal. Changing its amount or date also updates goal progress. Deleting
+                  this transaction undoes the linked progress.
+                </div>
+              )}
+              {data.goals.length > 0 && (
+                <Field
+                  label="Related goal (optional)"
+                  hint="Link a payment or contribution so Goals updates when you edit this transaction."
+                >
+                  <select
+                    value={editing.goalId || ''}
+                    onChange={(event) => {
+                      const goal = data.goals.find((item) => item.id === event.target.value)
+                      setDraft({
+                        goalId: goal?.id,
+                        goalBaselineImpact:
+                          goal && editing.source === 'waypoint'
+                            ? goal.kind === 'debt' ||
+                              (editing.type === 'expense' && !editing.refund)
+                              ? -editing.amount
+                              : editing.amount
+                            : undefined,
+                        splits: undefined,
+                      })
+                    }}
+                  >
+                    <option value="">No goal</option>
+                    {data.goals.map((goal) => (
+                      <option key={goal.id} value={goal.id}>
+                        {goal.name} · {goal.kind === 'debt' ? 'debt' : 'saving'}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              {editing.goalId && editing.source === 'waypoint' && (
+                <label className="check-line">
+                  <input
+                    type="checkbox"
+                    checked={editing.goalBaselineImpact !== undefined}
+                    onChange={(event) => {
+                      const goal = data.goals.find((item) => item.id === editing.goalId)
+                      setDraft({
+                        goalBaselineImpact:
+                          event.target.checked && goal
+                            ? goal.kind === 'debt' ||
+                              (editing.type === 'expense' && !editing.refund)
+                              ? -editing.amount
+                              : editing.amount
+                            : undefined,
+                      })
+                    }}
+                  />{' '}
+                  Already included in the imported goal balance. Changes from this amount will
+                  update the goal.
+                </label>
+              )}
+              {!editing.goalId && !editing.billId && (
+                <>
+                  <Field
+                    label="Repeat on Calendar"
+                    hint="Future repeats appear as planned activity. They do not count as spending or income until you record them."
+                  >
+                    <select
+                      value={editing.recurrence || ''}
+                      onChange={(event) =>
+                        setDraft({
+                          recurrence: (event.target.value || undefined) as
+                            TransactionRepeat | undefined,
+                          recurrenceEnd: event.target.value ? editing.recurrenceEnd : undefined,
+                        })
+                      }
+                    >
+                      <option value="">Does not repeat</option>
+                      <option value="weekly">Every week</option>
+                      <option value="biweekly">Every two weeks</option>
+                      <option value="monthly">Every month</option>
+                      <option value="quarterly">Every three months</option>
+                      <option value="yearly">Every year</option>
+                    </select>
+                  </Field>
+                  {editing.recurrence && (
+                    <Field label="Stop repeating after (optional)">
+                      <input
+                        type="date"
+                        value={editing.recurrenceEnd || ''}
+                        min={editing.date}
+                        onChange={(event) =>
+                          setDraft({ recurrenceEnd: event.target.value || undefined })
+                        }
+                      />
+                    </Field>
+                  )}
+                </>
+              )}
+              {data.bills.length > 0 && (
+                <Field
+                  label="Related bill (optional)"
+                  hint="Link a payment so Calendar and upcoming bills mark the matching month paid."
+                >
+                  <select
+                    value={editing.billId || ''}
+                    onChange={(event) =>
+                      setDraft({ billId: event.target.value || undefined, splits: undefined })
+                    }
+                  >
+                    <option value="">No bill</option>
+                    {data.bills.map((bill) => (
+                      <option key={bill.id} value={bill.id}>
+                        {bill.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              {editing.type === 'expense' && editing.categoryId && (
+                <label className="check-line">
+                  <input
+                    type="checkbox"
+                    checked={rememberMerchant}
+                    onChange={(e) => setRememberMerchant(e.target.checked)}
+                  />{' '}
+                  Remember this category for this payee
+                </label>
+              )}
+              {editing.reviewed === false && (
+                <div className="soft-note">
+                  Imported transaction awaiting review. Saving confirms its details.
+                </div>
+              )}
+              {editing.source === 'waypoint' && (
+                <div className="soft-note">
+                  Imported from Waypoint. Editing this entry updates spending, the budget,
+                  comparisons, account estimates, and any goal or bill you link above.
+                </div>
+              )}
+              <Field
+                label="Tags (optional)"
+                hint="Separate tags with commas. Use them to find this transaction later. Tags do not change your budget."
+              >
                 <input
-                  type="checkbox"
-                  checked={!!editing.excludedFromBudget}
-                  onChange={(event) => setDraft({ excludedFromBudget: event.target.checked })}
-                />{' '}
-                Exclude from category budget totals (still counts as actual spending)
-              </label>
-            )}
-            <Field label="Note (optional)">
-              <textarea
-                rows={2}
-                value={editing.note || ''}
-                onChange={(e) => setDraft({ note: e.target.value })}
-                placeholder="Anything you want to remember"
-              />
-            </Field>
-            {data.settings.smart && editing.type === 'expense' && (
-              <label className="receipt-upload">
-                <Icon name="ScanLine" size={20} />
-                <span>
-                  {scanBusy
-                    ? 'Reading receipt…'
-                    : editing.receiptName
-                      ? `Receipt: ${editing.receiptName}`
-                      : 'Scan receipt on this device'}
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  disabled={scanBusy}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) void scan(file)
+                  value={tagText}
+                  onChange={(event) => {
+                    setTagText(event.target.value)
+                    setDraft({
+                      waypointTagsRaw:
+                        editing.source === 'waypoint'
+                          ? event.target.value
+                          : editing.waypointTagsRaw,
+                      tags: [
+                        ...new Set(
+                          event.target.value
+                            .split(/[;,]/)
+                            .map((tag) => tag.trim())
+                            .filter(Boolean),
+                        ),
+                      ],
+                    })
                   }}
+                  placeholder="e.g. work, reimbursable"
                 />
-              </label>
+              </Field>
+              {editing.type === 'expense' && (
+                <label className="check-line">
+                  <input
+                    type="checkbox"
+                    checked={!!editing.excludedFromBudget}
+                    onChange={(event) => setDraft({ excludedFromBudget: event.target.checked })}
+                  />{' '}
+                  Exclude from category budget totals (still counts as actual spending)
+                </label>
+              )}
+              <Field label="Note (optional)">
+                <textarea
+                  rows={2}
+                  value={editing.note || ''}
+                  onChange={(e) => setDraft({ note: e.target.value })}
+                  placeholder="Anything you want to remember"
+                />
+              </Field>
+              {data.settings.smart && editing.type === 'expense' && (
+                <label className="receipt-upload">
+                  <Icon name="ScanLine" size={20} />
+                  <span>
+                    {scanBusy
+                      ? 'Reading receipt…'
+                      : editing.receiptName
+                        ? `Receipt: ${editing.receiptName}`
+                        : 'Scan receipt on this device'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    disabled={scanBusy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) void scan(file)
+                    }}
+                  />
+                </label>
+              )}
+              <Field label="Project (optional)">
+                <select
+                  aria-label="Project (optional)"
+                  value={editing.projectId || ''}
+                  onChange={(event) => setDraft({ projectId: event.target.value || undefined })}
+                >
+                  <option value="">No project</option>
+                  {data.projects?.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="template-save">
+                <label className="check-line">
+                  <input
+                    type="checkbox"
+                    checked={keepTemplateAmount}
+                    onChange={(event) => setKeepTemplateAmount(event.target.checked)}
+                  />
+                  Keep this amount in the template
+                </label>
+                <button
+                  className="secondary-button"
+                  disabled={
+                    !editing.payee.trim() || (data.settings.entryTemplates || []).length >= 50
+                  }
+                  onClick={() => {
+                    const template = {
+                      id: crypto.randomUUID(),
+                      name: editing.payee.trim(),
+                      payee: editing.payee.trim(),
+                      type: editing.type,
+                      categoryId: editing.categoryId,
+                      accountId: editing.accountId,
+                      toAccountId: editing.toAccountId,
+                      amount: keepTemplateAmount ? editing.amount : undefined,
+                    }
+                    update((current) => ({
+                      ...current,
+                      settings: {
+                        ...current.settings,
+                        entryTemplates: [
+                          ...(current.settings.entryTemplates || []).filter(
+                            (item) => item.payee !== template.payee,
+                          ),
+                          template,
+                        ],
+                      },
+                    }))
+                    setTemplateMessage(`Pinned ${template.name} for quick entry.`)
+                  }}
+                >
+                  <Icon name="Pin" size={16} />
+                  Pin as quick entry
+                </button>
+                {templateMessage && <p role="status">{templateMessage}</p>}
+              </div>
+            </details>
+            {draftWarning && (
+              <p className="form-message" role="status">
+                {draftWarning}
+              </p>
             )}
+            {data.transactions.some((item) => item.id === editing.id) &&
+              (() => {
+                try {
+                  const before = data.transactions.find((item) => item.id === editing.id)!
+                  const impacts = previewTransactionChange(data, before, editing)
+                  return impacts.length > 0 ? (
+                    <div className="edit-impact">
+                      <strong>What this edit will change</strong>
+                      <ul>
+                        {impacts.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                      <small>Related totals and charts update together when you save.</small>
+                    </div>
+                  ) : null
+                } catch (cause) {
+                  return (
+                    <p className="form-message" role="alert">
+                      {(cause as Error).message}
+                    </p>
+                  )
+                }
+              })()}
             {scanError && <div className="form-message">{scanError}</div>}
             {saveError && (
               <div className="form-message" role="alert">
@@ -1096,9 +1329,20 @@ export function ActivityScreen({
                   Delete
                 </button>
               )}
+              {!data.transactions.some((item) => item.id === editing.id) && (
+                <button
+                  className="secondary-button"
+                  disabled={
+                    !editing.payee.trim() || editing.amount <= 0 || !validISODate(editing.date)
+                  }
+                  onClick={() => save(true)}
+                >
+                  Save & add another
+                </button>
+              )}
               <button
                 className="primary-button"
-                onClick={save}
+                onClick={() => save()}
                 disabled={
                   !editing.payee.trim() ||
                   editing.amount <= 0 ||

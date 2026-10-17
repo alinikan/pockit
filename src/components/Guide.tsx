@@ -29,8 +29,9 @@ const guides: Record<
       icon: 'Waves',
       title: 'A tiny weekly reset',
       message:
-        'Use Pockit Pulse to review transactions, upcoming bills, and any categories that need an adjustment.',
-      example: 'A five-minute review each week can prevent month-end surprises.',
+        'Use Pockit Pulse to check activity, account balances, bills, and the plan. Its checklist stays saved across tabs. Next 60 days and Can I afford this? help you test the money ahead.',
+      example:
+        'Mark a past month complete only after checking all its entries. Three complete months can unlock personal budget suggestions.',
       tone: 'peach',
     },
     {
@@ -65,9 +66,9 @@ const guides: Record<
       icon: 'Tags',
       title: 'Split and remember',
       message:
-        'Split one purchase between categories, add searchable tags, or teach Pockit a category rule for a merchant you visit often. Review those rules in More.',
+        'Start with amount, merchant, category and account. More details holds tags, links, projects and repeats. Pin a quick-entry template or type Coffee 6.50 yesterday, then review it.',
       example:
-        'A $70 store receipt can be $50 Groceries and $20 Personal Care. Add a “work” tag if you need to find it later.',
+        'Save & add another keeps entry open. A new-entry draft stays on this device if you close it. Changes to older entries show their effects before saving.',
       tone: 'lime',
     },
     {

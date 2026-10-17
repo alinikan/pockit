@@ -1,3 +1,4 @@
+import { ProjectsPanel, SubscriptionsPanel, HistoryPanel } from '../components/PlanningExtras'
 import { num } from '../lib/numbers'
 import { useState } from 'react'
 import type { Frequency, PockitData } from '../types'
@@ -67,6 +68,9 @@ export function MoreScreen({
   demo: boolean
 }) {
   type MoreSection =
+    | 'projects'
+    | 'subscriptions'
+    | 'history'
     | 'menu'
     | 'profile'
     | 'accounts'
@@ -139,6 +143,9 @@ export function MoreScreen({
   }
   const menu: { label: string; icon: string; target: MoreSection }[] = [
     { label: 'Profile', icon: 'CircleDot', target: 'profile' },
+    { label: 'Trips & projects', icon: 'Luggage', target: 'projects' },
+    { label: 'Subscriptions & trials', icon: 'Repeat2', target: 'subscriptions' },
+    { label: 'Change history', icon: 'History', target: 'history' },
     { label: 'Accounts', icon: 'Wallet', target: 'accounts' },
     { label: 'Paycheques', icon: 'CalendarClock', target: 'paycheques' },
     { label: 'Preferences', icon: 'Palette', target: 'preferences' },
@@ -207,6 +214,12 @@ export function MoreScreen({
           </button>
           <div className="settings-grid">
             <div className="settings-main">
+              {activeSection === 'projects' && <ProjectsPanel data={data} update={update} />}
+              {activeSection === 'subscriptions' && (
+                <SubscriptionsPanel data={data} update={update} />
+              )}
+              {activeSection === 'history' && <HistoryPanel data={data} update={update} />}
+
               <section
                 className="panel settings-panel"
                 data-more-section="profile"
@@ -479,6 +492,47 @@ export function MoreScreen({
                 data-more-section="preferences"
                 hidden={activeSection !== 'preferences'}
               >
+                <details className="optional-tool">
+                  <summary>Pinned quick entries</summary>
+                  {!data.settings.entryTemplates?.length && (
+                    <p className="goal-form-note">
+                      Pin a template under More details in a new transaction.
+                    </p>
+                  )}
+                  {data.settings.entryTemplates?.map((item) => (
+                    <div className="tool-list-row" key={item.id}>
+                      <span>{item.name}</span>
+                      <button
+                        className="text-button"
+                        onClick={() =>
+                          update((current) => ({
+                            ...current,
+                            settings: {
+                              ...current.settings,
+                              entryTemplates: current.settings.entryTemplates?.filter(
+                                (template) => template.id !== item.id,
+                              ),
+                            },
+                          }))
+                        }
+                      >
+                        Unpin {item.name}
+                      </button>
+                    </div>
+                  ))}
+                </details>
+                <Toggle
+                  checked={!!data.settings.nativeWidgets}
+                  onChange={(value) =>
+                    update((current) => ({
+                      ...current,
+                      settings: { ...current.settings, nativeWidgets: value },
+                    }))
+                  }
+                  label="Share a small summary with the iPhone companion"
+                  description="Optional. The native companion can keep your entered spending and next-bill summary on this iPhone for widgets. It updates when the app opens; amounts follow your privacy control. No extra service receives it."
+                />
+
                 <SectionHead
                   title="Preferences"
                   help="Choose what Pockit suggests and how it looks on this device. For example, turn off Smart Features if you want to assign every transaction category yourself. Your recorded amounts stay the same."

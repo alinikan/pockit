@@ -1,3 +1,7 @@
+import { todayISO } from './lib/finance'
+import { clearEntryDraft } from './lib/entryDraft'
+import { sendWidgetSummary } from './lib/nativeCompanion'
+import { withChangeHistory } from './lib/changeHistory'
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { Session } from '@supabase/supabase-js'
@@ -66,8 +70,18 @@ export default function App() {
   const [data, setData] = useState<PockitData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<Tab>(() =>
-    new URLSearchParams(window.location.search).get('open') === 'calendar' ? 'Calendar' : 'Home',
+  const [tab, setTab] = useState<Tab>(
+    () =>
+      (
+        ({
+          activity: 'Activity',
+          calendar: 'Calendar',
+          goals: 'Goals',
+          budget: 'Budget',
+          compare: 'Compare',
+          more: 'More',
+        }) as Record<string, Tab>
+      )[new URLSearchParams(window.location.search).get('open') || ''] || 'Home',
   )
   const [moreMenuVersion, setMoreMenuVersion] = useState(0)
   const [quickAdd, setQuickAdd] = useState(0)
@@ -97,6 +111,21 @@ export default function App() {
   dataRef.current = data
   conflictRef.current = conflict
 
+  useEffect(() => {
+    sendWidgetSummary(data, demo)
+  }, [data, demo])
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search)
+    if (data?.onboarded && query.get('add') === 'expense') {
+      setTab('Activity')
+      setQuickAddType('expense')
+      setQuickAddDate(todayISO())
+      setQuickAdd((value) => value + 1)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('add')
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash)
+    }
+  }, [data?.onboarded])
   useEffect(() => {
     const openSearch = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -397,7 +426,24 @@ export default function App() {
     setData(readDemo() || makeDemoData())
   }
   function update(recipe: (current: PockitData) => PockitData) {
-    setData((current) => (current ? syncGoalPlans(current, recipe(current), month) : current))
+    setData((current) => {
+      if (!current) return current
+      try {
+        const next = recipe(current)
+        return next.changeLog !== current.changeLog
+          ? next
+          : withChangeHistory(current, syncGoalPlans(current, next, month))
+      } catch (cause) {
+        queueMicrotask(() =>
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : 'That change could not be saved. Your previous data is intact.',
+          ),
+        )
+        return current
+      }
+    })
   }
   function changeTheme(theme: 'light' | 'dark', origin?: Element | null) {
     animateThemeChange(() => {
@@ -418,6 +464,7 @@ export default function App() {
     setInsightMessages([openingMessage])
   }
   async function logout() {
+    clearEntryDraft(demo ? 'demo' : session?.user.id || 'signed-out')
     if (demo) exitDemo()
     else {
       await disablePushForCurrentAccount().catch(() => {
@@ -847,6 +894,7 @@ export default function App() {
               data={data}
               month={month}
               update={update}
+              draftScope={demo ? 'demo' : session?.user.id || 'signed-out'}
               quickAdd={quickAdd}
               quickAddType={quickAddType}
               quickAddDate={quickAddDate}
@@ -878,6 +926,7 @@ export default function App() {
               changeTheme={changeTheme}
               logout={logout}
               onDeleted={() => {
+                if (session) clearEntryDraft(session.user.id)
                 if (saveTimer.current) clearTimeout(saveTimer.current)
                 if (session) {
                   clearPending(session.user.id)

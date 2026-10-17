@@ -56,6 +56,7 @@ export interface Transaction {
   type: TransactionType
   categoryId?: string
   note?: string
+  projectId?: string
   receiptName?: string
   createdAt?: string
   goalId?: string
@@ -121,6 +122,8 @@ export interface Goal {
   targetDate?: string
   originalDebtAmount?: number
   minimumPayment?: number
+  /** Existing money earmarked for this goal, not an additional account balance. */
+  funding?: { accountId: string; amount: number }[]
   importedManualContributions?: number
   importedTransactionContributions?: number
 }
@@ -174,15 +177,63 @@ export interface PockitData {
     guide?: boolean
     hideAmounts?: boolean
     merchantRules?: { payee: string; categoryId: string }[]
+    entryTemplates?: EntryTemplate[]
+    completeMonths?: MonthKey[]
+    pulseProgress?: { month: MonthKey; steps: string[] }
+    nativeWidgets?: boolean
     lastPulseAt?: string
     homeOrder?: string[]
     hiddenHomeSections?: string[]
     mobileTabs?: string[]
   }
+  projects?: Project[]
+  subscriptions?: Subscription[]
+  changeLog?: ChangeEntry[]
   accounts?: Account[]
   categories: Category[]
   transactions: Transaction[]
   goals: Goal[]
   bills: Bill[]
   debtPlan: { strategy: 'interest' | 'balance' | 'custom'; extra: number; order: string[] } | null
+}
+
+export interface EntryTemplate {
+  id: string
+  name: string
+  payee: string
+  type: TransactionType
+  amount?: number
+  categoryId?: string
+  accountId?: string
+  toAccountId?: string
+}
+export interface Project {
+  id: string
+  name: string
+  budget: number
+  start: string
+  end: string
+  goalId?: string
+  costs: { id: string; name: string; amount: number; date: string; paid: boolean }[]
+}
+export interface Subscription {
+  id: string
+  name: string
+  amount: number
+  period: 'monthly' | 'yearly'
+  renewalDate: string
+  trialEnd?: string
+  cancelBy?: string
+  previousAmount?: number
+  billId?: string
+  accountId?: string
+}
+export type ChangeCollection =
+  'transactions' | 'categories' | 'goals' | 'bills' | 'accounts' | 'projects' | 'subscriptions'
+export interface ChangeEntry {
+  id: string
+  time: string
+  label: string
+  restoredFrom?: string
+  changes: { collection: ChangeCollection; id: string; before: unknown; after: unknown }[]
 }

@@ -1,3 +1,4 @@
+import { BudgetSuggestions } from '../components/PlanningExtras'
 import { num } from '../lib/numbers'
 import { useState } from 'react'
 import type { Category, CategoryPolicy, Frequency, MonthKey, PockitData } from '../types'
@@ -223,6 +224,7 @@ export function BudgetScreen({
   }
   return (
     <div className="screen-stack">
+      <BudgetSuggestions data={data} month={month} update={update} />
       {historicalUnplanned && (
         <p className="soft-note" role="status">
           Waypoint did not include the amounts you planned for this earlier month. Its transactions

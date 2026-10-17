@@ -1,5 +1,6 @@
 import webPush from 'web-push'
 import type { PockitData } from '../src/types'
+import { subscriptionDates } from '../src/lib/forecast'
 import { billsForMonth } from '../src/lib/finance'
 import { adminClient } from './supabase'
 
@@ -20,7 +21,7 @@ export function localDate(now: Date, timezone: string): string {
 
 export function dueBillCount(data: PockitData, today: string): number {
   const month = today.slice(0, 7) as `${number}-${number}`
-  return billsForMonth(data.bills, month).filter(
+  const billsDue = billsForMonth(data.bills, month).filter(
     (bill) =>
       bill.date === today &&
       !bill.paid &&
@@ -28,6 +29,13 @@ export function dueBillCount(data: PockitData, today: string): number {
         (transaction) => transaction.billId === bill.id && transaction.date.slice(0, 7) === month,
       ),
   ).length
+  const decisions = (data.subscriptions || []).filter(
+    (item) =>
+      item.trialEnd === today ||
+      item.cancelBy === today ||
+      (!item.billId && subscriptionDates(item, today, today).length > 0),
+  ).length
+  return billsDue + decisions
 }
 
 interface PushRow {
@@ -81,7 +89,9 @@ export async function sendBillReminders(now = new Date()) {
     try {
       await webPush.sendNotification(
         row.subscription,
-        JSON.stringify({ body: 'You have a bill due today. Open Pockit for details.' }),
+        JSON.stringify({
+          body: 'You have a bill or subscription date to check today. Open Pockit for details.',
+        }),
         { TTL: 3600 },
       )
       sent++

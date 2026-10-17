@@ -264,3 +264,15 @@ For 2–3 people using this as a personal, non-commercial app, Vercel Hobby + Su
 - [Brevo sender verification](https://help.brevo.com/hc/en-us/articles/208836149-Create-a-new-sender-From-name-and-From-email), [Brevo SMTP setup](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP)
 - [Supabase Database Webhooks](https://supabase.com/docs/guides/database/webhooks), [deleteUser](https://supabase.com/docs/reference/javascript/auth-admin-deleteuser), [Brevo transactional email API](https://developers.brevo.com/reference/send-transac-email), [Vercel cron jobs](https://vercel.com/docs/cron-jobs/manage-cron-jobs)
 - [WebKit Home Screen Web Push](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/), [Plaid Transactions](https://plaid.com/docs/transactions/), [Plaid pricing and billing](https://plaid.com/docs/account/billing/)
+
+## Planning tools and native companion
+
+The [planning tools guide](PLANNING_TOOLS.md) documents entry templates and scoped local drafts, forecasts, purchase checks, existing-money goal assignments, completeness labels, projects, subscriptions, spending suggestions, and guarded history restoration.
+
+All new persisted fields are optional additions to the existing private `pockit_data.data` JSON document. Existing budgets and backups remain version 1. No new environment variables, paid AI, bank connection, or SQL migration is required. `mergeSnapshots` merges new project, subscription, and history records by ID; settings edits retain the existing field-level conflict rules. Backups validate optional records and restoration validates the resulting document before returning it. History is limited to 150 entries and 500 KB; large batches have summary-only entries. New-entry drafts are device-local and scoped to the signed-in user; explicit sign-out clears the active user's draft.
+
+Deploy the frontend and updated reminder function together. Existing VAPID configuration and notification permission are reused for subscription decision dates; no new notification provider is required. Test trial endings, cancel-by dates, renewals, and existing bill schedules with sample accounts, without sending notifications to real users as a test.
+
+The [native companion guide](../native/Pockit/README.md) covers Xcode builds, signing, App Groups, widgets, App Shortcuts, Action button setup, and native-container passkey association. The native companion is source code, not a Vercel-installed iPhone binary. Its bridge accepts only the configured HTTPS main-frame origin, shares a small summary only when opted in, and clears its summary on opt-out or sign-out. Website theme messages contain no financial records. Widget data refreshes when the native app opens or saved data changes; it is not a background bank feed.
+
+Before release, run the unit suite, full Playwright suite against a production build, native model tests, and the unsigned iPhone simulator build. Device provisioning, actual WidgetKit refresh timing, Siri/Action button discovery, and passkeys require testing with the maintainer's signed app on an actual iPhone.

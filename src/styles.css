@@ -6844,3 +6844,506 @@ small {
 .lab-switcher > span > svg {
   color: var(--lime);
 }
+
+/* Focused money tools share the same spacing, surface, and semantic states. */
+.money-tool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block: 4px 12px;
+}
+.money-tool-actions button,
+.entry-template {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+.money-tool-actions button svg,
+.entry-template svg {
+  color: var(--lime);
+  flex: none;
+}
+.money-tool-actions button:hover,
+.entry-template:hover {
+  border-color: var(--lime);
+}
+.experience-sheet,
+.experience-panel {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.experience-sheet details,
+.entry-more-details {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+}
+.experience-sheet summary,
+.optional-tool > summary,
+.quick-capture > summary,
+.entry-more-details > summary,
+.month-review > summary,
+.experience-panel summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.experience-sheet details[open] > summary,
+.entry-more-details[open] > summary,
+.quick-capture[open] > summary,
+.optional-tool[open] > summary {
+  margin-bottom: 16px;
+}
+.experience-sheet details .field,
+.entry-more-details .field {
+  margin-block: 14px;
+}
+.tool-result {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+.tool-result > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.tool-result > strong {
+  font-family: 'Manrope Variable';
+  font-size: clamp(21px, 4vw, 30px);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.tool-result > small {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+.tool-result.attention {
+  border-color: var(--red);
+}
+.tool-result.attention > strong,
+.warning-text {
+  color: var(--red);
+}
+.tool-result.good > strong {
+  color: var(--green);
+}
+.tool-caveats,
+.edit-impact {
+  padding: 16px;
+  background: var(--surface-2);
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tool-caveats ul,
+.edit-impact ul {
+  padding-left: 20px;
+  margin-bottom: 0;
+  color: var(--muted);
+}
+.tool-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+.tool-list-row > span {
+  flex: 1;
+  min-width: 120px;
+  overflow-wrap: anywhere;
+}
+.tool-list-row small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.tool-list-row > strong {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.tool-list-row input[type='checkbox'] {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--lime);
+}
+.number-explanation {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0 16px;
+}
+.number-explanation > span {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--muted);
+}
+.number-explanation > span:last-child {
+  border-bottom: 0;
+}
+.number-explanation strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.timeline-chart {
+  color: var(--lime);
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 16px;
+  padding: 16px;
+}
+.timeline-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+  outline-offset: 3px;
+}
+.timeline-readout {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  min-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.timeline-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.goal-funding-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 15px;
+  margin-top: 15px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.goal-funding-line > span {
+  flex: 1;
+  min-width: 120px;
+}
+.goal-funding-line small {
+  display: block;
+  margin-top: 5px;
+  line-height: 1.5;
+}
+.goal-funding-line > svg {
+  color: var(--lime);
+  flex: none;
+}
+.entry-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.quick-capture {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 14px 16px;
+}
+.quick-capture > summary {
+  color: var(--muted);
+}
+.quick-capture > summary svg,
+.optional-tool > summary svg {
+  vertical-align: middle;
+  color: var(--lime);
+  margin-right: 8px;
+}
+.quick-capture-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.quick-capture-row > input {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+.entry-more-details {
+  background: var(--surface-2);
+}
+.template-save {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+.template-save .secondary-button {
+  justify-self: start;
+}
+.modal:has(.entry-more-details) .modal-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  background: var(--surface);
+  padding: 14px 0 max(10px, env(safe-area-inset-bottom));
+  margin-bottom: -10px;
+  flex-wrap: wrap;
+}
+.modal-body > .entry-more-details {
+  flex-shrink: 0;
+}
+.project-card {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-2);
+  min-width: 0;
+}
+.project-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 15px;
+  margin: 18px 0;
+}
+.project-metrics > span {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.project-metrics strong {
+  font-size: 19px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.project-metrics .warning-text {
+  color: var(--red);
+}
+.history-row {
+  display: flex;
+  gap: 13px;
+  align-items: center;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  width: 100%;
+}
+.history-row > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.history-row > svg {
+  color: var(--lime);
+  flex: none;
+}
+.history-row small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.history-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.history-comparison > div {
+  min-width: 0;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+}
+.history-comparison pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.optional-tool {
+  min-width: 0;
+}
+.optional-tool > .goal-form-note {
+  margin-block: 14px;
+}
+.pulse-review {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+.pulse-review-step {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.pulse-review-step label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13px;
+  flex: 1;
+}
+.pulse-review-step input {
+  accent-color: var(--lime);
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+.pulse-review-step small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.month-review {
+  padding: 14px;
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+.month-review .field {
+  margin-block: 14px;
+}
+.summary-card.income-summary {
+  display: grid;
+  grid-template-columns: 43px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.summary-card.income-summary > div:nth-child(2) {
+  min-width: 0;
+}
+.summary-card.income-summary strong {
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+  font-size: clamp(20px, 2.2vw, 27px);
+}
+.summary-card.income-summary .income-record-line {
+  grid-column: 1/-1;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  margin-top: 2px;
+}
+.summary-card.income-summary .income-record-line small {
+  color: var(--muted);
+}
+@media (max-width: 600px) {
+  .money-tool-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .money-tool-actions > button {
+    min-width: 0;
+    font-size: 12px;
+    padding: 12px 10px;
+  }
+  .money-tool-actions > button:last-child {
+    grid-column: 1/-1;
+  }
+  .project-metrics {
+    grid-template-columns: 1fr;
+  }
+  .project-metrics > span {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .history-comparison {
+    grid-template-columns: 1fr;
+  }
+  .experience-sheet .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .modal:has(.entry-more-details) .modal-actions > .secondary-button {
+    flex: 1 1 100%;
+  }
+  .pulse-review-step {
+    align-items: flex-start;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .transaction-row,
+  .tool-result,
+  .edit-impact {
+    animation: pockit-record-arrival 180ms ease-out;
+  }
+  @keyframes pockit-record-arrival {
+    from {
+      opacity: 0.5;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+.subscription-dot {
+  background: var(--lime);
+}
+.history-fields {
+  display: grid;
+  gap: 13px;
+  margin-bottom: 0;
+}
+.history-fields > div {
+  min-width: 0;
+}
+.history-fields dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.history-fields dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.number-explanation strong.warning-text {
+  color: var(--red);
+}
+.number-explanation strong.positive {
+  color: var(--green);
+}

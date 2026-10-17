@@ -1,3 +1,4 @@
+import { validateExperienceData } from './experienceValidation'
 import type { PockitData } from '../types'
 import { validISODate } from './numbers'
 
@@ -189,5 +190,6 @@ export function parseBackup(text: string): PockitData {
       ))
   )
     throw new Error('This backup contains an invalid account.')
+  validateExperienceData(data as PockitData)
   return data as PockitData
 }

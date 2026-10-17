@@ -9,7 +9,38 @@
   "background_color": "#101323",
   "theme_color": "#101323",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add an expense",
+      "short_name": "Add expense",
+      "url": "/?open=activity&add=expense",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Open Calendar",
+      "short_name": "Calendar",
+      "url": "/?open=calendar"
+    },
+    {
+      "name": "View Goals",
+      "short_name": "Goals",
+      "url": "/?open=goals"
+    }
   ]
 }

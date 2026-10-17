@@ -162,6 +162,7 @@ test('a merchant rule suggests a category and tags make the new transaction sear
       .getAttribute('value')) || '',
   )
   await dialog.getByRole('spinbutton', { name: 'Amount' }).fill('12')
+  await dialog.getByText('More details', { exact: true }).click()
   await dialog.getByRole('textbox', { name: /Tags \(optional\)/ }).fill('work, reimbursable')
   await dialog.getByRole('button', { name: 'Save transaction' }).click()
   await page.getByPlaceholder('Search transactions').fill('reimbursable')

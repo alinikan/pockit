@@ -9,3 +9,9 @@ playwright-report
 storybook-static
 debug-storybook.log
 *.tsbuildinfo
+
+# Native builds and per-developer Xcode state
+native/**/.build/
+native/**/.swiftpm/
+native/**/xcuserdata/
+*.xcuserstate

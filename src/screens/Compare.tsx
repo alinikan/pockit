@@ -1,3 +1,4 @@
+import { ComparisonReasons } from '../components/ComparisonReasons'
 import { useState } from 'react'
 import type { MonthKey, PockitData } from '../types'
 import {
@@ -247,6 +248,7 @@ export function CompareScreen({ data, month }: { data: PockitData; month: MonthK
         </div>
       )}
 
+      <ComparisonReasons data={data} before={first.month} after={last.month} />
       {view === 'overview' && (
         <>
           <section className="panel compare-overview">

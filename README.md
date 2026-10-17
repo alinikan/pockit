@@ -33,6 +33,17 @@ Pockit Insights shows live signals from entered spending, bills, and debt, and a
 
 Manual accounts include chequing, savings, credit cards, cash, investments, and TFSA investments. Record a transfer once to update both account balances. TFSA contributions can track progress against an investment allocation while staying separate from expense charts.
 
+## Planning with less effort
+
+- **Quicker entry:** pinned merchant templates, optional quick text parsing, saved device drafts, and Save & add another. Advanced fields stay under More details.
+- **Account forecasts:** inspect 30–90 days of daily balances and preview scheduled changes without recording them. Optional assumptions are clearly labelled.
+- **Purchase checks:** test a purchase against its category, account forecast, and existing savings reservations.
+- **Money behind goals:** earmark existing money across accounts without creating another transfer or counting it twice.
+- **Projects and subscriptions:** keep cross-month trip costs, renewals, trial endings, and cancellation decisions in focused views.
+- **Understandable changes:** inspect the entries behind totals, confirm complete months, review spending-pattern suggestions, and see the effects of an edit before saving. Private change history supports guarded restoration of related records.
+
+[How to use the planning tools](docs/PLANNING_TOOLS.md). An optional [iPhone companion](native/Pockit/README.md) adds native widgets and App Shortcuts; it requires separate Apple signing and device setup.
+
 ## Details that matter
 
 - **Built for a phone:** an installable web app with customizable bottom tabs, five colour palettes in dark and light modes, a circular appearance switch on supported browsers, large touch targets, reduced-motion support, and charts that can be explored by touch. The default Pockit Iris palette uses navy and periwinkle; the original green design is available as Pockit Garden.

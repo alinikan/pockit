@@ -80,7 +80,7 @@ export function PushSettings({ demo }: { demo: boolean }) {
       )
       if (error) throw error
       setEnabled(true)
-      setMessage('Bill reminders are on for this device.')
+      setMessage('Bill and subscription reminders are on for this device.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not enable reminders.')
     } finally {
@@ -94,7 +94,7 @@ export function PushSettings({ demo }: { demo: boolean }) {
     try {
       await disablePushForCurrentAccount()
       setEnabled(false)
-      setMessage('Bill reminders are off for this device.')
+      setMessage('Bill and subscription reminders are off for this device.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not turn off reminders.')
     } finally {
@@ -104,8 +104,8 @@ export function PushSettings({ demo }: { demo: boolean }) {
   return (
     <section className="panel settings-panel">
       <SectionHead
-        title="Bill reminders"
-        help="Optional notifications for unpaid bills due today. Pockit never puts a bill name or amount in the notification preview."
+        title="Bill & subscription reminders"
+        help="Optional notifications for unpaid bills, renewal dates, trial endings, and cancellation deadlines you entered. Notification previews contain no name or amount."
       />
       <div className="settings-action">
         <div>

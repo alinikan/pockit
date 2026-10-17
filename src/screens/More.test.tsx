@@ -20,7 +20,7 @@ describe('More menu', () => {
       />,
     )
     const menu = screen.getByRole('region', { name: 'More menu' })
-    expect(within(menu).getAllByRole('button')).toHaveLength(10)
+    expect(within(menu).getAllByRole('button')).toHaveLength(13)
     expect(within(menu).queryByRole('button', { name: 'Compare months' })).toBeNull()
     expect(screen.queryByText('Your profile')).toBeNull()
     fireEvent.click(within(menu).getByRole('button', { name: 'Profile' }))
@@ -54,7 +54,7 @@ describe('More menu', () => {
       />,
     )
     const menu = screen.getByRole('region', { name: 'More menu' })
-    expect(within(menu).getAllByRole('button')).toHaveLength(11)
+    expect(within(menu).getAllByRole('button')).toHaveLength(14)
     fireEvent.click(within(menu).getByRole('button', { name: 'Imports & data' }))
     expect(screen.getByRole('heading', { name: 'Your data' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Preferences' })).toBeNull()
