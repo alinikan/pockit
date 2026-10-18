@@ -6,7 +6,7 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: 'http://127.0.0.1:4179',
-    browserName: 'chromium',
+    browserName: process.env.POCKIT_BROWSER === 'webkit' ? 'webkit' : 'chromium',
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

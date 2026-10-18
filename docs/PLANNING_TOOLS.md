@@ -97,3 +97,17 @@ Large batches keep a summary instead of duplicating an entire import. Use the do
 The PWA still works on iPhone, Mac, and Windows. The optional native companion adds WidgetKit and App Intents; it requires its own Xcode signing and App Group setup. See [the iPhone companion guide](../native/Pockit/README.md).
 
 There are no new environment variables or database migrations for these planning tools. New fields are optional additions inside the existing private budget document. Deploy the updated frontend and Vercel reminder function together.
+
+## Find a spending category
+
+In an expense or refund, tap **Category** to search your categories and an alphabetical library of everyday purchases. Try ordinary words such as “smokes”, “Lego”, “pharmacy”, or “PS5”. New categories are added only when the transaction is saved, at $0 planned for the transaction’s month. Set an amount in Budget if you want a limit. Cancelling the transaction adds nothing. Existing categories and allocations are preserved.
+
+For several additions at once, open **Budget → Browse categories**, select the categories, and add them together. **Add category** still creates a custom name, icon, group, and limit. Archived categories can be restored through Budget rather than duplicated.
+
+**Store or purchase** is optional for expenses and refunds. It can describe the store, the item, or both: “7-Eleven”, “Cigarettes”, or “Cigarettes at 7-Eleven”. It does not have to repeat the category. For example, the description can be “Cigarettes” while the category is Shopping; Shopping will be used in reports. Leave the description blank to use the selected category name (or “Purchase” without a category). Split entries use “Split purchase”. Income keeps its own income categories and source field.
+
+## Phone layout and zoom
+
+Phone layouts apply in portrait and on touch screens up to 1024 pixels wide, including landscape iPhones. Form fields retain at least 16-pixel text to avoid iOS focus zoom. Transaction, bill, goal, and other shared dialogs resize to the visible screen when the keyboard opens. Their own content scrolls while the background remains in place.
+
+The installed Home Screen app requests a fixed 1× viewport and intercepts multi-touch scaling across tabs and dialogs. One-finger scrolling and chart inspection remain available. The ordinary Safari website keeps browser zoom available. Automated browser checks cover layout bounds, keyboard viewport changes, and gesture handling; iOS controls the final system accessibility behaviour.

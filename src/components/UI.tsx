@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '../lib/useBodyScrollLock'
+import { usePhoneViewport } from '../lib/usePhoneViewport'
 import {
   ArrowDown,
   ArrowDownLeft,
@@ -10,6 +11,16 @@ import {
   ArrowUp,
   ArrowUpRight,
   Bike,
+  Baby,
+  BookOpen,
+  Cigarette,
+  Leaf,
+  Laptop,
+  Puzzle,
+  Shirt,
+  Armchair,
+  Ticket,
+  Wine,
   CalendarCheck2,
   CalendarClock,
   CalendarDays,
@@ -117,6 +128,16 @@ export function Icon({
         ArrowUp,
         ArrowUpRight,
         Bike,
+        Baby,
+        BookOpen,
+        Cigarette,
+        Leaf,
+        Laptop,
+        Puzzle,
+        Shirt,
+        Armchair,
+        Ticket,
+        Wine,
         CalendarCheck2,
         CalendarClock,
         CalendarDays,
@@ -344,9 +365,20 @@ export function Modal({
   wide?: boolean
 }) {
   useBodyScrollLock(true)
+  const viewport = usePhoneViewport()
   return (
     <div
       className="modal-backdrop"
+      style={
+        viewport
+          ? ({
+              height: viewport.height,
+              top: viewport.top,
+              bottom: 'auto',
+              '--overlay-height': `${viewport.height}px`,
+            } as CSSProperties)
+          : undefined
+      }
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}

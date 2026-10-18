@@ -10,6 +10,75 @@ import { ActivityScreen } from './Activity'
 afterEach(cleanup)
 
 describe('activity', () => {
+  it('both save buttons reject a split without a category and accept a valid library selection', () => {
+    const data = makeDemoData()
+    render(<ActivityScreen data={data} month={currentMonth()} update={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '40' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Split between categories' }))
+    fireEvent.click(screen.getByRole('button', { name: /^Split 1 category / }))
+    fireEvent.click(screen.getByRole('button', { name: 'No category' }))
+    for (const name of ['Save transaction', 'Save & add another'])
+      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: /^Split 1 category / }))
+    fireEvent.click(screen.getByRole('button', { name: 'Use Toys & Games' }))
+    for (const name of ['Save transaction', 'Save & add another'])
+      expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(false)
+  })
+  it('saves a library category and blank description together, and keeps an explicit choice when the description changes', () => {
+    let data = makeDemoData()
+    const before = data.categories.length
+    render(
+      <ActivityScreen
+        data={data}
+        month={currentMonth()}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Category Choose a category/ }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'smokes' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use Cigarettes & Tobacco' }))
+    fireEvent.change(screen.getByLabelText('Store or purchase (optional)'), {
+      target: { value: 'Walmart' },
+    })
+    expect(screen.getByRole('button', { name: 'Category Cigarettes & Tobacco' })).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Store or purchase (optional)'), {
+      target: { value: '' },
+    })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '24.75' } })
+    expect(data.categories).toHaveLength(before)
+    fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
+    expect(data.categories).toHaveLength(before + 1)
+    const added = data.categories.find((item) => item.name === 'Cigarettes & Tobacco')!
+    expect(added.baseAmount).toBe(0)
+    expect(data.transactions.at(-1)).toMatchObject({
+      payee: 'Cigarettes & Tobacco',
+      categoryId: added.id,
+      amount: 24.75,
+    })
+  })
+  it('cancelling a library choice never adds a category', () => {
+    let data = makeDemoData()
+    const before = data.categories.length
+    render(
+      <ActivityScreen
+        data={data}
+        month={currentMonth()}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^Category Choose a category/ }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'toys' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Use Toys & Games' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(data.categories).toHaveLength(before)
+  })
   it.each(['add', 'included'] as const)(
     'offers income categories and previews the %s balance choice before saving',
     (mode) => {
@@ -250,13 +319,11 @@ describe('activity', () => {
       <ActivityScreen data={data} month={currentMonth()} update={update} />,
     )
     fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
-    fireEvent.change(screen.getByPlaceholderText('e.g. Fresh Market'), {
+    fireEvent.change(screen.getByPlaceholderText('e.g. Cigarettes or 7-Eleven'), {
       target: { value: 'Costco' },
     })
     fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '24.50' } })
-    expect(
-      (screen.getByLabelText('Category') as HTMLSelectElement).selectedOptions[0].textContent,
-    ).toBe('Groceries')
+    expect(screen.getByRole('button', { name: /^Category Groceries/ })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
     rerender(<ActivityScreen data={data} month={currentMonth()} update={update} />)
     expect(data.transactions.at(-1)).toMatchObject({
@@ -267,7 +334,7 @@ describe('activity', () => {
     expect(screen.getByRole('button', { name: /Costco Groceries.*24.50/ })).toBeTruthy()
   })
 
-  it('requires a payee, positive finite amount, and valid date before saving', () => {
+  it('allows an optional purchase description but requires a positive finite amount and valid date', () => {
     let data = makeDemoData()
     render(
       <ActivityScreen
@@ -280,13 +347,13 @@ describe('activity', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
     const save = screen.getByRole('button', { name: 'Save transaction' }) as HTMLButtonElement
-    const payee = screen.getByLabelText('Payee or description')
+    const payee = screen.getByLabelText('Store or purchase (optional)')
     const amount = screen.getByLabelText('Amount')
     const date = screen.getByLabelText('Date')
     expect(save.disabled).toBe(true)
     fireEvent.change(payee, { target: { value: '   ' } })
     fireEvent.change(amount, { target: { value: '18' } })
-    expect(save.disabled).toBe(true)
+    expect(save.disabled).toBe(false)
     fireEvent.change(payee, { target: { value: 'A shop' } })
     fireEvent.change(amount, { target: { value: '-18' } })
     expect(save.disabled).toBe(true)
@@ -346,7 +413,7 @@ describe('activity', () => {
     render(<ActivityScreen data={data} month={currentMonth()} update={update} />)
     fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Refund' }))
-    fireEvent.change(screen.getByLabelText('Payee or description'), {
+    fireEvent.change(screen.getByLabelText('Store or purchase (optional)'), {
       target: { value: 'Returned shoes' },
     })
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '45' } })
@@ -370,7 +437,7 @@ describe('activity', () => {
     const view = () => <ActivityScreen data={data} month={currentMonth()} update={update} />
     const { rerender, container } = render(view())
     fireEvent.click(screen.getByRole('button', { name: /add transaction/i }))
-    fireEvent.change(screen.getByLabelText('Payee or description'), {
+    fireEvent.change(screen.getByLabelText('Store or purchase (optional)'), {
       target: { value: 'Office supplies' },
     })
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '18' } })

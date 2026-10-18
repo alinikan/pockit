@@ -8,8 +8,14 @@ import {
   prepareIncomeEntry,
 } from '../lib/income'
 import { IncomeBalanceChoice } from '../components/IncomeBalanceChoice'
+import { CategoryPicker } from '../components/CategoryPicker'
+import {
+  categoryPreset,
+  resolveSpendingSelection,
+  transactionDescription,
+} from '../lib/categoryLibrary'
 import { num, validISODate } from '../lib/numbers'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   MonthKey,
   PockitData,
@@ -86,6 +92,7 @@ export function ActivityScreen({
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [moreWaysOpen, setMoreWaysOpen] = useState(false)
   const [editing, setEditing] = useState<Transaction | null>(null)
+  const categoryChosen = useRef(false)
   const [scanBusy, setScanBusy] = useState(false)
   const [scanError, setScanError] = useState('')
   const [importOpen, setImportOpen] = useState(false)
@@ -125,6 +132,7 @@ export function ActivityScreen({
   }, [quickAdd])
   useEffect(() => {
     setTagText(editing?.waypointTagsRaw || (editing?.tags || []).join(', '))
+    categoryChosen.current = !!editing?.categoryId
   }, [editing?.id])
   useEffect(() => {
     if (
@@ -196,34 +204,36 @@ export function ActivityScreen({
     .slice(0, 4)
   const setDraft = (patch: Partial<Transaction>) => setEditing((d) => (d ? { ...d, ...patch } : d))
   const incomeChoiceRequired = !!editing && needsIncomeBalanceChoice(data, editing)
+  const invalidEntry =
+    !editing ||
+    (editing.type !== 'expense' && !editing.payee.trim()) ||
+    !Number.isFinite(editing.amount) ||
+    editing.amount <= 0 ||
+    !validISODate(editing.date) ||
+    (editing.type === 'income' && editing.date > todayISO()) ||
+    (!!editing.recurrenceEnd &&
+      (!validISODate(editing.recurrenceEnd) || editing.recurrenceEnd < editing.date)) ||
+    (!!editing.splits?.length &&
+      (editing.splits.some(
+        (split) => !split.categoryId || !Number.isFinite(split.amount) || split.amount <= 0,
+      ) ||
+        Math.abs(editing.splits.reduce((sum, split) => sum + split.amount, 0) - editing.amount) >
+          0.001)) ||
+    (editing.type === 'transfer' &&
+      !!editing.accountId &&
+      editing.accountId === editing.toAccountId)
   function save(keepOpen = false) {
-    if (
-      !editing?.payee.trim() ||
-      editing.amount <= 0 ||
-      !validISODate(editing.date) ||
-      (editing.type === 'income' && editing.date > todayISO())
-    )
-      return
+    if (!editing || invalidEntry) return
     if (needsIncomeBalanceChoice(data, editing)) {
       setSaveError('Choose whether this income should update your account balance.')
       return
     }
-    if (
-      editing.recurrenceEnd &&
-      (!validISODate(editing.recurrenceEnd) || editing.recurrenceEnd < editing.date)
-    )
-      return
-    if (
-      editing.splits?.length &&
-      Math.abs(editing.splits.reduce((sum, split) => sum + split.amount, 0) - editing.amount) >
-        0.001
-    )
-      return
     const before = data.transactions.find((transaction) => transaction.id === editing.id) || null
+    const selected = resolveSpendingSelection(data, editing)
     const value = prepareIncomeEntry(
       {
-        ...editing,
-        payee: editing.payee.trim(),
+        ...selected.entry,
+        payee: transactionDescription(selected.entry, selected.data.categories),
         createdAt: editing.createdAt || new Date().toISOString(),
         reviewed: true,
         source: editing.source || 'manual',
@@ -231,15 +241,16 @@ export function ActivityScreen({
       before,
     )
     try {
-      changeTransaction(data, before, value)
+      changeTransaction(selected.data, before, value)
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Could not update the linked goal.')
       return
     }
     setSaveError('')
     update((d) => {
-      const next = changeTransaction(d, before, value)
-      return rememberMerchant && value.categoryId
+      const resolved = resolveSpendingSelection(d, value)
+      const next = changeTransaction(resolved.data, before, resolved.entry)
+      return rememberMerchant && editing.payee.trim() && resolved.entry.categoryId
         ? {
             ...next,
             settings: {
@@ -248,7 +259,7 @@ export function ActivityScreen({
                 ...(next.settings.merchantRules || []).filter(
                   (rule) => rule.payee !== value.payee.toLowerCase(),
                 ),
-                { payee: value.payee.toLowerCase(), categoryId: value.categoryId },
+                { payee: value.payee.toLowerCase(), categoryId: resolved.entry.categoryId },
               ],
             },
           }
@@ -346,11 +357,11 @@ export function ActivityScreen({
                 amount: template.amount || 0,
                 incomeCategory:
                   template.incomeCategory || (template.type === 'income' ? 'other' : undefined),
-                categoryId: data.categories.some(
-                  (item) => item.id === template.categoryId && !item.archived,
-                )
-                  ? template.categoryId
-                  : undefined,
+                categoryId:
+                  categoryPreset(template.categoryId) ||
+                  data.categories.some((item) => item.id === template.categoryId && !item.archived)
+                    ? template.categoryId
+                    : undefined,
                 accountId: data.accounts?.some(
                   (item) => item.id === template.accountId && !item.archived,
                 )
@@ -857,7 +868,15 @@ export function ActivityScreen({
                 Record this income after it arrives. Future paydays stay on Calendar as estimates.
               </p>
             )}
-            <Field label={editing.type === 'income' ? 'Income from' : 'Payee or description'}>
+            <Field
+              label={
+                editing.type === 'income'
+                  ? 'Income from'
+                  : editing.type === 'expense'
+                    ? 'Store or purchase (optional)'
+                    : 'Payee or description'
+              }
+            >
               <input
                 value={editing.payee}
                 onChange={(e) => {
@@ -867,26 +886,43 @@ export function ActivityScreen({
                     categoryId:
                       editing.type === 'income'
                         ? undefined
-                        : data.settings.merchantRules?.find(
-                            (rule) => rule.payee === payee.trim().toLowerCase(),
-                          )?.categoryId ||
-                          data.transactions.find(
-                            (transaction) =>
-                              transaction.payee.trim().toLowerCase() ===
-                                payee.trim().toLowerCase() && transaction.categoryId,
-                          )?.categoryId ||
-                          (data.settings.smart && !editing.categoryId
-                            ? categorizePayee(payee, data.categories)
-                            : editing.categoryId),
+                        : categoryChosen.current
+                          ? editing.categoryId
+                          : data.settings.merchantRules?.find(
+                              (rule) => rule.payee === payee.trim().toLowerCase(),
+                            )?.categoryId ||
+                            data.transactions.find(
+                              (transaction) =>
+                                transaction.payee.trim().toLowerCase() ===
+                                  payee.trim().toLowerCase() && transaction.categoryId,
+                            )?.categoryId ||
+                            (data.settings.smart && !editing.categoryId
+                              ? categorizePayee(payee, data.categories)
+                              : editing.categoryId),
                   })
                 }}
                 placeholder={
                   editing.type === 'income'
                     ? 'e.g. Paycheque or freelance work'
-                    : 'e.g. Fresh Market'
+                    : editing.type === 'expense'
+                      ? 'e.g. Cigarettes or 7-Eleven'
+                      : 'e.g. Fresh Market'
                 }
               />
             </Field>
+            {editing.type === 'expense' && (
+              <details className="entry-description-help">
+                <summary>
+                  <Icon name="CircleHelp" size={15} /> What should I write?
+                </summary>
+                <p>
+                  A shop name, what you bought, or both work well: “7-Eleven”, “Cigarettes”, or
+                  “Lego at Walmart”. The category decides which budget to use, so the words do not
+                  have to match. Leave this blank to use the category name; without a category, it
+                  will be called “Purchase”.
+                </p>
+              </details>
+            )}
             {editing.type === 'income' ? (
               <Field
                 label="Income category"
@@ -907,6 +943,16 @@ export function ActivityScreen({
                   ))}
                 </select>
               </Field>
+            ) : editing.type === 'expense' ? (
+              <CategoryPicker
+                categories={data.categories}
+                value={editing.categoryId}
+                disabled={!!editing.splits?.length}
+                onChange={(categoryId) => {
+                  categoryChosen.current = true
+                  setDraft({ categoryId, splits: undefined })
+                }}
+              />
             ) : (
               <Field label="Category">
                 <select
@@ -919,6 +965,7 @@ export function ActivityScreen({
                   <option value="">No category</option>
                   {data.categories
                     .filter((c) => !c.archived)
+                    .sort((a, b) => a.name.localeCompare(b.name, 'en-CA'))
                     .map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -949,26 +996,18 @@ export function ActivityScreen({
                 </button>
                 {editing.splits?.map((split, index) => (
                   <div className="form-grid" key={index}>
-                    <Field label={`Split ${index + 1} category`}>
-                      <select
-                        value={split.categoryId}
-                        onChange={(e) =>
-                          setDraft({
-                            splits: editing.splits!.map((item, i) =>
-                              i === index ? { ...item, categoryId: e.target.value } : item,
-                            ),
-                          })
-                        }
-                      >
-                        {data.categories
-                          .filter((category) => !category.archived)
-                          .map((category) => (
-                            <option key={category.id} value={category.id}>
-                              {category.name}
-                            </option>
-                          ))}
-                      </select>
-                    </Field>
+                    <CategoryPicker
+                      label={`Split ${index + 1} category`}
+                      categories={data.categories}
+                      value={split.categoryId}
+                      onChange={(categoryId) =>
+                        setDraft({
+                          splits: editing.splits!.map((item, i) =>
+                            i === index ? { ...item, categoryId: categoryId || '' } : item,
+                          ),
+                        })
+                      }
+                    />
                     <Field label="Amount">
                       <input
                         type="number"
@@ -1429,12 +1468,7 @@ export function ActivityScreen({
               {!data.transactions.some((item) => item.id === editing.id) && (
                 <button
                   className="secondary-button"
-                  disabled={
-                    !editing.payee.trim() ||
-                    editing.amount <= 0 ||
-                    !validISODate(editing.date) ||
-                    incomeChoiceRequired
-                  }
+                  disabled={invalidEntry || incomeChoiceRequired}
                   onClick={() => save(true)}
                 >
                   Save & add another
@@ -1443,25 +1477,7 @@ export function ActivityScreen({
               <button
                 className="primary-button"
                 onClick={() => save()}
-                disabled={
-                  !editing.payee.trim() ||
-                  incomeChoiceRequired ||
-                  editing.amount <= 0 ||
-                  !validISODate(editing.date) ||
-                  (editing.type === 'income' && editing.date > todayISO()) ||
-                  (!!editing.recurrenceEnd &&
-                    (!validISODate(editing.recurrenceEnd) ||
-                      editing.recurrenceEnd < editing.date)) ||
-                  (!!editing.splits?.length &&
-                    (editing.splits.some((split) => !split.categoryId || split.amount <= 0) ||
-                      Math.abs(
-                        editing.splits.reduce((sum, split) => sum + split.amount, 0) -
-                          editing.amount,
-                      ) > 0.001)) ||
-                  (editing.type === 'transfer' &&
-                    !!editing.accountId &&
-                    editing.accountId === editing.toAccountId)
-                }
+                disabled={invalidEntry || incomeChoiceRequired}
               >
                 Save transaction
               </button>

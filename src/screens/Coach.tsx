@@ -1,3 +1,5 @@
+import { usePhoneViewport } from '../lib/usePhoneViewport'
+import { useBodyScrollLock } from '../lib/useBodyScrollLock'
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { MonthKey, PockitData } from '../types'
 import {
@@ -192,58 +194,8 @@ export function Coach({
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState(false)
   const messagesRef = useRef<HTMLDivElement>(null)
-  const [viewport, setViewport] = useState<{ height: number; top: number } | null>(() => {
-    const visual = window.visualViewport
-    return visual && window.innerWidth <= 760
-      ? { height: visual.height, top: visual.offsetTop }
-      : null
-  })
-  useEffect(() => {
-    const html = document.documentElement
-    const body = document.body
-    const oldHtmlOverflow = html.style.overflow
-    const oldBody = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow,
-    }
-    const scrollY = window.scrollY
-    const lockBody = window.innerWidth <= 760
-    html.style.overflow = 'hidden'
-    if (lockBody) {
-      body.style.position = 'fixed'
-      body.style.top = `-${scrollY}px`
-      body.style.left = '0'
-      body.style.right = '0'
-      body.style.width = '100%'
-      body.style.overflow = 'hidden'
-    }
-    return () => {
-      html.style.overflow = oldHtmlOverflow
-      Object.assign(body.style, oldBody)
-      if (lockBody && scrollY) window.scrollTo(0, scrollY)
-    }
-  }, [])
-  useEffect(() => {
-    const visual = window.visualViewport
-    if (!visual) return
-    const updateViewport = () =>
-      setViewport(
-        window.innerWidth <= 760 ? { height: visual.height, top: visual.offsetTop } : null,
-      )
-    updateViewport()
-    visual.addEventListener('resize', updateViewport)
-    visual.addEventListener('scroll', updateViewport)
-    window.addEventListener('resize', updateViewport)
-    return () => {
-      visual.removeEventListener('resize', updateViewport)
-      visual.removeEventListener('scroll', updateViewport)
-      window.removeEventListener('resize', updateViewport)
-    }
-  }, [])
+  const viewport = usePhoneViewport()
+  useBodyScrollLock(true)
   useEffect(() => {
     if (typing && messagesRef.current)
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight

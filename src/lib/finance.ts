@@ -379,6 +379,10 @@ export const billMonthlyReserve = (bill: Bill, month: MonthKey) => {
 export const categorizePayee = (payee: string, categories: Category[]) => {
   const q = payee.toLowerCase()
   const rules: [RegExp, string][] = [
+    [/\bcigarettes?\b|\btobacco\b|\bsmokes\b/, 'Cigarettes & Tobacco'],
+    [/\bvape\b|\bvaping\b/, 'Vaping'],
+    [/\blego\b|\btoys?\b|\bboard games?\b|\bpuzzles?\b/, 'Toys & Games'],
+    [/\bsteam\b|\bplaystation\b|\bxbox\b|\bnintendo\b|\bvideo games?\b/, 'Video Games'],
     [/grocery|superstore|safeway|walmart|costco|loblaw|no frills/, 'Groceries'],
     [/uber eats|doordash|restaurant|cafe|coffee|tim hortons|starbucks/, 'Dining Out'],
     [/shell|esso|petro|chevron|gas station/, 'Gas'],
@@ -388,7 +392,7 @@ export const categorizePayee = (payee: string, categories: Category[]) => {
     [/telus|rogers|bell mobility|freedom mobile/, 'Phone'],
   ]
   const name = rules.find(([pattern]) => pattern.test(q))?.[1]
-  return categories.find((c) => c.name === name)?.id
+  return categories.find((c) => !c.archived && c.name === name)?.id
 }
 export const recurringMerchants = (transactions: Transaction[]) => {
   const groups = new Map<string, Transaction[]>()

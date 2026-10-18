@@ -40,7 +40,7 @@ test('quick add opens once, normal Activity navigation does not open it again', 
   await expect(transaction).toBeVisible()
   expect(
     await transaction
-      .getByLabel('Payee or description')
+      .getByLabel('Store or purchase (optional)')
       .evaluate((element) => parseFloat(getComputedStyle(element).fontSize)),
   ).toBeGreaterThanOrEqual(16)
   await transaction.getByRole('button', { name: /Close/ }).click()

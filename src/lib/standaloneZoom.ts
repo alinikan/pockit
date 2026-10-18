@@ -1,5 +1,5 @@
 const WEBSITE_VIEWPORT = 'width=device-width, initial-scale=1, viewport-fit=cover'
-const APP_VIEWPORT = `${WEBSITE_VIEWPORT}, maximum-scale=1, user-scalable=no`
+const APP_VIEWPORT = `${WEBSITE_VIEWPORT}, minimum-scale=1, maximum-scale=1, user-scalable=no`
 
 type StandaloneNavigator = Navigator & { standalone?: boolean }
 
@@ -23,14 +23,19 @@ export function installStandaloneZoomPolicy() {
   }
   update()
   displayMode.addEventListener?.('change', update)
-  document.addEventListener('touchmove', preventPinch, { passive: false })
-  document.addEventListener('gesturestart', preventGesture, { passive: false })
-  document.addEventListener('gesturechange', preventGesture, { passive: false })
+  const capture = { passive: false, capture: true }
+  document.addEventListener('touchstart', preventPinch, capture)
+  document.addEventListener('touchmove', preventPinch, capture)
+  document.addEventListener('gesturestart', preventGesture, capture)
+  document.addEventListener('gesturechange', preventGesture, capture)
+  document.addEventListener('gestureend', preventGesture, capture)
   return () => {
     displayMode.removeEventListener?.('change', update)
-    document.removeEventListener('touchmove', preventPinch)
-    document.removeEventListener('gesturestart', preventGesture)
-    document.removeEventListener('gesturechange', preventGesture)
+    document.removeEventListener('touchstart', preventPinch, true)
+    document.removeEventListener('touchmove', preventPinch, true)
+    document.removeEventListener('gesturestart', preventGesture, true)
+    document.removeEventListener('gesturechange', preventGesture, true)
+    document.removeEventListener('gestureend', preventGesture, true)
     document.documentElement.classList.remove('standalone-app')
     if (viewport) viewport.content = WEBSITE_VIEWPORT
   }

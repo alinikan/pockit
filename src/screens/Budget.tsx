@@ -1,4 +1,6 @@
 import { BudgetSuggestions } from '../components/PlanningExtras'
+import { CategoryLibraryDialog } from '../components/CategoryPicker'
+import { addSpendingCategories } from '../lib/categoryLibrary'
 import { num } from '../lib/numbers'
 import { useState } from 'react'
 import type { Category, CategoryPolicy, Frequency, MonthKey, PockitData } from '../types'
@@ -43,6 +45,7 @@ export function BudgetScreen({
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
   const [editing, setEditing] = useState<Category | null>(null)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [advanced, setAdvanced] = useState(false)
   const [scope, setScope] = useState<'ongoing' | 'month'>('ongoing')
   const [groupsOpen, setGroupsOpen] = useState(false)
@@ -357,6 +360,9 @@ export function BudgetScreen({
           help="A category's planned amount is what you expect to spend or set aside. Some categories start fresh each month; others carry unused money forward. These are planning numbers, not your bank balance."
           aside={
             <div className="section-actions">
+              <button className="secondary-button compact" onClick={() => setLibraryOpen(true)}>
+                <Icon name="Search" size={16} /> Browse categories
+              </button>
               <button className="secondary-button compact" onClick={openGroups}>
                 <Icon name="Folders" size={16} /> Sort into groups
               </button>
@@ -375,10 +381,20 @@ export function BudgetScreen({
           <div className="starter-budget-notice" role="note">
             <Icon name="MapPin" size={19} />
             <span>
-              <strong>Check your starter amounts.</strong> Pockit used 2026 Vancouver examples for
-              rent and transit, and general planning examples for other costs. Some payments start
-              at $0 until you enter the real amount. Tap each category to enter what you pay or want
-              to limit. We never shrink a bill just to make the plan fit your pay.
+              <strong>Check your category amounts.</strong>{' '}
+              {active.some((category) => category.suggested) ? (
+                <>
+                  Pockit used 2026 Vancouver examples for rent and transit, and general planning
+                  examples for other costs. Some payments start at $0 until you enter the real
+                  amount. Tap each category to enter what you pay or want to limit. We never shrink
+                  a bill just to make the plan fit your pay.
+                </>
+              ) : (
+                <>
+                  Some categories have no limit yet. Tap one to enter the amount you want to plan.
+                  Categories added from the library start at $0 until you choose an amount.
+                </>
+              )}
             </span>
           </div>
         )}
@@ -431,7 +447,9 @@ export function BudgetScreen({
                     <small className={!planUnavailable && left < 0 ? 'negative' : ''}>
                       {planUnavailable
                         ? `${money(used, data.settings.currency, true)} spent`
-                        : `${money(left, data.settings.currency, true)} left`}
+                        : left < 0
+                          ? `${money(-left, data.settings.currency, true)} over`
+                          : `${money(left, data.settings.currency, true)} left`}
                     </small>
                   </div>
                   <Icon name="ChevronRight" size={17} className="row-arrow" />
@@ -779,6 +797,13 @@ export function BudgetScreen({
             </div>
           </div>
         </Modal>
+      )}
+      {libraryOpen && (
+        <CategoryLibraryDialog
+          data={data}
+          onClose={() => setLibraryOpen(false)}
+          onAdd={(ids) => update((current) => addSpendingCategories(current, ids, month))}
+        />
       )}
       {groupsOpen && (
         <Modal title="Sort into groups" onClose={() => setGroupsOpen(false)} wide>

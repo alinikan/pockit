@@ -157,12 +157,8 @@ test('a merchant rule suggests a category and tags make the new transaction sear
   await page.locator('.bottom-nav').getByRole('button', { name: 'Activity' }).click()
   await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'New transaction' })
-  await dialog.getByRole('textbox', { name: 'Payee or description' }).fill('My Cafe')
-  await expect(dialog.getByRole('combobox', { name: 'Category' })).toHaveValue(
-    (await page
-      .locator('select[aria-label="Filter category"] option', { hasText: 'Groceries' })
-      .getAttribute('value')) || '',
-  )
+  await dialog.getByRole('textbox', { name: 'Store or purchase (optional)' }).fill('My Cafe')
+  await expect(dialog.getByRole('button', { name: /^Category Groceries/ })).toBeVisible()
   await dialog.getByRole('spinbutton', { name: 'Amount' }).fill('12')
   await dialog.getByText('More details', { exact: true }).click()
   await dialog.getByRole('textbox', { name: /Tags \(optional\)/ }).fill('work, reimbursable')
@@ -205,7 +201,7 @@ test('quick add, recent merchant, undo, and CSV review work on a phone', async (
   await preview(page)
   await page.getByRole('button', { name: 'Quick add transaction' }).click()
   await expect(page.getByRole('dialog', { name: 'New transaction' })).toBeVisible()
-  await page.getByLabel('Payee or description').fill('Pockit Test Shop')
+  await page.getByLabel('Store or purchase (optional)').fill('Pockit Test Shop')
   await page
     .getByRole('dialog', { name: 'New transaction' })
     .getByRole('spinbutton', { name: 'Amount' })
@@ -222,7 +218,7 @@ test('quick add, recent merchant, undo, and CSV review work on a phone', async (
   const recentMerchant = page.locator('.recent-merchants button').first()
   const merchantName = (await recentMerchant.innerText()).trim()
   await recentMerchant.click()
-  await expect(page.getByLabel('Payee or description')).toHaveValue(merchantName)
+  await expect(page.getByLabel('Store or purchase (optional)')).toHaveValue(merchantName)
   await page
     .getByRole('dialog', { name: 'New transaction' })
     .getByRole('button', { name: 'Close' })

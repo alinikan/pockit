@@ -63,3 +63,41 @@ test('a desktop installed window keeps normal zoom', async ({ page }) => {
     /user-scalable=no/,
   )
 })
+
+test('iOS installed zoom protection stays active through every tab and a nested form', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'standalone', { value: true })
+    Object.defineProperty(navigator, 'maxTouchPoints', { value: 5 })
+  })
+  await page.setViewportSize({ width: 402, height: 874 })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Preview Pockit' }).click()
+  for (const name of ['Home', 'Activity', 'Budget', 'Calendar', 'Goals', 'Compare', 'More']) {
+    await page.locator('.bottom-nav').getByRole('button', { name, exact: true }).click()
+    await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
+      'content',
+      /minimum-scale=1, maximum-scale=1/,
+    )
+    const prevented = await page.locator('.page-content').evaluate((element) => {
+      const event = new Event('touchstart', { cancelable: true, bubbles: true })
+      Object.defineProperty(event, 'touches', { value: [{}, {}] })
+      element.dispatchEvent(event)
+      return event.defaultPrevented
+    })
+    expect(prevented, name).toBe(true)
+  }
+  await page.locator('.bottom-nav').getByRole('button', { name: 'Activity', exact: true }).click()
+  await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
+  const blocked = await page
+    .getByRole('dialog')
+    .getByRole('textbox', { name: 'Store or purchase (optional)' })
+    .evaluate((element) => {
+      element.addEventListener('gesturechange', (event) => event.stopPropagation(), { once: true })
+      const gesture = new Event('gesturechange', { cancelable: true, bubbles: true })
+      element.dispatchEvent(gesture)
+      return gesture.defaultPrevented
+    })
+  expect(blocked).toBe(true)
+})

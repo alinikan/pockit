@@ -58,7 +58,9 @@ test('fast entry keeps optional fields out of the way, pins a template, and save
   await page.getByRole('button', { name: 'Review entry', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'New transaction' })
   await expect(dialog.getByLabel('Amount', { exact: true })).toHaveValue('6.5')
-  await expect(dialog.getByRole('textbox', { name: 'Payee or description' })).toHaveValue('Coffee')
+  await expect(dialog.getByRole('textbox', { name: 'Store or purchase (optional)' })).toHaveValue(
+    'Coffee',
+  )
   await expect(dialog.locator('.entry-more-details')).not.toHaveAttribute('open')
   await dialog.getByText('More details', { exact: true }).click()
   await dialog.getByRole('button', { name: 'Pin as quick entry' }).click()
@@ -68,7 +70,7 @@ test('fast entry keeps optional fields out of the way, pins a template, and save
   await expect(page.locator('.transaction-row')).toHaveCount(1)
   await page.getByRole('button', { name: 'Coffee', exact: true }).click()
   await expect(
-    page.getByRole('dialog').getByRole('textbox', { name: 'Payee or description' }),
+    page.getByRole('dialog').getByRole('textbox', { name: 'Store or purchase (optional)' }),
   ).toHaveValue('Coffee')
   await noOverflow(page)
 })
@@ -79,7 +81,7 @@ test('an interrupted draft survives leaving Activity and reloading the app', asy
   await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog
-    .getByRole('textbox', { name: 'Payee or description' })
+    .getByRole('textbox', { name: 'Store or purchase (optional)' })
     .fill('Unfinished grocery entry')
   await dialog.getByLabel('Amount', { exact: true }).fill('42.10')
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
@@ -87,7 +89,7 @@ test('an interrupted draft survives leaving Activity and reloading the app', asy
   await tab(page, 'Activity')
   await page.getByRole('button', { name: 'Resume saved draft' }).click()
   await expect(
-    page.getByRole('dialog').getByRole('textbox', { name: 'Payee or description' }),
+    page.getByRole('dialog').getByRole('textbox', { name: 'Store or purchase (optional)' }),
   ).toHaveValue('Unfinished grocery entry')
   await page.reload()
   await page.getByRole('button', { name: 'Preview Pockit' }).click()
@@ -160,7 +162,7 @@ test('project spending and subscription deadlines appear in their own focused vi
   await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
   dialog = page.getByRole('dialog')
   await dialog.getByLabel('Amount', { exact: true }).fill('80')
-  await dialog.getByRole('textbox', { name: 'Payee or description' }).fill('Ferry')
+  await dialog.getByRole('textbox', { name: 'Store or purchase (optional)' }).fill('Ferry')
   await dialog.getByText('More details', { exact: true }).click()
   await dialog
     .getByLabel('Project (optional)', { exact: true })
@@ -192,7 +194,7 @@ test('editing a transaction previews related amounts and can be restored from pr
   await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
   let dialog = page.getByRole('dialog')
   await dialog.getByLabel('Amount', { exact: true }).fill('50')
-  await dialog.getByRole('textbox', { name: 'Payee or description' }).fill('History test')
+  await dialog.getByRole('textbox', { name: 'Store or purchase (optional)' }).fill('History test')
   await dialog.getByRole('button', { name: 'Save transaction' }).click()
   await page.locator('.transaction-row').click()
   dialog = page.getByRole('dialog')
