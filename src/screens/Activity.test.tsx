@@ -2,13 +2,90 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { PockitData } from '../types'
-import { currentMonth } from '../lib/finance'
+import { currentMonth, todayISO } from '../lib/finance'
+import { accountBalance } from '../lib/ledger'
 import { makeDemoData } from '../lib/defaults'
 import { ActivityScreen } from './Activity'
 
 afterEach(cleanup)
 
 describe('activity', () => {
+  it.each(['add', 'included'] as const)(
+    'offers income categories and previews the %s balance choice before saving',
+    (mode) => {
+      let data = makeDemoData()
+      data.transactions = []
+      data.accounts = [
+        { id: 'cash', name: 'Chequing', kind: 'chequing', openingBalance: 1000, asOf: todayISO() },
+      ]
+      render(
+        <ActivityScreen
+          data={data}
+          month={currentMonth()}
+          update={(recipe) => {
+            data = recipe(data)
+          }}
+        />,
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Record income' }))
+      expect(screen.queryByText('No category')).toBeNull()
+      const category = screen.getByRole('combobox', { name: /Income category/ })
+      expect(category.querySelectorAll('option')).toHaveLength(7)
+      expect(category.textContent).not.toContain('Groceries')
+      fireEvent.change(category, { target: { value: 'benefits' } })
+      fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '250' } })
+      fireEvent.change(screen.getByLabelText('Income from'), {
+        target: { value: 'Benefit deposit' },
+      })
+      expect(
+        (screen.getByRole('button', { name: 'Save transaction' }) as HTMLButtonElement).disabled,
+      ).toBe(true)
+      fireEvent.click(
+        screen.getByRole('radio', {
+          name: mode === 'add' ? /Yes, add this income/ : /No, it’s already included/,
+        }),
+      )
+      expect(
+        (screen.getByRole('button', { name: 'Save transaction' }) as HTMLButtonElement).disabled,
+      ).toBe(false)
+      fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
+      expect(data.transactions[0]).toMatchObject({
+        type: 'income',
+        incomeCategory: 'benefits',
+        balancePosting: { mode },
+      })
+      expect(data.transactions[0].categoryId).toBeUndefined()
+      expect(accountBalance(data.accounts![0], data.transactions, todayISO())).toBe(
+        mode === 'add' ? 1250 : 1000,
+      )
+    },
+  )
+  it('can record unassigned income and clears its balance choice when the account changes', () => {
+    let data = makeDemoData()
+    data.transactions = []
+    data.accounts = [
+      { id: 'cash', name: 'Chequing', kind: 'chequing', openingBalance: 1000, asOf: todayISO() },
+    ]
+    render(
+      <ActivityScreen
+        data={data}
+        month={currentMonth()}
+        update={(recipe) => {
+          data = recipe(data)
+        }}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Record income' }))
+    fireEvent.change(screen.getByLabelText('Income from'), { target: { value: 'Gift' } })
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '50' } })
+    fireEvent.click(screen.getByRole('radio', { name: /Yes, add this income/ }))
+    fireEvent.change(screen.getByLabelText('Paid into account'), { target: { value: '' } })
+    expect(screen.queryByRole('radio', { name: /Yes, add this income/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Save transaction' }))
+    expect(data.transactions[0].balancePosting).toBeUndefined()
+    expect(data.transactions[0].accountId).toBeUndefined()
+    expect(accountBalance(data.accounts![0], data.transactions, todayISO())).toBe(1000)
+  })
   it('suggests the TFSA contribution category and records one transfer instead of an expense', () => {
     let data = makeDemoData()
     const investment = data.categories.find((category) => category.name === 'Investments')!

@@ -1,7 +1,7 @@
 import { subscriptionDates } from '../lib/forecast'
 import { num } from '../lib/numbers'
 import { useState } from 'react'
-import type { Bill, Frequency, MonthKey, PockitData } from '../types'
+import type { Bill, Frequency, MonthKey, PockitData, Transaction } from '../types'
 import {
   billsForMonth,
   categoriesMissingBillDates,
@@ -29,7 +29,7 @@ export function CalendarScreen({
   data: PockitData
   month: MonthKey
   setMonth?: (month: MonthKey) => void
-  onAddIncome?: (date: string) => void
+  onAddIncome?: (date: string, draft?: Partial<Transaction>) => void
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
@@ -191,6 +191,17 @@ export function CalendarScreen({
     )
   }
   function recordRepeat(item: ExpectedTransaction) {
+    if (item.source.type === 'income' && onAddIncome) {
+      onAddIncome(item.date, {
+        payee: item.source.payee,
+        amount: item.source.amount,
+        incomeCategory: item.source.incomeCategory || 'other',
+        accountId: item.source.accountId,
+        note: item.source.note,
+        recurrenceId: item.source.id,
+      })
+      return
+    }
     update((current) => {
       if (
         current.transactions.some(
@@ -205,6 +216,7 @@ export function CalendarScreen({
         amount: item.source.amount,
         type: item.source.type,
         categoryId: item.source.categoryId,
+        incomeCategory: item.source.incomeCategory,
         accountId: item.source.accountId,
         toAccountId: item.source.toAccountId,
         refund: item.source.refund,

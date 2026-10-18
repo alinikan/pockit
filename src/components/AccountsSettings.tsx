@@ -81,7 +81,7 @@ export function AccountsSettings({
     <section className="panel settings-panel" id="accounts">
       <SectionHead
         title="Manual accounts"
-        help="Start with the balance shown today in each account. In Activity, record a Transfer with a From account and a To account to move money between them. Example: moving $200 from chequing to a TFSA reduces chequing by $200 and adds $200 to the TFSA. Choose your investment category to track it against your monthly plan. Transfers are not income or spending. Check investment balances as their market value changes; Pockit does not calculate TFSA contribution room."
+        help="Start with the balance shown today in each account. When recording income, choose its paid-into account and whether to add it to this estimate or mark it already included. In Activity, record a Transfer with a From account and a To account to move money between them. Example: moving $200 from chequing to a TFSA reduces chequing by $200 and adds $200 to the TFSA. Choose your investment category to track it against your monthly plan. Transfers are not income or spending. Check investment balances as their market value changes; Pockit does not calculate TFSA contribution room."
       />
       <p className="panel-subtitle">
         Track your balances separately. Move money between accounts with a transfer in Activity.

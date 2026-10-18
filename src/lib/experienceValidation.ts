@@ -1,5 +1,6 @@
 import type { PockitData } from '../types'
 import { validISODate } from './numbers'
+import { incomeCategories } from './income'
 const object = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === 'object' && !Array.isArray(v)
 const amount = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0
@@ -19,6 +20,9 @@ export function validateExperienceData(data: PockitData) {
         typeof v.name === 'string' &&
         typeof v.payee === 'string' &&
         ['expense', 'income', 'transfer'].includes(String(v.type)) &&
+        (v.incomeCategory === undefined ||
+          (v.type === 'income' &&
+            incomeCategories.some((item) => item.value === v.incomeCategory))) &&
         (v.amount === undefined || amount(v.amount)),
       50,
     )

@@ -7347,3 +7347,84 @@ small {
 .number-explanation strong.positive {
   color: var(--green);
 }
+.income-balance-choice {
+  min-inline-size: 0;
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+.income-balance-choice legend {
+  max-width: 100%;
+  padding: 0 6px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+.income-balance-choice legend svg {
+  vertical-align: -3px;
+  margin-right: 6px;
+  color: var(--lime);
+}
+.income-balance-choice > p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.income-balance-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 44px;
+  margin: 10px 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  cursor: pointer;
+}
+.income-balance-option:has(input:checked) {
+  border-color: var(--lime);
+  background: var(--surface-2);
+}
+.income-balance-option input {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 2px 0 0;
+  accent-color: var(--lime);
+}
+.income-balance-option > span {
+  min-width: 0;
+}
+.income-balance-option strong,
+.income-balance-option small,
+.income-balance-preview {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.income-balance-option small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.income-balance-preview {
+  margin-top: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.income-balance-choice details {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.income-balance-choice details p {
+  margin: 10px 0 0;
+}
+.income-balance-choice summary {
+  min-height: 44px;
+  display: list-item;
+  align-content: center;
+  cursor: pointer;
+  color: var(--text);
+}

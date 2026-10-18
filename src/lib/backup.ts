@@ -1,6 +1,7 @@
 import { validateExperienceData } from './experienceValidation'
 import type { PockitData } from '../types'
 import { validISODate } from './numbers'
+import { incomeCategories } from './income'
 
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
@@ -83,6 +84,16 @@ export function parseBackup(text: string): PockitData {
         !nonnegative(transaction.amount) ||
         transaction.amount === 0 ||
         !['income', 'expense', 'transfer'].includes(String(transaction.type)) ||
+        (transaction.incomeCategory !== undefined &&
+          (transaction.type !== 'income' ||
+            !incomeCategories.some((item) => item.value === transaction.incomeCategory))) ||
+        (transaction.balancePosting !== undefined &&
+          (transaction.type !== 'income' ||
+            !record(transaction.balancePosting) ||
+            !['add', 'included'].includes(String(transaction.balancePosting.mode)) ||
+            !validISODate(String(transaction.balancePosting.date)) ||
+            typeof transaction.balancePosting.time !== 'string' ||
+            !Number.isFinite(Date.parse(transaction.balancePosting.time)))) ||
         (transaction.recurrence !== undefined &&
           !['weekly', 'biweekly', 'monthly', 'quarterly', 'yearly'].includes(
             String(transaction.recurrence),

@@ -43,6 +43,8 @@ test('recorded income uses its real date and amount on Home', async ({ page }) =
   await expect(form.getByRole('button', { name: 'Income' })).toHaveClass(/active/)
   await form.getByRole('textbox', { name: 'Income from' }).fill('Overtime pay')
   await form.getByRole('spinbutton', { name: 'Amount' }).fill('567.89')
+  if (await form.getByRole('radio', { name: /Yes, add this income/ }).count())
+    await form.getByRole('radio', { name: /Yes, add this income/ }).check()
   await form.getByRole('button', { name: 'Save transaction' }).click()
   await expect(page.getByText('Overtime pay')).toBeVisible()
   await page.locator('.bottom-nav').getByRole('button', { name: 'Home' }).click()

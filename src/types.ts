@@ -1,5 +1,7 @@
 export type MonthKey = `${number}-${number}`
 export type TransactionType = 'expense' | 'income' | 'transfer'
+export type IncomeCategory =
+  'paycheque' | 'self-employment' | 'benefits' | 'pension' | 'investment' | 'gift' | 'other'
 export type GoalKind = 'saving' | 'debt'
 export type CategoryMode = 'fresh' | 'rollover'
 export type ContributionTarget = 'fixed' | 'percent' | 'none'
@@ -55,6 +57,10 @@ export interface Transaction {
   amount: number
   type: TransactionType
   categoryId?: string
+  /** Income labels are separate from spending allocations. */
+  incomeCategory?: IncomeCategory
+  /** Explicit handling of income against the account's most recently checked balance. */
+  balancePosting?: { mode: 'add' | 'included'; date: string; time: string }
   note?: string
   projectId?: string
   receiptName?: string
@@ -204,6 +210,7 @@ export interface EntryTemplate {
   type: TransactionType
   amount?: number
   categoryId?: string
+  incomeCategory?: IncomeCategory
   accountId?: string
   toAccountId?: string
 }

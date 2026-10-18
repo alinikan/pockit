@@ -5,7 +5,7 @@ import { withChangeHistory } from './lib/changeHistory'
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { Session } from '@supabase/supabase-js'
-import type { MonthKey, PockitData, TransactionType } from './types'
+import type { MonthKey, PockitData, Transaction, TransactionType } from './types'
 import { currentMonth, setMoneyPrivacy } from './lib/finance'
 import { disablePushForCurrentAccount } from './lib/push'
 import { makeDemoData, makeInitialData } from './lib/defaults'
@@ -87,6 +87,7 @@ export default function App() {
   const [quickAdd, setQuickAdd] = useState(0)
   const [quickAddType, setQuickAddType] = useState<TransactionType>('expense')
   const [quickAddDate, setQuickAddDate] = useState<string | undefined>()
+  const [quickAddDraft, setQuickAddDraft] = useState<Partial<Transaction> | undefined>()
   const [month, setMonth] = useState<MonthKey>(currentMonth())
   const [coachOpen, setCoachOpen] = useState(false)
   const [insightMessages, setInsightMessages] = useState<InsightMessage[]>([openingMessage])
@@ -119,6 +120,7 @@ export default function App() {
     if (data?.onboarded && query.get('add') === 'expense') {
       setTab('Activity')
       setQuickAddType('expense')
+      setQuickAddDraft(undefined)
       setQuickAddDate(todayISO())
       setQuickAdd((value) => value + 1)
       const url = new URL(window.location.href)
@@ -637,10 +639,12 @@ export default function App() {
     type: TransactionType,
     selectedMonth = currentMonth(),
     date?: string,
+    draft?: Partial<Transaction>,
   ) => {
     setMonth(selectedMonth)
     setQuickAddType(type)
     setQuickAddDate(date)
+    setQuickAddDraft(draft)
     setTab('Activity')
     setQuickAdd((value) => value + 1)
   }
@@ -898,6 +902,7 @@ export default function App() {
               quickAdd={quickAdd}
               quickAddType={quickAddType}
               quickAddDate={quickAddDate}
+              quickAddDraft={quickAddDraft}
               onQuickAddConsumed={() => setQuickAdd(0)}
               setMonth={setMonth}
             />
@@ -908,8 +913,8 @@ export default function App() {
               data={data}
               month={month}
               setMonth={setMonth}
-              onAddIncome={(date) =>
-                openNewTransaction('income', date.slice(0, 7) as MonthKey, date)
+              onAddIncome={(date, draft) =>
+                openNewTransaction('income', date.slice(0, 7) as MonthKey, date, draft)
               }
               update={update}
             />

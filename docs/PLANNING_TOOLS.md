@@ -11,6 +11,19 @@ In **Activity → Add transaction**, enter the amount, description, date, catego
 - **Save & add another** records the current entry and starts a fresh one.
 - An unfinished new entry is kept on that device. **Resume saved draft** restores it after leaving the tab or reopening Pockit. Drafts are scoped to the signed-in account, stay on that device, and are cleared when saved or explicitly signed out. If device storage fails, the form warns you to save before leaving.
 
+## Record income and choose its balance effect
+
+Use **Record income** in Home or Activity. Choose an **Income category** such as Paycheque, Freelance & business, Government benefits, Pension, Interest & investment income, Gift received, or Other income. These labels describe money received; they do not use spending allocations. Income categories are also available in Activity's filter and search.
+
+Choose **Paid into account**, then review **Update this account’s balance?**:
+
+- **Yes, add this income:** adds a missing deposit to Pockit's current estimate. The option shows the balance before and after saving. Even if the paycheque has an older reporting date, this explicit balance update happens now.
+- **No, it’s already included:** records income for its original date without adding it again to the account estimate. Use this when entering an older paycheque that is already reflected in the balance you last checked.
+
+For example, if Pockit shows $1,000 and a new $250 deposit is missing, Yes previews $1,000 → $1,250. If you already entered the bank's $1,250 balance, choose No and it stays $1,250. Both choices count the $250 as recorded income in its original month. Without an account, the entry affects income reports only.
+
+Saving updates the same account records used by **More → Accounts**, forecasts, purchase checks, and goal funding checks. The app never moves money at a bank. Checking an account balance later replaces its starting snapshot, so saved deposits are not added again. Editing a saved entry retains that snapshot boundary; changing its balance handling can remove its previous calculated effect, and the preview shows the result. Older entries keep their original automatic handling until you change it. Saved drafts keep your choice; quick-entry templates always ask again for each new deposit.
+
 ## Look ahead by account
 
 Open **Home → Next 60 days**. Choose an account and a 30-, 60-, or 90-day range.

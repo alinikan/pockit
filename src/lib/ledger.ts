@@ -2,6 +2,7 @@ import type { Account, PockitData, Transaction } from '../types'
 import { validISODate } from './numbers'
 
 export function accountImpact(transaction: Transaction, accountId: string): number {
+  if (transaction.type === 'income' && transaction.balancePosting?.mode === 'included') return 0
   if (transaction.type === 'transfer') {
     return (
       (transaction.toAccountId === accountId ? transaction.amount : 0) -
@@ -18,15 +19,20 @@ export function accountBalance(account: Account, transactions: Transaction[], th
     Math.round(
       (account.openingBalance +
         transactions
-          .filter(
-            (transaction) =>
-              (transaction.date > account.asOf ||
-                (transaction.date === account.asOf &&
-                  !!account.asOfTime &&
-                  !!transaction.createdAt &&
-                  transaction.createdAt > account.asOfTime)) &&
-              (!through || transaction.date <= through),
-          )
+          .filter((transaction) => {
+            const posting = transaction.type === 'income' ? transaction.balancePosting : undefined
+            const date = posting?.mode === 'add' ? posting.date : transaction.date
+            const time = posting?.mode === 'add' ? posting.time : transaction.createdAt
+            return (
+              (date > account.asOf ||
+                (date === account.asOf &&
+                  !!time &&
+                  (account.asOfTime
+                    ? Date.parse(time) > Date.parse(account.asOfTime)
+                    : posting?.mode === 'add'))) &&
+              (!through || date <= through)
+            )
+          })
           .reduce((sum, transaction) => sum + accountImpact(transaction, account.id), 0)) *
         100,
     ) / 100

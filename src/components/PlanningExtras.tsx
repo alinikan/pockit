@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { MonthKey, PockitData, Project, Subscription } from '../types'
+import { incomeCategoryLabel } from '../lib/income'
+import type { MonthKey, PockitData, Project, Subscription, Transaction } from '../types'
 import { Field, Icon, Modal, SectionHead } from './UI'
 import { annualSubscriptionCost, subscriptionDates } from '../lib/forecast'
 import {
@@ -805,6 +806,8 @@ function HistoryRecord({ value, data }: { value: unknown; data: PockitData }) {
     note: 'Note',
     notes: 'Notes',
     categoryId: 'Category',
+    incomeCategory: 'Income category',
+    balancePosting: 'Account balance handling',
     accountId: 'From account',
     toAccountId: 'To account',
     goalId: 'Linked goal',
@@ -823,6 +826,11 @@ function HistoryRecord({ value, data }: { value: unknown; data: PockitData }) {
     'budget',
   ])
   function text(key: string, item: unknown): string {
+    if (key === 'incomeCategory') return incomeCategoryLabel(item as Transaction['incomeCategory'])
+    if (key === 'balancePosting' && item && typeof item === 'object' && 'mode' in item)
+      return item.mode === 'add'
+        ? 'Add to the account estimate'
+        : 'Already included in the account balance'
     if (amounts.has(key) && typeof item === 'number') return money(item)
     if (key === 'categoryId')
       return data.categories.find((category) => category.id === item)?.name || 'Removed category'
