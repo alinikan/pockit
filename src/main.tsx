@@ -11,8 +11,10 @@ import './styles.css'
 import './screens/Compare.css'
 import './studio.css'
 import { installStandaloneZoomPolicy } from './lib/standaloneZoom'
+import { installDialogFocusTracking } from './lib/dialogFocus'
 
 installStandaloneZoomPolicy()
+installDialogFocusTracking()
 
 if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
   import('@sentry/browser')

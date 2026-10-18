@@ -47,6 +47,7 @@ Manual accounts include chequing, savings, credit cards, cash, investments, and 
 ## Details that matter
 
 - **Built for a phone:** an installable web app with customizable bottom tabs, five colour palettes in dark and light modes, a circular appearance switch on supported browsers, large touch targets, reduced-motion support, and charts that can be explored by touch. The default Pockit Iris palette uses navy and periwinkle; the original green design is available as Pockit Garden.
+- **Purposeful feedback:** new entries, changing totals, and rearranged Home sections respond with restrained motion. Savings targets can celebrate a recorded contribution, and save status distinguishes a cloud sync from an offline device copy.
 - **Quick to navigate:** a search control opens pages and common actions. On a Mac or Windows keyboard, press ⌘K or Ctrl+K.
 - **Small steps toward a goal:** optional savings checkpoints show how much remains to reach 25%, 50%, 75%, and the full goal, using the same plan as the chart.
 - **Clear about estimates:** paycheque, savings, and debt projections show what the current plan implies. They are not a bank balance or a promise of a payoff date.

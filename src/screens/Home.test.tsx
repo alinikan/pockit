@@ -6,7 +6,10 @@ import type { PockitData } from '../types'
 import { currentMonth, monthSummary, money } from '../lib/finance'
 import { HomeScreen } from './Home'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('Home customization', () => {
   it('hides, reorders, and resets sections without changing money data', () => {
@@ -50,6 +53,7 @@ describe('Home customization', () => {
   })
 
   it('moves a section by dragging its handle and keeps the coach promotion off Home', () => {
+    vi.stubGlobal('PointerEvent', MouseEvent)
     let data = makeDemoData()
     const view = () => (
       <HomeScreen
@@ -66,18 +70,19 @@ describe('Home customization', () => {
     expect(screen.queryByText('A second set of eyes for your money.')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Customize Home' }))
     const grip = screen.getByRole('button', { name: 'Drag Income and expenses to reorder' })
-    const target = screen
-      .getByRole('dialog', { name: 'Customize Home' })
-      .querySelector('[data-home-section="overview"]')!
-    const original = document.elementFromPoint
-    document.elementFromPoint = vi.fn(() => target)
+    const rows = [
+      ...screen.getByRole('dialog').querySelectorAll<HTMLElement>('[data-home-section]'),
+    ]
+    rows.forEach((row, index) => {
+      Object.defineProperty(row, 'offsetTop', { configurable: true, get: () => index * 80 })
+      Object.defineProperty(row, 'offsetHeight', { configurable: true, get: () => 70 })
+    })
     grip.setPointerCapture = vi.fn()
     fireEvent.pointerDown(grip, { pointerId: 1, pointerType: 'touch', clientX: 10, clientY: 10 })
     fireEvent.pointerMove(grip, { pointerId: 1, pointerType: 'touch', clientX: 10, clientY: 10 })
     fireEvent.pointerUp(grip, { pointerId: 1, pointerType: 'touch' })
     rerender(view())
     expect(data.settings.homeOrder?.[0]).toBe('trends')
-    document.elementFromPoint = original
   })
 })
 

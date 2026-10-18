@@ -2,7 +2,10 @@ import { MoneyTools } from '../components/MoneyTools'
 import { PulseReview } from '../components/PulseReview'
 import { monthCoverage } from '../lib/experience'
 import type { MonthKey, PockitData } from '../types'
-import { useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { motion, useReducedMotion } from 'motion/react'
+import { pockitSpring } from '../lib/motion'
+import { ValueChange } from '../components/ValueChange'
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import {
   homeSections,
   normalizedHomeOrder,
@@ -47,6 +50,9 @@ export function HomeScreen({
   onAddIncome: () => void
   update: (recipe: (value: PockitData) => PockitData) => void
 }) {
+  const reduceMotion = useReducedMotion()
+  const orderRef = useRef<HomeSectionId[]>([])
+  const layoutList = useRef<HTMLDivElement>(null)
   const [customizing, setCustomizing] = useState(false)
   const [overviewHelp, setOverviewHelp] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'on-track' | 'off-track'>('all')
@@ -63,7 +69,9 @@ export function HomeScreen({
       settings: { ...current.settings, homeOrder: order },
     }))
   const openCustomization = () => {
+    orderRef.current = homeOrder
     setDraftOrder(homeOrder)
+    setDragging(null)
     setCustomizing(true)
   }
   const startDragging = (event: ReactPointerEvent<HTMLButtonElement>, id: HomeSectionId) => {
@@ -73,18 +81,29 @@ export function HomeScreen({
   }
   const dragOver = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (!dragging) return
-    const target = document
-      .elementFromPoint(event.clientX, event.clientY)
-      ?.closest<HTMLElement>('[data-home-section]')?.dataset.homeSection as
-      HomeSectionId | undefined
-    if (target) setDraftOrder((order) => reorderHomeSection(order, dragging, target))
+    // Use final layout slots, not spring-transformed hit boxes, so rows never jitter back.
+    const list = layoutList.current
+    if (!list) return
+    const top = list.getBoundingClientRect().top
+    const row = [...list.querySelectorAll<HTMLElement>('[data-home-section]')].find(
+      (item) =>
+        event.clientY >= top + item.offsetTop &&
+        event.clientY <= top + item.offsetTop + item.offsetHeight,
+    )
+    const target = row?.dataset.homeSection as HomeSectionId | undefined
+    if (target) {
+      const next = reorderHomeSection(orderRef.current, dragging, target)
+      orderRef.current = next
+      setDraftOrder(next)
+    }
   }
   const finishDragging = () => {
     if (!dragging) return
-    setHomeOrder(draftOrder)
+    setHomeOrder(orderRef.current)
     setDragging(null)
   }
   const cancelDragging = () => {
+    orderRef.current = homeOrder
     setDraftOrder(homeOrder)
     setDragging(null)
   }
@@ -350,7 +369,11 @@ export function HomeScreen({
                   ? 'Income recorded minus expenses'
                   : 'Expenses recorded this month'}
             </div>
-            <div className="hero-number">{money(overviewValue, data.settings.currency, true)}</div>
+            <div className="hero-number">
+              <ValueChange value={overviewValue}>
+                {money(overviewValue, data.settings.currency, true)}
+              </ValueChange>
+            </div>
             {overviewMode !== 'spent' && (
               <div className="hero-equation">
                 <span>
@@ -410,7 +433,11 @@ export function HomeScreen({
               </div>
               <div>
                 <span>Spent</span>
-                <strong>{money(spent, data.settings.currency, true)}</strong>
+                <strong>
+                  <ValueChange value={spent}>
+                    {money(spent, data.settings.currency, true)}
+                  </ValueChange>
+                </strong>
               </div>
               <small>this month</small>
             </div>
@@ -521,7 +548,11 @@ export function HomeScreen({
                   ))}
                 </svg>
                 <div className="spending-donut-center" aria-hidden="true">
-                  <strong>{money(spent, data.settings.currency, true)}</strong>
+                  <strong>
+                    <ValueChange value={spent}>
+                      {money(spent, data.settings.currency, true)}
+                    </ValueChange>
+                  </strong>
                   <span>net spent</span>
                 </div>
               </div>
@@ -542,7 +573,11 @@ export function HomeScreen({
                           style={{ background: row.category.color }}
                         />
                         <span className="spending-row-name">{row.category.name}</span>
-                        <strong>{money(row.used, data.settings.currency, true)}</strong>
+                        <strong>
+                          <ValueChange value={row.used}>
+                            {money(row.used, data.settings.currency, true)}
+                          </ValueChange>
+                        </strong>
                         <Icon name="ChevronRight" size={16} />
                       </span>
                       {progress === null ? (
@@ -842,7 +877,11 @@ export function HomeScreen({
                 <div className="compare-track">
                   <div className="expense-fill" style={{ width: `${(spent / max) * 100}%` }} />
                 </div>
-                <strong>{money(spent, data.settings.currency, true)}</strong>
+                <strong>
+                  <ValueChange value={spent}>
+                    {money(spent, data.settings.currency, true)}
+                  </ValueChange>
+                </strong>
               </div>
             </div>
             <p className="compare-foot">
@@ -1028,17 +1067,25 @@ export function HomeScreen({
         </Modal>
       )}
       {customizing && (
-        <Modal title="Customize Home" onClose={() => setCustomizing(false)}>
-          <div className="modal-body">
+        <Modal
+          title="Customize Home"
+          onClose={() => {
+            cancelDragging()
+            setCustomizing(false)
+          }}
+        >
+          <motion.div className="modal-body" layoutScroll>
             <p className="modal-intro">
               Choose what appears on Home. Drag the handles to arrange sections. Your layout saves
               when you release a section.
             </p>
-            <div className="home-layout-list">
+            <div className="home-layout-list" ref={layoutList}>
               {draftOrder.map((id, index) => {
                 const section = homeSections.find((item) => item.id === id)!
                 return (
-                  <div
+                  <motion.div
+                    layout={reduceMotion ? false : 'position'}
+                    transition={pockitSpring}
                     className={`home-layout-row ${dragging === id ? 'dragging' : ''}`}
                     key={id}
                     data-home-section={id}
@@ -1069,20 +1116,27 @@ export function HomeScreen({
                         const target = draftOrder[index + (event.key === 'ArrowUp' ? -1 : 1)]
                         if (!target) return
                         const order = reorderHomeSection(draftOrder, id, target)
+                        orderRef.current = order
                         setDraftOrder(order)
                         setHomeOrder(order)
                       }}
                     >
                       <Icon name="GripVertical" size={22} />
                     </button>
-                  </div>
+                  </motion.div>
                 )
               })}
             </div>
+            <p className="layout-position" role="status">
+              {dragging
+                ? `${homeSections.find((item) => item.id === dragging)?.label}: position ${draftOrder.indexOf(dragging) + 1} of ${draftOrder.length}. Release to save.`
+                : 'Drag a handle, or focus it and use the arrow keys.'}
+            </p>
             <div className="modal-actions">
               <button
                 className="secondary-button"
                 onClick={() => {
+                  orderRef.current = normalizedHomeOrder()
                   setDraftOrder(normalizedHomeOrder())
                   update((current) => ({
                     ...current,
@@ -1100,7 +1154,7 @@ export function HomeScreen({
                 Done
               </button>
             </div>
-          </div>
+          </motion.div>
         </Modal>
       )}
     </div>

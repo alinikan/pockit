@@ -1,3 +1,4 @@
+import { ValueChange } from './ValueChange'
 import { useState, type CSSProperties } from 'react'
 import type { budgetChart } from '../lib/budgetChart'
 import { budgetShareLabel } from '../lib/budgetChart'
@@ -70,13 +71,19 @@ export function BudgetBreakdown({
                 <>
                   <i style={{ background: focused.category.color }} />
                   <span className="budget-donut-name">{focused.category.name}</span>
-                  <strong>{money(focused.amount, currency)}</strong>
+                  <strong>
+                    <ValueChange value={`${focused.category.id}:${focused.amount}`}>
+                      {money(focused.amount, currency)}
+                    </ValueChange>
+                  </strong>
                   <small>{budgetShareLabel(focused.percent)} of total budget</small>
                 </>
               ) : (
                 <>
                   <span className="budget-donut-overline">TOTAL BUDGET</span>
-                  <strong>{money(chart.total, currency)}</strong>
+                  <strong>
+                    <ValueChange value={chart.total}>{money(chart.total, currency)}</ValueChange>
+                  </strong>
                   <small className={unallocated < 0 ? 'negative' : ''}>
                     {unallocated < 0
                       ? `${money(Math.abs(unallocated), currency)} over expected pay`

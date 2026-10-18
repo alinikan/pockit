@@ -187,6 +187,7 @@ export interface PockitData {
     completeMonths?: MonthKey[]
     pulseProgress?: { month: MonthKey; steps: string[] }
     nativeWidgets?: boolean
+    goalCelebrations?: boolean
     lastPulseAt?: string
     homeOrder?: string[]
     hiddenHomeSections?: string[]

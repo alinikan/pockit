@@ -1,3 +1,5 @@
+import { reachedSavingsGoals, type UpdateFeedback } from './lib/feedback'
+import { GoalReached, SyncIndicator } from './components/SaveFeedback'
 import { todayISO } from './lib/finance'
 import { clearEntryDraft } from './lib/entryDraft'
 import { sendWidgetSummary } from './lib/nativeCompanion'
@@ -100,6 +102,30 @@ export default function App() {
     local: PendingSnapshot
     remote: CloudSnapshot
   } | null>(null)
+  const pendingCelebration = useRef<string | null>(null)
+  const [celebrationId, setCelebrationId] = useState<string | null>(null)
+  useEffect(() => {
+    const id = pendingCelebration.current
+    pendingCelebration.current = null
+    const eligible = (goalId: string) =>
+      data?.settings.goalCelebrations !== false &&
+      !data?.settings.hideAmounts &&
+      data?.goals.some(
+        (goal) =>
+          goal.id === goalId &&
+          goal.kind === 'saving' &&
+          goal.target > 0 &&
+          goal.balance >= goal.target,
+      )
+    // Undo, a withdrawal, or a changed target can make an earlier success message stale.
+    setCelebrationId((current) =>
+      id && eligible(id) ? id : current && eligible(current) ? current : null,
+    )
+  }, [data])
+  useEffect(() => {
+    setCelebrationId(null)
+    pendingCelebration.current = null
+  }, [session?.user.id, demo])
   const [retry, setRetry] = useState(0)
   const [cloudEpoch, setCloudEpoch] = useState(0)
   const saveQueue = useRef(Promise.resolve())
@@ -427,14 +453,18 @@ export default function App() {
     ready.current = true
     setData(readDemo() || makeDemoData())
   }
-  function update(recipe: (current: PockitData) => PockitData) {
+  function update(recipe: (current: PockitData) => PockitData, feedback?: UpdateFeedback) {
     setData((current) => {
       if (!current) return current
       try {
-        const next = recipe(current)
-        return next.changeLog !== current.changeLog
-          ? next
-          : withChangeHistory(current, syncGoalPlans(current, next, month))
+        const proposed = recipe(current)
+        const next =
+          proposed.changeLog !== current.changeLog
+            ? proposed
+            : withChangeHistory(current, syncGoalPlans(current, proposed, month))
+        if (feedback?.celebrateGoal)
+          pendingCelebration.current = reachedSavingsGoals(current, next)[0]?.id || null
+        return next
       } catch (cause) {
         queueMicrotask(() =>
           setError(
@@ -477,6 +507,16 @@ export default function App() {
       await supabase?.auth.signOut({ scope: 'local' })
     }
   }
+  const celebrationGoal =
+    data?.settings.goalCelebrations !== false && !data?.settings.hideAmounts
+      ? data?.goals.find(
+          (goal) =>
+            goal.id === celebrationId &&
+            goal.kind === 'saving' &&
+            goal.target > 0 &&
+            goal.balance >= goal.target,
+        )
+      : undefined
   setMoneyPrivacy(!!data?.settings.hideAmounts)
   if (loading)
     return (
@@ -821,29 +861,7 @@ export default function App() {
             </button>
           </div>
         </header>
-        {!demo && (
-          <div className={`sync-chip ${syncStatus}`} role="status">
-            <Icon
-              name={
-                syncStatus === 'saved'
-                  ? 'CloudCheck'
-                  : syncStatus === 'offline'
-                    ? 'CloudOff'
-                    : 'CloudUpload'
-              }
-              size={15}
-            />
-            {syncStatus === 'saved'
-              ? 'Saved'
-              : syncStatus === 'saving'
-                ? 'Saving…'
-                : syncStatus === 'offline'
-                  ? 'Offline copy'
-                  : syncStatus === 'conflict'
-                    ? 'Review changes'
-                    : 'Sync needs attention'}
-          </div>
-        )}
+        {!demo && <SyncIndicator status={syncStatus} />}
         {error && (
           <div className="sync-error" role="alert">
             {error}
@@ -883,6 +901,9 @@ export default function App() {
                 <MonthPicker month={month} setMonth={setMonth} />
               )}
             </div>
+          )}
+          {celebrationGoal && (
+            <GoalReached floating goal={celebrationGoal} onClose={() => setCelebrationId(null)} />
           )}
           {tab === 'Home' && (
             <HomeScreen
@@ -962,7 +983,7 @@ export default function App() {
           </button>
         ))}
       </nav>
-      {tab === 'Home' && (
+      {tab === 'Home' && !celebrationGoal && (
         <button
           className="quick-add-fab"
           aria-label="Quick add transaction"

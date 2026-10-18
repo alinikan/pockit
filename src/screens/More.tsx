@@ -659,6 +659,17 @@ export function MoreScreen({
                   </div>
                 </details>
                 <Toggle
+                  label="Goal celebrations"
+                  description="A small celebration when a recorded contribution reaches a savings target."
+                  checked={data.settings.goalCelebrations !== false}
+                  onChange={(enabled) =>
+                    update((current) => ({
+                      ...current,
+                      settings: { ...current.settings, goalCelebrations: enabled },
+                    }))
+                  }
+                />
+                <Toggle
                   label="Light mode"
                   description="Choose a light or dark background. Your colour choice below works in both."
                   checked={data.settings.theme === 'light'}

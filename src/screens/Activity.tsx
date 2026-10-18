@@ -1,3 +1,6 @@
+import { pockitFeedbackLift } from '../lib/motion'
+import { motion, useReducedMotion } from 'motion/react'
+import type { UpdateFeedback } from '../lib/feedback'
 import { clearEntryDraft, readEntryDraft, writeEntryDraft } from '../lib/entryDraft'
 import { parseQuickEntry } from '../lib/experience'
 import { previewTransactionChange } from '../lib/changeHistory'
@@ -70,7 +73,7 @@ export function ActivityScreen({
 }: {
   data: PockitData
   month: MonthKey
-  update: (recipe: (value: PockitData) => PockitData) => void
+  update: (recipe: (value: PockitData) => PockitData, feedback?: UpdateFeedback) => void
   quickAdd?: number
   quickAddType?: TransactionType
   quickAddDate?: string
@@ -79,6 +82,13 @@ export function ActivityScreen({
   draftScope?: string
   quickAddDraft?: Partial<Transaction>
 }) {
+  const reduceMotion = useReducedMotion()
+  const [recentId, setRecentId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!recentId) return
+    const timer = window.setTimeout(() => setRecentId(null), 1800)
+    return () => window.clearTimeout(timer)
+  }, [recentId])
   const [savedDraft, setSavedDraft] = useState(() => readEntryDraft(draftScope))
   const [quickText, setQuickText] = useState('')
   const [captureError, setCaptureError] = useState('')
@@ -247,24 +257,28 @@ export function ActivityScreen({
       return
     }
     setSaveError('')
-    update((d) => {
-      const resolved = resolveSpendingSelection(d, value)
-      const next = changeTransaction(resolved.data, before, resolved.entry)
-      return rememberMerchant && editing.payee.trim() && resolved.entry.categoryId
-        ? {
-            ...next,
-            settings: {
-              ...next.settings,
-              merchantRules: [
-                ...(next.settings.merchantRules || []).filter(
-                  (rule) => rule.payee !== value.payee.toLowerCase(),
-                ),
-                { payee: value.payee.toLowerCase(), categoryId: resolved.entry.categoryId },
-              ],
-            },
-          }
-        : next
-    })
+    update(
+      (d) => {
+        const resolved = resolveSpendingSelection(d, value)
+        const next = changeTransaction(resolved.data, before, resolved.entry)
+        return rememberMerchant && editing.payee.trim() && resolved.entry.categoryId
+          ? {
+              ...next,
+              settings: {
+                ...next.settings,
+                merchantRules: [
+                  ...(next.settings.merchantRules || []).filter(
+                    (rule) => rule.payee !== value.payee.toLowerCase(),
+                  ),
+                  { payee: value.payee.toLowerCase(), categoryId: resolved.entry.categoryId },
+                ],
+              },
+            }
+          : next
+      },
+      { celebrateGoal: true },
+    )
+    setRecentId(value.id)
     setUndo({
       before,
       after: value,
@@ -477,6 +491,19 @@ export function ActivityScreen({
       {undo && (
         <div className="undo-strip" role="status">
           {undo.message} <button onClick={undoLast}>Undo</button>
+          {undo.after && !filtered.some((item) => item.id === undo.after?.id) && (
+            <button
+              onClick={() => {
+                setSearch('')
+                setType('all')
+                setCategory('all')
+                setSort('newest')
+                setMonth?.(undo.after!.date.slice(0, 7) as MonthKey)
+              }}
+            >
+              Show entry
+            </button>
+          )}
         </div>
       )}
       {lastImportBatch && (
@@ -620,7 +647,14 @@ export function ActivityScreen({
             {filtered.map((t) => {
               const c = data.categories.find((c) => c.id === t.categoryId)
               return (
-                <button className="transaction-row" key={t.id} onClick={() => setEditing(t)}>
+                <motion.button
+                  className={`transaction-row${recentId === t.id ? ' transaction-recent' : ''}`}
+                  key={t.id}
+                  initial={recentId === t.id && !reduceMotion ? { opacity: 0.65, x: 6 } : false}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  onClick={() => setEditing(t)}
+                >
                   <div
                     className="transaction-icon"
                     style={{ background: c ? `${c.color}22` : undefined, color: c?.color }}
@@ -658,7 +692,7 @@ export function ActivityScreen({
                   </span>
                   {t.reviewed === false && <span className="review-badge">Review</span>}
                   <Icon name="ChevronRight" className="row-arrow" size={17} />
-                </button>
+                </motion.button>
               )
             })}
           </div>
@@ -1474,13 +1508,16 @@ export function ActivityScreen({
                   Save & add another
                 </button>
               )}
-              <button
+              <motion.button
+                initial={reduceMotion ? false : { y: 8 }}
+                animate={reduceMotion ? { y: 0 } : { y: [8, 0, 0] }}
+                transition={pockitFeedbackLift}
                 className="primary-button"
                 onClick={() => save()}
                 disabled={invalidEntry || incomeChoiceRequired}
               >
                 Save transaction
-              </button>
+              </motion.button>
             </div>
           </div>
         </Modal>

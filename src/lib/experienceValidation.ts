@@ -34,6 +34,8 @@ export function validateExperienceData(data: PockitData) {
       settings.completeMonths.some((m) => !/^\d{4}-(0[1-9]|1[0-2])$/.test(m)))
   )
     throw new Error('This backup contains invalid month review dates.')
+  if (settings.goalCelebrations !== undefined && typeof settings.goalCelebrations !== 'boolean')
+    throw new Error('This backup contains an invalid goal celebration setting.')
   if (settings.nativeWidgets !== undefined && typeof settings.nativeWidgets !== 'boolean')
     throw new Error('This backup contains an invalid widget setting.')
   if (

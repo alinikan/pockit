@@ -1,6 +1,7 @@
-import { motion, useReducedMotion } from 'motion/react'
+import { motion, useAnimationControls, useReducedMotion } from 'motion/react'
 import { pockitSpring } from '../lib/motion'
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { dialogReturnTarget } from '../lib/dialogFocus'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '../lib/useBodyScrollLock'
 import { usePhoneViewport } from '../lib/usePhoneViewport'
@@ -402,6 +403,75 @@ export function Modal({
   useBodyScrollLock(true)
   const viewport = usePhoneViewport()
   const reduceMotion = useReducedMotion()
+  const controls = useAnimationControls()
+  const dialog = useRef<HTMLDivElement>(null)
+  const closing = useRef(false)
+  const mounted = useRef(true)
+  const closeCallback = useRef(onClose)
+  closeCallback.current = onClose
+  const dismiss = async () => {
+    if (closing.current) return
+    closing.current = true
+    if (!reduceMotion)
+      await controls.start({
+        opacity: 0,
+        y: 10,
+        scale: 0.99,
+        transition: { duration: 0.14, ease: 'easeIn' },
+      })
+    if (mounted.current) closeCallback.current()
+  }
+  const dismissRef = useRef(dismiss)
+  dismissRef.current = dismiss
+  useEffect(() => {
+    mounted.current = true
+    controls.start({ opacity: 1, y: 0, scale: 1 })
+    const previous = dialogReturnTarget()
+    dialog.current?.focus({ preventScroll: true })
+    const keydown = (event: KeyboardEvent) => {
+      const dialogs = document.querySelectorAll('[role="dialog"]')
+      if (dialogs[dialogs.length - 1] !== dialog.current) return
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        void dismissRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const elements = [
+        ...(dialog.current?.querySelectorAll<HTMLElement>(
+          'button, input, select, textarea, a[href], [tabindex="0"]',
+        ) || []),
+      ].filter(
+        (item) => !item.hasAttribute('disabled') && !item.closest('[hidden]') && item.tabIndex >= 0,
+      )
+      const first = elements[0],
+        last = elements.at(-1)
+      if (!first) {
+        event.preventDefault()
+        return
+      }
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || document.activeElement === dialog.current)
+      ) {
+        event.preventDefault()
+        last?.focus()
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || document.activeElement === dialog.current)
+      ) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', keydown)
+    return () => {
+      mounted.current = false
+      document.removeEventListener('keydown', keydown)
+      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    }
+  }, [controls])
   return createPortal(
     <div
       className="modal-backdrop"
@@ -416,12 +486,14 @@ export function Modal({
           : undefined
       }
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        if (e.target === e.currentTarget) void dismiss()
       }}
     >
       <motion.div
         initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
+        animate={controls}
+        ref={dialog}
+        tabIndex={-1}
         transition={reduceMotion ? { duration: 0 } : pockitSpring}
         className={`modal studio-modal ${wide ? 'modal-wide' : ''}`}
         role="dialog"
@@ -430,7 +502,7 @@ export function Modal({
       >
         <div className="modal-header">
           <h2>{title}</h2>
-          <button className="icon-button" aria-label="Close" onClick={onClose}>
+          <button className="icon-button" aria-label="Close" onClick={() => void dismiss()}>
             <Icon name="X" />
           </button>
         </div>

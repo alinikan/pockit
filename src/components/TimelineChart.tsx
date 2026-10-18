@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from 'motion/react'
 import { useId, useState, type PointerEvent } from 'react'
 import { money, shortDate } from '../lib/finance'
 export function TimelineChart({
@@ -7,6 +8,7 @@ export function TimelineChart({
   points: { date: string; value: number }[]
   label: string
 }) {
+  const reduceMotion = useReducedMotion()
   const [selected, setSelected] = useState<number | null>(null)
   const id = useId().replace(/:/g, '')
   if (!points.length) return null
@@ -91,15 +93,22 @@ export function TimelineChart({
           stroke="var(--line)"
           strokeDasharray="3 4"
         />
-        <polygon points={`12,150 ${line} 348,150`} fill={`url(#${id})`} />
-        <polyline
-          points={line}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinejoin="round"
-          strokeDasharray="5 4"
-        />
+        <motion.g
+          key={line}
+          initial={{ opacity: reduceMotion ? 1 : 0.45 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduceMotion ? 0 : 0.22 }}
+        >
+          <polygon points={`12,150 ${line} 348,150`} fill={`url(#${id})`} />
+          <polyline
+            points={line}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+            strokeDasharray="5 4"
+          />
+        </motion.g>
         {index !== null && (
           <g>
             <line

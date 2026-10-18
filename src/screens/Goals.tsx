@@ -1,3 +1,5 @@
+import { motion, useReducedMotion } from 'motion/react'
+import type { UpdateFeedback } from '../lib/feedback'
 import { GoalFunding } from '../components/GoalFunding'
 import { GoalMilestones } from '../components/GoalMilestones'
 import { validISODate, num } from '../lib/numbers'
@@ -24,6 +26,7 @@ const newGoal = (kind: Goal['kind']): Goal => ({
   history: [],
 })
 function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' }) {
+  const reduceMotion = useReducedMotion()
   const [selectedPoint, setSelectedPoint] = useState(0)
   const fillId = useId().replace(/:/g, '')
   if (goal.kind === 'debt' && goal.interestUnknown && goal.balance > 0)
@@ -97,17 +100,24 @@ function GoalChart({ goal, currency }: { goal: Goal; currency: 'CAD' }) {
             strokeDasharray={lineY === 126 ? undefined : '3 5'}
           />
         ))}
-        <polygon points={area} fill={`url(#${fillId})`} />
-        <polyline
-          points={points}
-          fill="none"
-          stroke="var(--goal-chart-line)"
-          strokeWidth="3"
-          vectorEffect="non-scaling-stroke"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="5 5"
-        />
+        <motion.g
+          key={points}
+          initial={{ opacity: reduceMotion ? 1 : 0.45 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduceMotion ? 0 : 0.22 }}
+        >
+          <polygon points={area} fill={`url(#${fillId})`} />
+          <polyline
+            points={points}
+            fill="none"
+            stroke="var(--goal-chart-line)"
+            strokeWidth="3"
+            vectorEffect="non-scaling-stroke"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="5 5"
+          />
+        </motion.g>
         <line
           x1={x(point)}
           y1="19"
@@ -169,7 +179,7 @@ export function GoalsScreen({
 }: {
   data: PockitData
   month: MonthKey
-  update: (recipe: (value: PockitData) => PockitData) => void
+  update: (recipe: (value: PockitData) => PockitData, feedback?: UpdateFeedback) => void
 }) {
   const [editing, setEditing] = useState<Goal | null>(null)
   const [activity, setActivity] = useState<Goal | null>(null)
@@ -228,64 +238,69 @@ export function GoalsScreen({
       return
     const transactionId = recordTransaction ? crypto.randomUUID() : undefined
     const date = activityDate
-    update((d) => {
-      const liveGoal = d.goals.find((goal) => goal.id === activity.id)
-      if (
-        !liveGoal ||
-        ((liveGoal.kind === 'debt' || activityMode === 'withdraw') && change > liveGoal.balance)
-      )
-        return d
-      if (transactionId)
-        return changeTransaction(d, null, {
-          id: transactionId,
-          date,
-          payee:
-            activityMode === 'withdraw'
-              ? `Spending from ${activity.name}`
-              : activity.kind === 'debt'
-                ? `Payment to ${activity.name}`
-                : `Savings for ${activity.name}`,
-          amount: change,
-          createdAt: new Date().toISOString(),
-          type: activityMode === 'withdraw' ? 'expense' : 'transfer',
-          accountId: sourceAccountId || undefined,
-          toAccountId: activityMode === 'withdraw' ? undefined : destinationAccountId || undefined,
-          categoryId:
-            activityMode === 'withdraw'
-              ? spendingCategoryId || undefined
-              : investmentTransferCategory(d, sourceAccountId, destinationAccountId),
-          goalId: activity.id,
-          note: activityNote || undefined,
-        })
-      return {
-        ...d,
-        goals: d.goals.map((g) =>
-          g.id === activity.id
-            ? {
-                ...g,
-                balance: Math.max(
-                  0,
-                  g.balance + (activityMode === 'withdraw' || g.kind === 'debt' ? -change : change),
-                ),
-                history: [
-                  {
-                    date,
-                    amount: activityMode === 'withdraw' ? -change : change,
-                    note:
-                      activityNote ||
-                      (activityMode === 'withdraw'
-                        ? 'Withdrawal'
-                        : g.kind === 'debt'
-                          ? 'Payment'
-                          : 'Contribution'),
-                  },
-                  ...g.history,
-                ],
-              }
-            : g,
-        ),
-      }
-    })
+    update(
+      (d) => {
+        const liveGoal = d.goals.find((goal) => goal.id === activity.id)
+        if (
+          !liveGoal ||
+          ((liveGoal.kind === 'debt' || activityMode === 'withdraw') && change > liveGoal.balance)
+        )
+          return d
+        if (transactionId)
+          return changeTransaction(d, null, {
+            id: transactionId,
+            date,
+            payee:
+              activityMode === 'withdraw'
+                ? `Spending from ${activity.name}`
+                : activity.kind === 'debt'
+                  ? `Payment to ${activity.name}`
+                  : `Savings for ${activity.name}`,
+            amount: change,
+            createdAt: new Date().toISOString(),
+            type: activityMode === 'withdraw' ? 'expense' : 'transfer',
+            accountId: sourceAccountId || undefined,
+            toAccountId:
+              activityMode === 'withdraw' ? undefined : destinationAccountId || undefined,
+            categoryId:
+              activityMode === 'withdraw'
+                ? spendingCategoryId || undefined
+                : investmentTransferCategory(d, sourceAccountId, destinationAccountId),
+            goalId: activity.id,
+            note: activityNote || undefined,
+          })
+        return {
+          ...d,
+          goals: d.goals.map((g) =>
+            g.id === activity.id
+              ? {
+                  ...g,
+                  balance: Math.max(
+                    0,
+                    g.balance +
+                      (activityMode === 'withdraw' || g.kind === 'debt' ? -change : change),
+                  ),
+                  history: [
+                    {
+                      date,
+                      amount: activityMode === 'withdraw' ? -change : change,
+                      note:
+                        activityNote ||
+                        (activityMode === 'withdraw'
+                          ? 'Withdrawal'
+                          : g.kind === 'debt'
+                            ? 'Payment'
+                            : 'Contribution'),
+                    },
+                    ...g.history,
+                  ],
+                }
+              : g,
+          ),
+        }
+      },
+      { celebrateGoal: activityMode === 'add' },
+    )
     setActivity(null)
     setActivityAmount('')
     setActivityNote('')

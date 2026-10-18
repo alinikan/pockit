@@ -1,4 +1,4 @@
-const CACHE = 'pockit-shell-v5'
+const CACHE = 'pockit-shell-v6'
 self.addEventListener('install', (event) => {
   event.waitUntil(
     fetch('/offline-assets.json', { cache: 'no-store' })

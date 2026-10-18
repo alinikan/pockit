@@ -316,3 +316,139 @@
     transition: none;
   }
 }
+/* Event feedback is finite. Values always show the recorded amount, never a count-up. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.value-change {
+  border-radius: 5px;
+  animation: value-feedback 0.7s ease-out;
+}
+@keyframes value-feedback {
+  from {
+    background: color-mix(in srgb, var(--lime) 22%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+.transaction-row.transaction-recent {
+  animation: entry-feedback 1.8s ease-out;
+}
+@keyframes entry-feedback {
+  from {
+    background: color-mix(in srgb, var(--lime) 18%, var(--surface));
+  }
+  to {
+    background: transparent;
+  }
+}
+.sync-symbol {
+  display: inline-flex;
+  animation: sync-feedback 0.2s ease-out;
+}
+@keyframes sync-feedback {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.goal-reached {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line));
+  border-radius: 20px;
+  background: var(--surface);
+}
+.goal-reached > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.goal-reached img {
+  max-width: 100%;
+}
+.goal-reached-label {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.goal-reached strong {
+  font-size: 18px;
+}
+.goal-reached small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.home-layout-list {
+  position: relative;
+}
+.home-layout-row {
+  position: relative;
+}
+.home-layout-row.dragging {
+  z-index: 1;
+  outline: 2px solid var(--lime);
+  outline-offset: 2px;
+}
+.layout-position {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 16px 0 0;
+}
+.studio-modal:focus {
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .value-change,
+  .transaction-row.transaction-recent,
+  .sync-symbol {
+    animation: none;
+  }
+}
+
+/* Reached-goal feedback stays in view even after a contribution lower down a long card. */
+.goal-reached-floating {
+  position: fixed;
+  z-index: 11;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: 24px;
+  width: min(440px, calc(100% - 48px));
+  max-height: min(220px, calc(100dvh - 150px));
+  margin: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  box-shadow: var(--shadow);
+}
+.goal-reached-floating strong {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 760px), (max-width: 1024px) and (hover: none) and (pointer: coarse) {
+  .goal-reached-floating {
+    right: max(16px, env(safe-area-inset-right));
+    left: max(16px, env(safe-area-inset-left));
+    width: auto;
+    bottom: calc(98px + env(safe-area-inset-bottom));
+  }
+}
