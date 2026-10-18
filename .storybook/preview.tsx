@@ -3,6 +3,7 @@ import '@fontsource-variable/dm-sans/wght.css'
 import '@fontsource-variable/manrope/wght.css'
 import '../src/styles.css'
 import '../src/screens/Compare.css'
+import '../src/studio.css'
 
 const preview: Preview = {
   initialGlobals: { theme: 'dark', palette: 'default' },

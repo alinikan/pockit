@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { Modal, SectionHead } from './UI'
+import { Icon, Modal, SectionHead } from './UI'
 
 afterEach(cleanup)
 
@@ -36,4 +36,35 @@ describe('dialog background scrolling', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close explanation for Example' }))
     expect(document.body.style.position).toBe('')
   })
+})
+
+it.each([
+  'Calculator',
+  'CalendarRange',
+  'ChartNoAxesCombined',
+  'CloudCheck',
+  'CloudUpload',
+  'CloudOff',
+  'FileUp',
+  'FlaskConical',
+  'History',
+  'Luggage',
+  'WalletCards',
+])('renders a meaningful %s icon rather than a generic circle', (name) => {
+  const view = render(<Icon name={name} />)
+  const svg = view.container.querySelector('svg')!
+  expect(svg.classList.contains('lucide-circle')).toBe(false)
+  expect(svg.querySelector('path,polyline,line,rect')).toBeTruthy()
+})
+
+it('mounts sheets above animated or clipped page containers', () => {
+  const view = render(
+    <div style={{ transform: 'translateY(4px)', overflow: 'hidden' }}>
+      <Modal title="Independent sheet" onClose={() => {}}>
+        Content
+      </Modal>
+    </div>,
+  )
+  expect(screen.getByRole('dialog').closest('.modal-backdrop')?.parentElement).toBe(document.body)
+  expect(view.container.querySelector('.modal-backdrop')).toBeNull()
 })

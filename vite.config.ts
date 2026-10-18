@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { motionStudio } from 'motion-studio'
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => ({
   plugins: [
+    ...(command === 'serve' && mode === 'studio' ? [motionStudio()] : []),
     react(),
     {
       name: 'pockit-offline-assets',
@@ -22,6 +24,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          if (/node_modules\/(?:motion|motion-dom|motion-utils|framer-motion)\//.test(id))
+            return 'motion'
           if (id.includes('node_modules/@supabase/')) return 'supabase'
           if (id.includes('node_modules/lucide-react/')) return 'icons'
           if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/'))
@@ -34,4 +38,4 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}', 'server/**/*.test.ts', 'api/**/*.test.ts'],
   },
-})
+}))

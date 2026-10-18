@@ -1,4 +1,4 @@
-const CACHE = 'pockit-shell-v4'
+const CACHE = 'pockit-shell-v5'
 self.addEventListener('install', (event) => {
   event.waitUntil(
     fetch('/offline-assets.json', { cache: 'no-store' })
@@ -18,6 +18,7 @@ self.addEventListener('install', (event) => {
             cache.addAll([
               '/',
               '/icon.svg',
+              '/goal-pocket.svg',
               '/manifest.webmanifest',
               '/offline-assets.json',
               ...assets,
@@ -49,6 +50,7 @@ self.addEventListener('fetch', (event) => {
     url.pathname.startsWith('/assets/') ||
     [
       '/icon.svg',
+      '/goal-pocket.svg',
       '/icon-192.png',
       '/icon-512.png',
       '/apple-touch-icon.png',

@@ -55,7 +55,7 @@ export function HomeScreen({
   const [draftOrder, setDraftOrder] = useState<HomeSectionId[]>(homeOrder)
   const [dragging, setDragging] = useState<HomeSectionId | null>(null)
   const hidden = new Set(data.settings.hiddenHomeSections || [])
-  const homeStyle = (id: HomeSectionId) => ({ order: homeOrder.indexOf(id) })
+  const homeStyle = (id: HomeSectionId) => ({ order: homeOrder.indexOf(id) * 2 })
   const isVisible = (id: HomeSectionId) => !hidden.has(id)
   const setHomeOrder = (order: HomeSectionId[]) =>
     update((current) => ({
@@ -206,12 +206,17 @@ export function HomeScreen({
   return (
     <div className="screen-stack home-screen">
       <div className="home-customize-bar" style={{ order: -2 }}>
-        <span>Make this space work for you.</span>
+        <span>Your Home</span>
         <button className="secondary-button compact" onClick={openCustomization}>
           <Icon name="SlidersHorizontal" size={16} /> Customize Home
         </button>
       </div>
-      <MoneyTools data={data} month={month} update={update} />
+      <MoneyTools
+        data={data}
+        month={month}
+        update={update}
+        order={isVisible('overview') ? homeOrder.indexOf('overview') * 2 + 1 : -1}
+      />
       {historicalUnplanned && (
         <p className="soft-note" role="status" style={{ order: -1 }}>
           This month’s transactions are available, but the Waypoint ZIP had no historical budget

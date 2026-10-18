@@ -48,6 +48,7 @@ Manual accounts include chequing, savings, credit cards, cash, investments, and 
 
 - **Built for a phone:** an installable web app with customizable bottom tabs, five colour palettes in dark and light modes, a circular appearance switch on supported browsers, large touch targets, reduced-motion support, and charts that can be explored by touch. The default Pockit Iris palette uses navy and periwinkle; the original green design is available as Pockit Garden.
 - **Quick to navigate:** a search control opens pages and common actions. On a Mac or Windows keyboard, press ⌘K or Ctrl+K.
+- **Small steps toward a goal:** optional savings checkpoints show how much remains to reach 25%, 50%, 75%, and the full goal, using the same plan as the chart.
 - **Clear about estimates:** paycheque, savings, and debt projections show what the current plan implies. They are not a bank balance or a promise of a payoff date.
 - **Pay dates that add up:** a weekly or biweekly anchor counts the actual dates in each month; twice-monthly and monthly schedules respect month ends. Until a date is set, Pockit labels the monthly figure as an average.
 - **Safer edits across devices:** saves show their cloud status. Independent edits to different records or settings can be combined after a conflict. Overlapping edits require a choice, with a download available first.
@@ -61,7 +62,7 @@ Manual accounts include chequing, savings, credit cards, cash, investments, and 
 
 ## How it was built
 
-Pockit uses **React, TypeScript, and Vite** for the app; custom CSS, SVG, Lucide, and locally served fonts for the interface; **Supabase Auth and Postgres** for accounts and saved budgets; and **Vercel Functions** for account emails and optional bill reminders. Receipt text recognition runs on the device with Tesseract.js. The project has calculation and interaction tests in **Vitest**, browser and accessibility tests in **Playwright**, and automated GitHub checks. **Storybook** previews real UI components at phone width, with controls for theme and colour palette.
+Pockit uses **React, TypeScript, and Vite** for the app; custom CSS, SVG, Lucide, Motion, and locally served fonts for the interface; **Supabase Auth and Postgres** for accounts and saved budgets; and **Vercel Functions** for account emails and optional bill reminders. Receipt text recognition runs on the device with Tesseract.js. The project has calculation and interaction tests in **Vitest**, browser and accessibility tests in **Playwright**, and automated GitHub checks. **Storybook** previews real UI components at phone width, with controls for theme and colour palette.
 
 The repository is organized by responsibility: `src/screens` contains the main views, `src/components` holds shared UI, `src/lib` contains finance and storage logic, `server` and `api` contain server-side features, and `supabase` contains database setup. The app's design and code are original; Waypoint Budget Planner was one source of product inspiration, and Pockit is not affiliated with Waypoint Budget Inc.
 

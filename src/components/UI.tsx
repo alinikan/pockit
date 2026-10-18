@@ -1,8 +1,26 @@
+import { motion, useReducedMotion } from 'motion/react'
+import { pockitSpring } from '../lib/motion'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useBodyScrollLock } from '../lib/useBodyScrollLock'
 import { usePhoneViewport } from '../lib/usePhoneViewport'
 import {
+  Bell,
+  Calculator,
+  CalendarRange,
+  ChartNoAxesCombined,
+  CloudAlert,
+  CloudUpload,
+  CloudOff,
+  FilePenLine,
+  FileUp,
+  FlaskConical,
+  History,
+  Luggage,
+  MapPin,
+  Pin,
+  Trash2,
+  WalletCards,
   ArrowDown,
   ArrowDownLeft,
   ArrowLeft,
@@ -120,6 +138,23 @@ export function Icon({
   const Component =
     (
       {
+        Bell,
+        Calculator,
+        CalendarRange,
+        ChartNoAxesCombined,
+        CloudAlert,
+        CloudCheck: Cloud,
+        CloudUpload,
+        CloudOff,
+        FilePenLine,
+        FileUp,
+        FlaskConical,
+        History,
+        Luggage,
+        MapPin,
+        Pin,
+        Trash2,
+        WalletCards,
         ArrowDown,
         ArrowDownLeft,
         ArrowLeft,
@@ -366,7 +401,8 @@ export function Modal({
 }) {
   useBodyScrollLock(true)
   const viewport = usePhoneViewport()
-  return (
+  const reduceMotion = useReducedMotion()
+  return createPortal(
     <div
       className="modal-backdrop"
       style={
@@ -383,8 +419,11 @@ export function Modal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div
-        className={`modal ${wide ? 'modal-wide' : ''}`}
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={reduceMotion ? { duration: 0 } : pockitSpring}
+        className={`modal studio-modal ${wide ? 'modal-wide' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -396,8 +435,9 @@ export function Modal({
           </button>
         </div>
         {children}
-      </div>
-    </div>
+      </motion.div>
+    </div>,
+    document.body,
   )
 }
 export function Field({

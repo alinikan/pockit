@@ -1,12 +1,15 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import { MotionConfig } from 'motion/react'
+import { pockitSpring } from './lib/motion'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { privacySafeError, privacySafeVitals } from './lib/telemetry'
 import '@fontsource-variable/dm-sans/wght.css'
 import '@fontsource-variable/manrope/wght.css'
 import './styles.css'
 import './screens/Compare.css'
+import './studio.css'
 import { installStandaloneZoomPolicy } from './lib/standaloneZoom'
 
 installStandaloneZoomPolicy()
@@ -31,7 +34,9 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <MotionConfig reducedMotion="user" transition={pockitSpring}>
+      <App />
+    </MotionConfig>
     {import.meta.env.PROD && import.meta.env.VITE_ENABLE_SPEED_INSIGHTS === 'true' && (
       <SpeedInsights beforeSend={privacySafeVitals} />
     )}

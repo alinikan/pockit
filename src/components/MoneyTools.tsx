@@ -15,16 +15,25 @@ import {
 import { Field, Icon, Modal } from './UI'
 import { TimelineChart } from './TimelineChart'
 import { num } from '../lib/numbers'
+import { motion, useReducedMotion } from 'motion/react'
+import { pockitSpring } from '../lib/motion'
 
 export function MoneyTools({
   data,
   month,
   update,
+  order,
 }: {
   data: PockitData
   month: MonthKey
   update: (recipe: (data: PockitData) => PockitData) => void
+  order?: number
 }) {
+  const reduceMotion = useReducedMotion()
+  const feedback = {
+    whileTap: reduceMotion ? undefined : { scale: 0.97 },
+    transition: pockitSpring,
+  }
   const [open, setOpen] = useState<'forecast' | 'purchase' | 'numbers' | null>(null)
   const [accountId, setAccountId] = useState(
     data.accounts?.find((item) => !item.archived && item.kind === 'chequing')?.id || '',
@@ -130,29 +139,50 @@ export function MoneyTools({
   }
   return (
     <>
-      <div className="money-tool-actions" aria-label="Money tools">
-        <button
+      <div
+        className="money-tool-actions"
+        aria-label="Money tools"
+        style={order === undefined ? undefined : { order }}
+      >
+        <motion.button
+          {...feedback}
+          aria-label="Next 60 days"
           onClick={() => {
             setOpen('forecast')
             setError('')
           }}
         >
           <Icon name="ChartNoAxesCombined" size={19} />
-          Next 60 days
-        </button>
-        <button
+          <span>
+            <strong>Next 60 days</strong>
+            <small>Look ahead</small>
+          </span>
+        </motion.button>
+        <motion.button
+          {...feedback}
+          aria-label="Can I afford this?"
           onClick={() => {
             setOpen('purchase')
             setError('')
           }}
         >
           <Icon name="ShoppingBag" size={19} />
-          Can I afford this?
-        </button>
-        <button onClick={() => setOpen('numbers')}>
+          <span>
+            <strong>Can I afford this?</strong>
+            <small>Try a purchase</small>
+          </span>
+        </motion.button>
+        <motion.button
+          {...feedback}
+          aria-label="Explain my numbers"
+          onClick={() => setOpen('numbers')}
+        >
           <Icon name="Calculator" size={19} />
-          Explain my numbers
-        </button>
+          <span>
+            <strong>Explain my numbers</strong>
+            <small>See what’s included</small>
+          </span>
+        </motion.button>
       </div>
       {open && (
         <Modal

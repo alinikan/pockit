@@ -62,11 +62,13 @@ describe('Home customization', () => {
         }}
       />
     )
-    const { rerender, container } = render(view())
+    const { rerender } = render(view())
     expect(screen.queryByText('A second set of eyes for your money.')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Customize Home' }))
     const grip = screen.getByRole('button', { name: 'Drag Income and expenses to reorder' })
-    const target = container.querySelector('[data-home-section="overview"]')!
+    const target = screen
+      .getByRole('dialog', { name: 'Customize Home' })
+      .querySelector('[data-home-section="overview"]')!
     const original = document.elementFromPoint
     document.elementFromPoint = vi.fn(() => target)
     grip.setPointerCapture = vi.fn()

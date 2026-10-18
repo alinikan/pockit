@@ -6,7 +6,7 @@ Related guides: [release checks](RELEASE_CHECKLIST.md), [account emails and aler
 
 ## Requirements
 
-- Node.js **22 or newer** and npm (Node 22 LTS is a good choice).
+- Node.js **22.13 or newer** and npm.
 - Git for publishing to GitHub.
 - A Supabase account for real sign-up and sync.
 - A Vercel account for deployment.
@@ -14,7 +14,7 @@ Related guides: [release checks](RELEASE_CHECKLIST.md), [account emails and aler
 
 ### Run locally on macOS
 
-1. Install Node.js 22+ from [nodejs.org](https://nodejs.org/) or a package manager.
+1. Install Node.js 22.13+ from [nodejs.org](https://nodejs.org/) or a package manager.
 2. Open Terminal, change into this repository, and run:
 
    ```bash
@@ -27,7 +27,7 @@ Related guides: [release checks](RELEASE_CHECKLIST.md), [account emails and aler
 
 ### Run locally on Windows
 
-1. Install Node.js 22+ from [nodejs.org](https://nodejs.org/) and Git for Windows.
+1. Install Node.js 22.13+ from [nodejs.org](https://nodejs.org/) and Git for Windows.
 2. Open PowerShell in this repository and run:
 
    ```powershell
@@ -41,7 +41,15 @@ On either system, run `npm test` for the unit and interaction tests and `npm run
 
 For visual UI work, run `npm run storybook` and open `http://localhost:6006`. Budget stories show the plan card and interactive breakdown; screen stories show Home, Activity, Goals, and Compare with sample data. Use the toolbar to switch dark/light mode and palettes. `npm run build:storybook` checks that the component workspace still builds. Storybook stays local and is not part of the Vercel deployment. The DM Sans and Manrope font files ship with Pockit, including its offline copy; no font CDN is needed.
 
-Interface motion is defined in `src/styles.css`: short page entrances, dialog and Insights transitions, chart changes, and a bottom-tab selection cue. Keep motion on opacity and transforms where possible, and let page transforms return to `none` after the entrance; a retained transform changes how nested fixed dialogs are positioned. The `prefers-reduced-motion` rules remove decorative motion. Run the browser motion and accessibility tests after changing these styles.
+Interface motion uses `src/lib/motion.ts` for the shared Motion spring, `src/components/UI.tsx` for sheet entrances, and `src/components/GoalMilestones.tsx` for checkpoint feedback. CSS in `src/styles.css` and `src/studio.css` handles page entrances, Insights transitions, chart changes, and the bottom-tab selection cue. `MotionConfig` respects the device's reduced-motion preference. Keep motion on opacity and transforms where possible, and let page transforms return to `none` after the entrance; a retained transform changes how nested fixed dialogs are positioned. The `prefers-reduced-motion` rules remove decorative motion. Run the browser motion and accessibility tests after changing these styles.
+
+### Design and motion workspace
+
+Run `npm run dev:studio` and open `http://127.0.0.1:4186` to inspect Motion animations with Motion Studio. The Vite plugin is enabled only in this development mode. It is absent from the production app, the normal dev server, and the financial data path. Studio can pause an animation at its starting pose while inspecting it; resume playback or reload the preview when returning to ordinary use. Visual inspection is available without purchasing a subscription. Some Studio export/apply features may require a paid plan; the checked-in animation code works without one.
+
+The editable [Figma interaction studies](https://www.figma.com/design/9OC5cvcczKVhfLlVq065Pi?node-id=12-107) use Pockit's own colour variables, spacing, fonts, and reusable components in light and dark modes. The [Rive goal-pocket prototype](https://editor.rive.app/file/untitled/2662568) explores the checkpoint illustration. These files contain demonstration amounts only. The production app uses the small repository-owned `public/goal-pocket.svg` and Motion for that interaction; it does not download a Rive file or depend on a Rive subscription.
+
+Savings checkpoints are optional previews, calculated by `src/lib/goalMilestones.ts` through the existing goal projection engine. They do not create contributions, change balances, or promise dates. The complete Goals stories and isolated checkpoint stories are available in Storybook. Keep both an achievable plan and a no-monthly-amount example when changing this component.
 
 ## Cloud setup, in order
 

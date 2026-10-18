@@ -42,9 +42,14 @@ test('tab, chart, and dialog motion is present without widening the phone layout
   await page.getByRole('button', { name: 'Add transaction', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'New transaction' })
   await expect(dialog).toBeVisible()
-  expect(await dialog.evaluate((node) => getComputedStyle(node).animationName)).toBe(
-    'pockit-dialog-in',
-  )
+  expect(
+    await dialog.evaluate(
+      (node) => node.closest('.modal-backdrop')?.parentElement === document.body,
+    ),
+  ).toBe(true)
+  await expect(dialog).toHaveCSS('opacity', '1')
+  await expect(dialog).toHaveCSS('transform', 'none')
+  expect(await dialog.evaluate((node) => getComputedStyle(node).animationName)).toBe('none')
   const widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
     content: document.documentElement.scrollWidth,

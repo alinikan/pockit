@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "scripts": {
     "dev": "vite",
@@ -16,7 +16,8 @@
     "storybook": "storybook dev -p 6006 --no-open",
     "build:storybook": "storybook build",
     "format": "prettier --write .storybook src server api e2e playwright.config.ts index.html vite.config.ts vercel.json public/sw.js README.md docs/*.md emails/README.md",
-    "format:check": "prettier --check .storybook src server api e2e playwright.config.ts index.html vite.config.ts vercel.json public/sw.js README.md docs/*.md emails/README.md"
+    "format:check": "prettier --check .storybook src server api e2e playwright.config.ts index.html vite.config.ts vercel.json public/sw.js README.md docs/*.md emails/README.md",
+    "dev:studio": "vite --mode studio --host 127.0.0.1 --port 4186"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
@@ -26,6 +27,7 @@
     "@vercel/speed-insights": "^2.0.0",
     "fflate": "^0.8.3",
     "lucide-react": "^0.468.0",
+    "motion": "^14.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tesseract.js": "^6.0.1",
@@ -41,6 +43,7 @@
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^26.1.0",
+    "motion-studio": "^2.1.0",
     "prettier": "^3.9.8",
     "storybook": "^10.6.0",
     "typescript": "^5.8.3",
